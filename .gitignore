@@ -14,3 +14,7 @@
 /extension/src/*.o
 /extension/.sconsign*.dblite
 /bin/*.old.*
+/bin/~*
+
+# Exports
+/build/

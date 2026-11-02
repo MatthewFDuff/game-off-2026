@@ -25,18 +25,30 @@ scons                          # debug build, used by the editor and debug runs
 scons target=template_release  # release exports
 ```
 
-Web (needs [emsdk](https://emscripten.org/docs/getting_started/downloads.html) **4.0.11**, the version the Godot 4.7 web templates are built with; other versions can fail to load):
+Rebuild after pulling C++ changes. Rebuilding works while the editor or game is running (the build moves the locked DLL aside); restart the game to pick up the new library.
+
+## Web export
+
+One-time setup:
+
+- [emsdk](https://emscripten.org/docs/getting_started/downloads.html) **4.0.20**, the version the Godot 4.7.2 web templates report at startup (a mismatch can break loading the extension). The scripts expect it in `C:\dev\Tools\emsdk`; set `EMSDK=...` otherwise.
+  ```sh
+  git clone https://github.com/emscripten-core/emsdk.git C:/dev/Tools/emsdk
+  cd C:/dev/Tools/emsdk && ./emsdk install 4.0.20 && ./emsdk activate 4.0.20
+  ```
+- Godot 4.7.2 export templates (Editor > Manage Export Templates). Only the `web_*` ones are needed.
+
+Then, from Git Bash in the project root:
 
 ```sh
-emsdk install 4.0.11 && emsdk activate 4.0.11   # then source emsdk_env in this shell
-cd extension
-scons platform=web target=template_release threads=no
-scons platform=web target=template_release            # threaded variant
+tools/export_web.sh               # builds the wasm extension and exports to build/web/ (debug: add `debug`)
+python tools/serve_web.py         # http://localhost:8060 (browsers won't run it from file://)
+node tools/web_smoke.mjs out.png  # headless Chrome check: loads the game, prints the console, screenshots
 ```
 
-For the web export preset, tick **Extensions Support**. The threaded build needs cross-origin isolation (itch.io: "SharedArrayBuffer support").
+The `Web` preset in `export_presets.cfg` uses the no-threads variant with **Extensions Support** on, so it runs on any host without special headers. The editor's own Godot path can be overridden with `GODOT_BIN=...`.
 
-Rebuild after pulling C++ changes. Godot needs a restart to pick up a new library on Windows, because the DLL is locked while the editor runs.
+For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set the viewport to 1280x720 with the fullscreen button enabled. The `index.side.wasm` engine module is ~44MB uncompressed; itch serves it compressed.
 
 ## Test scene controls
 
