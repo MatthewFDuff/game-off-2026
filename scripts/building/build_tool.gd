@@ -7,11 +7,19 @@ signal piece_placed(piece: Dictionary, voxels_placed: int)
 
 @export var player: Player
 @export var camera: Camera3D
+## Pays for pieces. Building is free without one.
+@export var state: GameState
 @export var build_range := 6.0
 ## Fraction of a piece's voxels that must land in open air for it to be placeable.
 @export var min_free_fraction := 0.25
 
 var active := false
+## Off outside the day shift. Turning it off also leaves build mode.
+var allowed := true:
+	set(value):
+		allowed = value
+		if not allowed:
+			active = false
 var piece_index := 0
 var turned := false
 
@@ -38,7 +46,7 @@ func get_piece() -> Dictionary:
 
 
 func _process(_delta: float) -> void:
-	if Input.is_action_just_pressed("toggle_build"):
+	if Input.is_action_just_pressed("toggle_build") and allowed:
 		active = not active
 	if not active or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		_ghost.visible = false
@@ -54,6 +62,8 @@ func _process(_delta: float) -> void:
 	_target = _find_target()
 	_update_ghost()
 	if Input.is_action_just_pressed("fire") and _target.get("valid", false):
+		if state and not state.spend(get_piece().cost):
+			return
 		var placed: int = player.world.stamp(_target.origin, _target.size, _target.voxels, true)
 		piece_placed.emit(get_piece(), placed)
 
@@ -76,7 +86,8 @@ func _find_target() -> Dictionary:
 	var check: Dictionary = world.check_stamp(origin, size, shape.voxels)
 	var total := size.x * size.y * size.z
 	var bounds := AABB(world.voxel_to_world(origin) - Vector3.ONE * world.voxel_size * 0.5, Vector3(size) * world.voxel_size)
-	var valid: bool = check.supported > 0 and check.free >= maxi(1, int(total * min_free_fraction)) \
+	var affordable := state == null or state.can_afford(get_piece().cost)
+	var valid: bool = affordable and check.supported > 0 and check.free >= maxi(1, int(total * min_free_fraction)) \
 			and not bounds.intersects(player.get_body_aabb())
 	return {origin = origin, size = size, voxels = shape.voxels, bounds = bounds, valid = valid}
 

@@ -111,6 +111,33 @@ func _run() -> void:
 	var overlap: int = world.stamp(Vector3i(330, 22, 300), Vector3i(2, 2, 12), _filled(48, VoxelMaterials.METAL), true)
 	_check("only-air stamp skips occupied voxels", overlap == 24 and world.get_voxel(Vector3i(330, 22, 300)) == VoxelMaterials.PLANK, str(overlap))
 
+	# Navigation: flow field toward the player.
+	var target := Vector3(32.0, 2.2, 33.0)
+	world.update_flow_field(target, 60.0)
+	var nav_stats: Dictionary = world.get_stats()
+	print("  flow field (first, builds floors): %.2f ms, %d floor cells reached" % [nav_stats.last_flow_ms, nav_stats.flow_reached])
+	world.update_flow_field(target, 60.0)
+	print("  flow field (repeat): %.2f ms" % world.get_stats().last_flow_ms)
+	var across: Dictionary = world.get_flow(Vector3(24.0, 2.2, 40.0))
+	_check("flow crosses the hall", across.valid and not across.breach and across.distance > 9.0 and across.distance < 14.0, str(across))
+	var step_dir: Vector3 = (across.next - Vector3(24.0, 2.2, 40.0)) if across.valid else Vector3.ZERO
+	_check("flow points toward target", step_dir.dot(target - Vector3(24.0, 2.2, 40.0)) > 0.0, str(step_dir))
+	var at_target: Dictionary = world.get_flow(target)
+	_check("flow at target", at_target.valid and at_target.at_target, str(at_target))
+
+	# A sealed concrete room can't be reached; swap one wall for planks and it's reachable by breaching.
+	world.fill_box(Vector3i(210, 22, 210), Vector3i(250, 72, 250), VoxelMaterials.CONCRETE)
+	world.fill_box(Vector3i(214, 22, 214), Vector3i(246, 72, 246), VoxelMaterials.AIR)
+	var inside := Vector3(23.0, 2.2, 23.0)
+	world.update_flow_field(target, 60.0)
+	_check("sealed concrete room is unreachable", not world.get_flow(inside).valid, str(world.get_flow(inside)))
+	world.fill_box(Vector3i(246, 22, 214), Vector3i(250, 72, 246), VoxelMaterials.PLANK)
+	world.update_flow_field(target, 60.0)
+	var through_planks: Dictionary = world.get_flow(Vector3(24.4, 2.2, 23.0))
+	_check("plank wall is breachable", through_planks.valid and through_planks.breach, str(through_planks))
+	var from_inside: Dictionary = world.get_flow(inside)
+	_check("room reaches target through planks", from_inside.valid, str(from_inside))
+
 	print("voxel smoke test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
 

@@ -9,6 +9,7 @@ const CONCRETE := 3
 const METAL := 4
 const PLANK := 5
 const GLOW := 6
+const HATCH := 7
 const BEDROCK := 254
 
 ## Hardness 255 can never be carved.
@@ -19,6 +20,7 @@ const DEFS := {
 	METAL: {name = "Metal", color = Color(0.45, 0.50, 0.55), hardness = 8},
 	PLANK: {name = "Plank", color = Color(0.60, 0.44, 0.26), hardness = 1},
 	GLOW: {name = "Glow", color = Color(0.35, 0.95, 0.75), hardness = 1, emission = 1.0},
+	HATCH: {name = "Hatch", color = Color(0.32, 0.33, 0.30), hardness = 255},
 	BEDROCK: {name = "Bedrock", color = Color(0.16, 0.15, 0.15), hardness = 255},
 }
 

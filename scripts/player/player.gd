@@ -3,7 +3,15 @@ extends Node3D
 ## First-person controller that collides directly against the voxel grid through
 ## VoxelWorld.move_box. The node's position is the player's feet (bottom center of the box).
 
+signal damaged(amount: float)
+signal died
+
 @export var world: VoxelWorld
+
+@export_group("Health")
+@export var max_health := 100.0
+@export var regen_delay := 4.0
+@export var regen_rate := 8.0
 
 @export_group("Movement")
 @export var walk_speed := 4.5
@@ -32,7 +40,10 @@ var velocity := Vector3.ZERO
 var on_floor := false
 var crouching := false
 var flying := false
+var health := max_health
+var is_dead := false
 
+var _since_damage := 0.0
 var _height := standing_height
 var _step_offset := 0.0
 var _eye_height := standing_height - eye_offset
@@ -86,7 +97,12 @@ func _physics_process(delta: float) -> void:
 	if world == null:
 		return
 	_previous_position = global_position
-	if flying:
+	_since_damage += delta
+	if not is_dead and _since_damage > regen_delay:
+		health = minf(max_health, health + regen_rate * delta)
+	if is_dead:
+		velocity = Vector3.ZERO
+	elif flying:
 		_fly(delta)
 	else:
 		_walk(delta)
@@ -107,6 +123,22 @@ func _process(delta: float) -> void:
 		_previous_position = global_position # Moved by something other than walking; don't smear.
 	var smoothed := _previous_position.lerp(global_position, Engine.get_physics_interpolation_fraction())
 	head.position = Vector3(0.0, _eye_height + _step_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
+
+
+## from is where the hit came from, for knockback.
+func take_damage(amount: float, from: Vector3) -> void:
+	if is_dead:
+		return
+	health -= amount
+	_since_damage = 0.0
+	var push := global_position - from
+	push.y = 0.0
+	velocity += push.normalized() * 4.0 + Vector3.UP * 2.0
+	damaged.emit(amount)
+	if health <= 0.0:
+		health = 0.0
+		is_dead = true
+		died.emit()
 
 
 ## Moves the player without the camera smoothing across the gap.

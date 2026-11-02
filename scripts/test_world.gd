@@ -4,6 +4,7 @@ extends Node3D
 
 @export var world: VoxelWorld
 @export var player: Player
+@export var hatch: Hatch
 @export var seed := 1337
 
 
@@ -71,5 +72,10 @@ func _generate() -> void:
 	for i in 14:
 		var p := Vector3(rng.randf_range(hall_from.x + 10, hall_to.x - 10), 22, rng.randf_range(hall_from.z + 10, hall_to.z - 10)) * vs
 		world.fill_sphere(p, rng.randf_range(0.2, 0.45), VoxelMaterials.GLOW, true)
+
+	# Daylight shaft above the middle of the hall, closed off by the hatch at ceiling height.
+	world.fill_box(Vector3i(300, hall_to.y, 300), Vector3i(340, size.y, 340), VoxelMaterials.AIR)
+	if hatch:
+		hatch.configure(world, Vector3i(300, hall_to.y, 300), Vector3i(340, hall_to.y + 3, 340))
 
 	player.teleport(Vector3(320, 22.5, 330) * vs)

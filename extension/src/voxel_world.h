@@ -10,6 +10,7 @@
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/vector3i.hpp>
 
+#include <cstdint>
 #include <vector>
 
 namespace godot {
@@ -42,6 +43,36 @@ private:
 	int immediate_remesh_limit = 24;
 	bool detach_floating = true;
 	int max_fragment_voxels = 6000;
+
+	// --- Navigation (voxel_world_nav.cpp) ---
+	// The world is split into NAV_COLUMN x NAV_COLUMN voxel columns. For every column and voxel
+	// height we keep how many of its voxels are solid, and how many of those enemies can't dig
+	// through. Writes update the counts incrementally, so finding floors never rescans voxels.
+	static constexpr int NAV_COLUMN = 4;
+	static constexpr int NAV_COLUMN_AREA = NAV_COLUMN * NAV_COLUMN;
+	static constexpr int NAV_MAX_SPANS = 6;
+	int nav_breach_hardness = 2;
+	int nav_breach_cost = 60;
+	int nav_clearance = 12; // Voxels of headroom an enemy needs.
+	int nav_step = 5; // Highest ledge an enemy can step up, in voxels.
+	int nav_max_drop = 40; // Deepest drop an enemy will walk off, in voxels.
+
+	int nav_columns_x = 0;
+	int nav_columns_z = 0;
+	int nav_height = 0;
+	std::vector<uint8_t> nav_solid; // [column * nav_height + y]
+	std::vector<uint8_t> nav_hard; // Solid voxels harder than nav_breach_hardness.
+	std::vector<uint8_t> nav_column_dirty;
+	bool nav_hardness_stale = false;
+	// Walkable floors per column: the voxel height an enemy's feet rest at, and whether reaching it
+	// means digging through soft voxels (a barricade) above it.
+	std::vector<int16_t> nav_span_height; // [column * NAV_MAX_SPANS + k]
+	std::vector<uint8_t> nav_span_breach;
+	std::vector<uint8_t> nav_span_count;
+	std::vector<uint32_t> nav_flow; // Path cost to the flow target per span, UINT32_MAX if unreached.
+	int nav_flow_target = -1;
+	double last_flow_usec = 0.0;
+	int last_flow_reached = 0;
 
 	std::vector<Chunk> chunks;
 	std::vector<int> dirty_queue;
@@ -96,6 +127,26 @@ private:
 	// unbreakable voxel within max_fragment_voxels is floating: it is removed, the edit bounds grow
 	// to cover it, and it is reported through fragments_detached.
 	void detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to);
+	// Shared tail of the carve functions: detach loose pieces, remesh, and report counts.
+	Dictionary finish_carve(const int removed[256], const std::vector<Vector3i> &removed_voxels, const Vector3i &from, const Vector3i &to);
+
+	void nav_allocate();
+	inline void nav_on_write(int x, int y, int z, uint8_t old_value, uint8_t new_value) {
+		const int column = (z / NAV_COLUMN) * nav_columns_x + (x / NAV_COLUMN);
+		const int i = column * nav_height + y;
+		nav_solid[i] += int(new_value != 0) - int(old_value != 0);
+		nav_hard[i] += int(nav_is_hard(new_value)) - int(nav_is_hard(old_value));
+		nav_column_dirty[column] = 1;
+	}
+	inline bool nav_is_hard(uint8_t m) const { return m != 0 && hardness_of(m) > nav_breach_hardness; }
+	void nav_rebuild_chunk(int slot);
+	void nav_rebuild_spans(int column);
+	// The span an agent with feet at voxel height y in this column stands on (or will land on).
+	int nav_find_span(int column, int y) const;
+	bool nav_has_span_near(int column, int height, int tolerance) const;
+	// Movement cost from span (cu, ku) to the adjacent span (cv, kv), or 0 if the move isn't possible.
+	uint32_t nav_move_cost(int cu, int ku, int cv, int kv, int dx, int dz) const;
+	Vector3 nav_span_world(int column, int k) const;
 
 	Vector3 to_voxel_space(const Vector3 &world_position) const;
 	bool box_hits_solid(int axis, int layer, int b0, int b1, int c0, int c1) const;
@@ -119,7 +170,10 @@ public:
 	bool get_out_of_bounds_solid() const { return out_of_bounds_solid; }
 	void set_material(const Ref<Material> &value);
 	Ref<Material> get_material() const { return material; }
-	void set_material_hardness(const PackedByteArray &value) { material_hardness = value; }
+	void set_material_hardness(const PackedByteArray &value) {
+		material_hardness = value;
+		nav_hardness_stale = true;
+	}
 	PackedByteArray get_material_hardness() const { return material_hardness; }
 	void set_remesh_budget_ms(float value) { remesh_budget_ms = value; }
 	float get_remesh_budget_ms() const { return remesh_budget_ms; }
@@ -143,6 +197,8 @@ public:
 	int fill_sphere(const Vector3 &center, float radius, int material_id, bool only_air);
 	// Removes voxels whose hardness <= max_hardness. Returns {material_id: voxels_removed}.
 	Dictionary carve_sphere(const Vector3 &center, float radius, int max_hardness);
+	// Same as carve_sphere, for every voxel whose center lies inside the world-space box.
+	Dictionary carve_box(const AABB &box, int max_hardness);
 
 	// Model voxels are indexed x + y * size.x + z * size.x * size.y; 0 entries are skipped.
 	// stamp writes the model at origin (voxel space) and returns how many voxels changed.
@@ -159,6 +215,22 @@ public:
 	// Returns {position, on_floor, hit_ceiling, hit_wall, step_up}.
 	Dictionary move_box(const Vector3 &feet, const Vector3 &box_size, const Vector3 &motion, float step_height, bool allow_step) const;
 	bool box_overlaps_solid(const AABB &box) const;
+
+	void set_nav_breach_hardness(int value) {
+		nav_breach_hardness = value;
+		nav_hardness_stale = true;
+	}
+	int get_nav_breach_hardness() const { return nav_breach_hardness; }
+	void set_nav_breach_cost(int value) { nav_breach_cost = MAX(0, value); }
+	int get_nav_breach_cost() const { return nav_breach_cost; }
+
+	// Rebuilds the path costs from every walkable floor within max_distance (meters of walking) to
+	// the floor under target. Cheap enough to call a few times a second.
+	void update_flow_field(const Vector3 &target, float max_distance);
+	// Next step for an agent standing at feet. Returns {valid, next: Vector3 (world feet position of
+	// the next floor cell), distance: float (meters to target), breach: bool (next cell is through a
+	// barricade), at_target: bool}. valid is false when the agent isn't on a floor reached by the field.
+	Dictionary get_flow(const Vector3 &feet) const;
 
 	void remesh_all_now();
 	Dictionary get_stats() const;

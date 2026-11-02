@@ -12,6 +12,7 @@
 /bin/*.pdb
 /extension/src/*.obj
 /extension/src/*.o
+/extension/*.pdb
 /extension/.sconsign*.dblite
 /bin/*.old.*
 /bin/~*

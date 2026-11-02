@@ -4,10 +4,10 @@ class_name BuildPieces
 ## surface being built against.
 
 const PIECES := [
-	{name = "Plank", size = Vector3i(12, 2, 1), material = VoxelMaterials.PLANK},
-	{name = "Sheet metal", size = Vector3i(10, 10, 1), material = VoxelMaterials.METAL},
-	{name = "Sandbag", size = Vector3i(6, 3, 3), material = VoxelMaterials.DIRT},
-	{name = "Concrete block", size = Vector3i(5, 5, 5), material = VoxelMaterials.CONCRETE},
+	{name = "Plank", size = Vector3i(12, 2, 1), material = VoxelMaterials.PLANK, cost = 2},
+	{name = "Sheet metal", size = Vector3i(10, 10, 1), material = VoxelMaterials.METAL, cost = 8},
+	{name = "Sandbag", size = Vector3i(6, 3, 3), material = VoxelMaterials.DIRT, cost = 4},
+	{name = "Concrete block", size = Vector3i(5, 5, 5), material = VoxelMaterials.CONCRETE, cost = 10},
 ]
 
 

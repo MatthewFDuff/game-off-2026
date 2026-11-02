@@ -27,6 +27,8 @@ scons target=template_release  # release exports
 
 Rebuild after pulling C++ changes. Rebuilding works while the editor or game is running (the build moves the locked DLL aside); restart the game to pick up the new library.
 
+If the Windows build crashes on load inside godot-cpp after a web build, do a clean rebuild (`scons -c && scons`). Windows and web builds share godot-cpp's generated bindings, and cleaning one platform regenerates them under the other.
+
 ## Web export
 
 One-time setup:
@@ -50,9 +52,20 @@ The `Web` preset in `export_presets.cfg` uses the no-threads variant with **Exte
 
 For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set the viewport to 1280x720 with the fullscreen button enabled. The `index.side.wasm` engine module is ~44MB uncompressed; itch serves it compressed.
 
-## Test scene controls
+## Playing the prototype
 
-`scenes/test_world.tscn`: WASD, Space, Shift sprint, Ctrl crouch, Arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc release mouse.
+`scenes/test_world.tscn` runs the shift loop:
 
-- **Weapons** (default): LMB rifle, RMB blast. Loose pieces left floating after a blast crumble.
-- **Build** (Q toggles): 1-4 piece (plank, sheet metal, sandbag, concrete block), R turn, LMB place. Pieces fill only open air and must touch something solid.
+- **Day shift**: plant at least the quota of spores on floors (**E**), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money), dig and blast terrain (LMB rifle, RMB blast). Press **Enter** to start the night.
+- **Night shift**: the hatch closes, the lights die, and the spores grow into shrooms that hunt you, digging through planks, dirt and sandbags (not metal or concrete). Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
+- Dying or missing the quota ends the run; **R** restarts.
+
+Movement: WASD, Space, Shift sprint, Ctrl crouch, arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc releases the mouse.
+
+Tests (from the project root, with `godot` being the 4.7 editor binary):
+
+```sh
+godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation
+godot --headless --path . --script res://tests/shift_loop_test.gd    # a full day/night shift, breaching
+godot --path . --script res://tests/night_screenshot.gd -- <dir>     # day/night screenshots
+```

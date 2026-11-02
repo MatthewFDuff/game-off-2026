@@ -50,6 +50,7 @@ void VoxelWorld::allocate() {
 	chunks.clear();
 	chunks.resize(size_t(size_in_chunks.x) * size_in_chunks.y * size_in_chunks.z);
 	dirty_queue.clear();
+	nav_allocate();
 }
 
 void VoxelWorld::free_meshes() {
@@ -142,13 +143,22 @@ Vector3 VoxelWorld::voxel_to_world(const Vector3i &voxel) const {
 
 void VoxelWorld::write(int x, int y, int z, uint8_t value) {
 	Chunk &c = chunks[chunk_slot(x >> CHUNK_SHIFT, y >> CHUNK_SHIFT, z >> CHUNK_SHIFT)];
+	const int index = chunk_index(x & CHUNK_MASK, y & CHUNK_MASK, z & CHUNK_MASK);
+	uint8_t old_value;
 	if (c.data.empty()) {
-		if (c.uniform_value == value) {
+		old_value = c.uniform_value;
+		if (old_value == value) {
 			return;
 		}
 		c.data.assign(CHUNK_VOLUME, c.uniform_value);
+	} else {
+		old_value = c.data[index];
+		if (old_value == value) {
+			return;
+		}
 	}
-	c.data[chunk_index(x & CHUNK_MASK, y & CHUNK_MASK, z & CHUNK_MASK)] = value;
+	c.data[index] = value;
+	nav_on_write(x, y, z, old_value, value);
 }
 
 void VoxelWorld::try_compress(Chunk &c) {
@@ -187,7 +197,9 @@ void VoxelWorld::fill_all(int material_id) {
 		std::vector<uint8_t>().swap(chunks[slot].data);
 		chunks[slot].uniform_value = value;
 		mark_dirty(slot);
+		nav_rebuild_chunk(slot);
 	}
+	nav_hardness_stale = false; // Every chunk was just rebuilt with the current hardness.
 	emit_signal("voxels_changed", Vector3i(), get_size_in_voxels() - Vector3i(1, 1, 1));
 }
 
@@ -215,6 +227,7 @@ int VoxelWorld::fill_box(const Vector3i &from, const Vector3i &to, int material_
 						std::vector<uint8_t>().swap(c.data);
 						c.uniform_value = value;
 						changed += CHUNK_VOLUME;
+						nav_rebuild_chunk(chunk_slot(cx, cy, cz));
 					}
 					continue;
 				}
@@ -305,6 +318,38 @@ Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max
 		}
 	}
 
+	return finish_carve(removed, removed_voxels, lo, hi);
+}
+
+Dictionary VoxelWorld::carve_box(const AABB &box, int max_hardness) {
+	const Vector3 a = to_voxel_space(box.position);
+	const Vector3 b = to_voxel_space(box.position + box.size);
+	// Voxels whose centers are inside the box.
+	const Vector3i lo = Vector3i(int(std::ceil(a.x - 0.5f)), int(std::ceil(a.y - 0.5f)), int(std::ceil(a.z - 0.5f)));
+	const Vector3i hi = Vector3i(floor_to_int(b.x - 0.5f), floor_to_int(b.y - 0.5f), floor_to_int(b.z - 0.5f));
+
+	int removed[256] = {};
+	std::vector<Vector3i> removed_voxels;
+	for (int y = lo.y; y <= hi.y; y++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			for (int x = lo.x; x <= hi.x; x++) {
+				if (!in_bounds(x, y, z)) {
+					continue;
+				}
+				const uint8_t current = read(x, y, z);
+				if (current == 0 || current == BOUNDARY_MATERIAL || hardness_of(current) > max_hardness) {
+					continue;
+				}
+				write(x, y, z, 0);
+				removed[current]++;
+				removed_voxels.push_back(Vector3i(x, y, z));
+			}
+		}
+	}
+	return finish_carve(removed, removed_voxels, lo, hi);
+}
+
+Dictionary VoxelWorld::finish_carve(const int removed[256], const std::vector<Vector3i> &removed_voxels, const Vector3i &from, const Vector3i &to) {
 	Dictionary result;
 	if (removed_voxels.empty()) {
 		return result;
@@ -314,8 +359,8 @@ Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max
 			result[m] = removed[m];
 		}
 	}
-	Vector3i edit_from = lo;
-	Vector3i edit_to = hi;
+	Vector3i edit_from = from;
+	Vector3i edit_to = to;
 	if (detach_floating) {
 		detach_fragments(removed_voxels, edit_from, edit_to);
 	}
@@ -700,6 +745,8 @@ Dictionary VoxelWorld::get_stats() const {
 	stats["last_pad_ms"] = last_pad_usec / 1000.0;
 	stats["last_greedy_ms"] = last_greedy_usec / 1000.0;
 	stats["last_upload_ms"] = last_upload_usec / 1000.0;
+	stats["last_flow_ms"] = last_flow_usec / 1000.0;
+	stats["flow_reached"] = last_flow_reached;
 	stats["meshes_built"] = meshes_built_total;
 	return stats;
 }
@@ -927,11 +974,21 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("fill_box", "from", "to", "material_id", "only_air"), &VoxelWorld::fill_box, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("fill_sphere", "center", "radius", "material_id", "only_air"), &VoxelWorld::fill_sphere, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("carve_sphere", "center", "radius", "max_hardness"), &VoxelWorld::carve_sphere, DEFVAL(254));
+	ClassDB::bind_method(D_METHOD("carve_box", "box", "max_hardness"), &VoxelWorld::carve_box, DEFVAL(254));
 	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("check_stamp", "origin", "size", "voxels"), &VoxelWorld::check_stamp);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("box_overlaps_solid", "box"), &VoxelWorld::box_overlaps_solid);
+	ClassDB::bind_method(D_METHOD("set_nav_breach_hardness", "value"), &VoxelWorld::set_nav_breach_hardness);
+	ClassDB::bind_method(D_METHOD("get_nav_breach_hardness"), &VoxelWorld::get_nav_breach_hardness);
+	ClassDB::bind_method(D_METHOD("set_nav_breach_cost", "value"), &VoxelWorld::set_nav_breach_cost);
+	ClassDB::bind_method(D_METHOD("get_nav_breach_cost"), &VoxelWorld::get_nav_breach_cost);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "nav_breach_hardness", PROPERTY_HINT_RANGE, "0,254,1"), "set_nav_breach_hardness", "get_nav_breach_hardness");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "nav_breach_cost", PROPERTY_HINT_RANGE, "0,1000,1"), "set_nav_breach_cost", "get_nav_breach_cost");
+	ClassDB::bind_method(D_METHOD("update_flow_field", "target", "max_distance"), &VoxelWorld::update_flow_field, DEFVAL(60.0f));
+	ClassDB::bind_method(D_METHOD("get_flow", "feet"), &VoxelWorld::get_flow);
+
 	ClassDB::bind_method(D_METHOD("remesh_all_now"), &VoxelWorld::remesh_all_now);
 	ClassDB::bind_method(D_METHOD("get_stats"), &VoxelWorld::get_stats);
 
