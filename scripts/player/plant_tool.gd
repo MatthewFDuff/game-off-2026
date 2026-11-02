@@ -20,7 +20,10 @@ func _process(_delta: float) -> void:
 	if not shrooms.can_plant(_target.position):
 		director.message_posted.emit("Too close to another spore.", 2.0)
 		return
-	shrooms.plant(_target.position)
+	var spore := shrooms.plant(_target.position)
+	spore.play_plant()
+	Sfx.play_at("plant", _target.position, -4.0, 0.12)
+	shrooms.debris.burst(_target.position, Vector3.UP, {VoxelMaterials.SUBSTRATE: 8})
 	state.planted += 1
 	state.changed.emit()
 
@@ -29,6 +32,8 @@ func _process(_delta: float) -> void:
 func get_prompt() -> String:
 	if _target.is_empty():
 		return ""
+	if state.planted >= state.quota:
+		return "[E] Plant extra spore (+$%d if harvested)" % shrooms.harvest_reward
 	return "[E] Plant spore (%d / %d)" % [state.planted, state.quota]
 
 

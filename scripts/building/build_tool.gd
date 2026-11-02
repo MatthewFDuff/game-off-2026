@@ -4,6 +4,8 @@ extends Node3D
 ## fit around jagged blast holes, and must touch existing solid voxels so they can't float.
 
 signal piece_placed(piece: Dictionary, voxels_placed: int)
+## Build mode was asked for while it isn't allowed (the night shift).
+signal toggle_refused
 
 @export var player: Player
 @export var camera: Camera3D
@@ -27,6 +29,7 @@ var _ghost := MeshInstance3D.new()
 var _ghost_mesh := BoxMesh.new()
 var _ghost_material := StandardMaterial3D.new()
 var _target := {}
+var _invalid_reason := ""
 
 
 func _ready() -> void:
@@ -46,29 +49,46 @@ func get_piece() -> Dictionary:
 
 
 func _process(_delta: float) -> void:
-	if Input.is_action_just_pressed("toggle_build") and allowed:
-		active = not active
+	if Input.is_action_just_pressed("toggle_build"):
+		if allowed:
+			active = not active
+			Sfx.play("ui_blip", -10.0, 0.0, 1.0 if active else 0.75)
+		elif InputSetup.is_playing():
+			toggle_refused.emit()
 	if not active or not InputSetup.is_playing():
 		_ghost.visible = false
 		_target = {}
+		_invalid_reason = ""
 		return
 
 	for i in BuildPieces.PIECES.size():
-		if Input.is_action_just_pressed("slot_%d" % (i + 1)):
+		if Input.is_action_just_pressed("slot_%d" % (i + 1)) and piece_index != i:
 			piece_index = i
+			Sfx.play("ui_blip", -14.0, 0.0, 1.2)
 	if Input.is_action_just_pressed("rotate_piece"):
 		turned = not turned
+		Sfx.play("ui_blip", -16.0, 0.0, 1.1)
 
 	_target = _find_target()
 	_update_ghost()
-	if Input.is_action_just_pressed("fire") and _target.get("valid", false):
+	if Input.is_action_just_pressed("fire") and not _target.is_empty() and not _target.valid:
+		Sfx.play("build_denied", -10.0, 0.0)
+	elif Input.is_action_just_pressed("fire") and _target.get("valid", false):
 		if state and not state.spend(get_piece().cost):
+			Sfx.play("build_denied", -10.0, 0.0)
 			return
 		var placed: int = player.world.stamp(_target.origin, _target.size, _target.voxels, true)
 		piece_placed.emit(get_piece(), placed)
 
 
+## Why the aimed piece can't be placed ("Need $N", "Needs support", "No room", "Too close to you"),
+## or "" when it can (or nothing is aimed at).
+func get_invalid_reason() -> String:
+	return _invalid_reason
+
+
 func _find_target() -> Dictionary:
+	_invalid_reason = ""
 	var world := player.world
 	var hit: Dictionary = world.raycast(camera.global_position, -camera.global_basis.z, build_range)
 	if not hit.hit or hit.normal == Vector3.ZERO:

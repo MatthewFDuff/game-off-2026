@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/facility_world.gd" id="1_facility"]
 [ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/game/hatch.gd" id="11_hatch"]
 [ext_resource type="Script" path="res://scripts/game/shift_director.gd" id="12_director"]
 [ext_resource type="Script" path="res://scripts/player/plant_tool.gd" id="13_plant"]
+[ext_resource type="Script" path="res://scripts/audio/audio_director.gd" id="14_audio"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
 resource_local_to_scene = true
@@ -107,13 +108,23 @@ state = NodePath("../GameState")
 director = NodePath("../ShiftDirector")
 build_tool = NodePath("../BuildTool")
 
-[node name="SandboxTools" type="Node" parent="." node_paths=PackedStringArray("player", "camera", "debris", "build_tool", "shrooms")]
+[node name="SandboxTools" type="Node" parent="." node_paths=PackedStringArray("player", "camera", "debris", "build_tool", "shrooms", "director", "state")]
 script = ExtResource("4_tools")
 player = NodePath("../Player")
 camera = NodePath("../Player/Head/Camera3D")
 debris = NodePath("../Debris")
 build_tool = NodePath("../BuildTool")
 shrooms = NodePath("../Shrooms")
+director = NodePath("../ShiftDirector")
+state = NodePath("../GameState")
+
+[node name="AudioDirector" type="Node" parent="." node_paths=PackedStringArray("director", "weapons", "player", "shrooms", "build_tool")]
+script = ExtResource("14_audio")
+director = NodePath("../ShiftDirector")
+weapons = NodePath("../SandboxTools")
+player = NodePath("../Player")
+shrooms = NodePath("../Shrooms")
+build_tool = NodePath("../BuildTool")
 
 [node name="DebugOverlay" type="CanvasLayer" parent="." node_paths=PackedStringArray("world", "player", "build_tool")]
 visible = false
@@ -129,12 +140,15 @@ offset_right = 600.0
 offset_bottom = 200.0
 label_settings = SubResource("LabelSettings_debug")
 
-[node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("director", "state", "player", "plant_tool")]
+[node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("director", "state", "player", "plant_tool", "shrooms", "weapons", "build_tool")]
 script = ExtResource("7_hud")
 director = NodePath("../ShiftDirector")
 state = NodePath("../GameState")
 player = NodePath("../Player")
 plant_tool = NodePath("../PlantTool")
+shrooms = NodePath("../Shrooms")
+weapons = NodePath("../SandboxTools")
+build_tool = NodePath("../BuildTool")
 
 [node name="Crosshair" type="Label" parent="Hud"]
 anchors_preset = 8
@@ -154,17 +168,17 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="CaptureHint" type="Label" parent="Hud"]
-anchors_preset = 8
+anchors_preset = 7
 anchor_left = 0.5
-anchor_top = 0.5
+anchor_top = 1.0
 anchor_right = 0.5
-anchor_bottom = 0.5
+anchor_bottom = 1.0
 offset_left = -200.0
-offset_top = -16.0
+offset_top = -100.0
 offset_right = 200.0
-offset_bottom = 16.0
+offset_bottom = -68.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 text = "Click to play  ·  Esc releases the mouse"
 label_settings = SubResource("LabelSettings_crosshair")
 horizontal_alignment = 1

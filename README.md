@@ -56,11 +56,13 @@ For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set t
 
 `scenes/facility.tscn` (the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
 
-- **Day shift**: plant at least the quota of spores in the grow-hall beds (**E** on the substrate), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money), dig and blast (LMB rifle, RMB blast). Then climb the ladder in the atrium (**W/S** on the ladder, Space to let go) and seal the hatch (**E**).
-- **Night shift**: the power dies, emergency lights come on, and the spores grow into shrooms that hunt you through the facility, digging through planks, dirt, sandbags and furniture (not metal, concrete or rock). Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
-- Dying or missing the quota ends the run; **R** restarts.
+- **Day shift**: plant at least the quota of spores in the grow-hall beds (**E** on the substrate; extra spores pay more at night), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money; the bottom bar shows pieces and why a placement is refused), dig and blast (LMB rifle, RMB blast; 3 blast charges per shift, **B** buys one for $10 during the day). Then climb the ladder in the atrium (**W/S** on the ladder, Space to let go) and seal the hatch (**E**). The objective line under the phase title always says what to do next.
+- **Night shift**: the power dies, emergency lights come on, and the spores grow into shrooms that hunt you through the facility, digging through planks, dirt, sandbags and furniture (not metal, concrete or rock). Shrooms rear back before they bite. Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
+- Dawn shows the shift's earnings; **E** skips to the next day. Dying or missing the quota ends the run with a summary; **R** restarts.
 
-Movement: WASD, Space, Shift sprint, Ctrl crouch, arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc releases the mouse.
+Movement: WASD, Space, Shift sprint, Ctrl crouch, arrow keys look (backup for remote desktop), T flashlight, Esc releases the mouse. Debug builds only: F fly, F3 stats.
+
+All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets); `AudioDirector` in the facility scene wires it to gameplay signals.
 
 `scenes/test_world.tscn` is the old gray-box sandbox, kept for the voxel core tests.
 

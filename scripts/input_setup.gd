@@ -12,6 +12,7 @@ const KEYS := {
 	crouch = [KEY_CTRL, KEY_C],
 	toggle_build = [KEY_Q],
 	interact = [KEY_E],
+	buy_blast = [KEY_B],
 	restart = [KEY_R],
 	rotate_piece = [KEY_R],
 	toggle_fly = [KEY_F],

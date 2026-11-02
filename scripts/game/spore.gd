@@ -23,6 +23,13 @@ func setup(manager: ShroomManager, model_variant: int) -> void:
 	_set_stage(0)
 
 
+## Drop-in on planting: scales the model up from nothing with an overshoot.
+func play_plant() -> void:
+	_model.scale = Vector3.ZERO
+	var tween := create_tween()
+	tween.tween_property(_model, "scale", Vector3.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
 ## Starts growing after delay seconds.
 func start_growing(delay: float) -> void:
 	growing = true

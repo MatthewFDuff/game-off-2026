@@ -34,6 +34,10 @@ func open(duration: float) -> void:
 func _slide(material: int, duration: float) -> void:
 	var rows := _to.x - _from.x
 	var step := 2
+	if world:
+		var center := (world.voxel_to_world(_from) + world.voxel_to_world(_to)) * 0.5
+		# The clip is tuned for a 2 s slide; stretch it a little to fit other durations.
+		Sfx.play_at("hatch_servo", center, -3.0, 0.0, clampf(2.0 / maxf(duration, 0.01), 0.75, 1.5))
 	for x in range(_from.x, _to.x, step):
 		world.fill_box(Vector3i(x, _from.y, _from.z), Vector3i(mini(x + step, _to.x), _to.y, _to.z), material)
 		await get_tree().create_timer(duration * step / rows).timeout

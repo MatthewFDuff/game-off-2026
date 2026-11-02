@@ -28,6 +28,12 @@ func _ready() -> void:
 	hatch.configure(world, info.hatch_from, info.hatch_to)
 	director.hatch_control_position = info.hatch_control
 	director.hatch_height = info.hatch_height
+	director.ladder_foot_position = info.ladder_foot
+	var beds_center := Vector3.ZERO
+	for bed: AABB in info.spore_beds:
+		beds_center += bed.get_center()
+	if not info.spore_beds.is_empty():
+		director.beds_center = beds_center / info.spore_beds.size()
 	player.teleport(info.spawn)
 	player.rotation.y = info.spawn_yaw
 	print("facility generated in %d ms: %s" % [Time.get_ticks_msec() - start, world.get_stats()])

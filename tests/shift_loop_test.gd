@@ -36,6 +36,7 @@ func _run() -> void:
 	player.teleport(Vector3(25.6, 4.0, 27.0))
 	await _frames(3)
 	_check("can't plant on the atrium floor", plant_tool.get_prompt().is_empty())
+	_check("marker points at the grow hall", director.get_objective_target().get("label", "") == "Grow hall", str(director.get_objective_target()))
 	var beds: Array = scene.info.spore_beds
 	for i in 3:
 		var bed: AABB = beds[i]
@@ -56,6 +57,8 @@ func _run() -> void:
 	player.teleport(Vector3(25.6, 4.0, 21.2))
 	player.rotation.y = 0.0
 	await _frames(3)
+	_check("ladder prompt at its foot", director.get_prompt().begins_with("Climb the ladder"), director.get_prompt())
+	_check("marker on the ladder foot", director.get_objective_target().get("label", "") == "Ladder", str(director.get_objective_target()))
 	var start_y := player.global_position.y
 	Input.action_press("move_forward")
 	await _wait_for(func() -> bool: return player.global_position.y > 6.4, 4.0)
@@ -63,6 +66,7 @@ func _run() -> void:
 	await _frames(5)
 	_check("climbs the ladder", player.global_position.y > start_y + 2.0 and player.on_ladder, "y %.2f -> %.2f" % [start_y, player.global_position.y])
 	_check("reaches the hatch control", director.is_at_hatch_control(), str(player.global_position))
+	_check("marker moves to the hatch on the ladder", director.get_objective_target().get("label", "") == "Hatch", str(director.get_objective_target()))
 	var held_y := player.global_position.y
 	await _frames(30)
 	_check("hangs on the ladder without input", absf(player.global_position.y - held_y) < 0.05, "%.2f -> %.2f" % [held_y, player.global_position.y])
@@ -76,6 +80,8 @@ func _run() -> void:
 	var power: float = (world.material as ShaderMaterial).get_shader_parameter("facility_power")
 	_check("power is cut", power < 0.01, str(power))
 
+	_check("no marker at night while shrooms are close or growing", director.get_objective_target().is_empty(), str(director.get_objective_target()))
+
 	# Climb down and wait in the atrium.
 	player.teleport(Vector3(25.6, 4.0, 27.0))
 	await _wait_for(func() -> bool: return shrooms.shrooms.size() == 3, 5.0)
@@ -85,6 +91,9 @@ func _run() -> void:
 	await _seconds(3.0)
 	var after := _nearest_distance(shrooms, player)
 	_check("shrooms close in from the grow hall", after < before - 3.0, "%.1f -> %.1f" % [before, after])
+	var lit := get_nodes_in_group("emergency_light").all(func(light: Light3D) -> bool:
+		return is_equal_approx(light.light_energy, light.get_meta("on_energy", 0.7)))
+	_check("emergency lights flicker on and settle", lit)
 
 	await _wait_for(func() -> bool: return player.health < player.max_health, 25.0)
 	_check("shrooms reach and attack the player", player.health < player.max_health, str(player.health))
@@ -93,6 +102,17 @@ func _run() -> void:
 		shroom.take_damage(1000.0)
 	await _frames(2)
 	_check("harvest counts", state.harvested == 3, str(state.harvested))
+	await _wait_for(func() -> bool: return director.phase == ShiftDirector.Phase.DAWN, 2.0)
+	_check("dawn holds on the shift summary", director.phase == ShiftDirector.Phase.DAWN and state.shift_harvested == 3 \
+			and state.shift_earned == 3 * shrooms.harvest_reward + director.survival_bonus, "%s harvested %d earned %d" % [director.phase, state.shift_harvested, state.shift_earned])
+	# Let the hatch open behind the summary, then skip the rest of the hold with [E].
+	await _seconds(1.0)
+	_check("summary still up after a second", director.phase == ShiftDirector.Phase.DAWN, str(director.phase))
+	# Press from a physics step, like the other presses, so the director's _process sees it this frame.
+	await _frames(1)
+	Input.action_press("interact")
+	await _frames(1)
+	Input.action_release("interact")
 	await _wait_for(func() -> bool: return director.phase == ShiftDirector.Phase.DAY, 5.0)
 	_check("dawn returns to day shift 2", director.phase == ShiftDirector.Phase.DAY and state.shift == 2, "%s shift %d" % [director.phase, state.shift])
 	_check("harvest and bonus paid", state.money == money_at_start + 3 * shrooms.harvest_reward + director.survival_bonus, "%d -> %d" % [money_at_start, state.money])

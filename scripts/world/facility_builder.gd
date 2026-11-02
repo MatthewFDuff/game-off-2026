@@ -39,6 +39,7 @@ var rng := RandomNumberGenerator.new()
 
 
 ## Builds everything and returns {spawn, spawn_yaw, hatch_from, hatch_to, hatch_control,
+## ladder_foot (world space, on the atrium floor in front of the ladder), hatch_height, shaft_top,
 ## spore_beds: Array[AABB] (world space, the substrate surfaces)}.
 func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Dictionary:
 	world = voxel_world
@@ -68,10 +69,11 @@ func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Diction
 	var top := world.voxel_to_world(Vector3i(0, size.y - 1, 0)).y
 	return {
 		spawn = _to_world(Vector3(256, FLOOR_Y, 270)),
-		spawn_yaw = 0.0,
+		spawn_yaw = PI, # Forward is -Z at yaw 0; PI faces +Z, down the storage corridor to the grow hall.
 		hatch_from = Vector3i(SHAFT_FROM.x, SHAFT_FROM.y, LADDER_Z + 1),
 		hatch_to = Vector3i(SHAFT_TO_XZ.x, SHAFT_FROM.y + 3, SHAFT_TO_XZ.y),
 		hatch_control = _to_world(Vector3(256, SHAFT_FROM.y - 20, LADDER_Z + 3)),
+		ladder_foot = _to_world(Vector3(256, FLOOR_Y, LADDER_Z + 3)),
 		hatch_height = _to_world(Vector3(0, SHAFT_FROM.y, 0)).y,
 		shaft_top = top,
 		spore_beds = beds,

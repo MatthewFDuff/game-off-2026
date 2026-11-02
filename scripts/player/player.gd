@@ -3,7 +3,8 @@ extends Node3D
 ## First-person controller that collides directly against the voxel grid through
 ## VoxelWorld.move_box. The node's position is the player's feet (bottom center of the box).
 
-signal damaged(amount: float)
+## from is the attacker's world position.
+signal damaged(amount: float, from: Vector3)
 signal died
 
 @export var world: VoxelWorld
@@ -37,6 +38,17 @@ signal died
 ## captured mouse motion often doesn't arrive.
 @export var key_look_speed := 2.2
 
+@export_group("Camera Feel")
+## Trauma lost per second; the shake strength is trauma squared.
+@export var shake_decay := 1.5
+## Head offset in meters at full trauma.
+@export var shake_offset := 0.08
+## Camera roll / pitch / yaw in radians at full trauma.
+@export var shake_angle := 0.04
+@export var hurt_shake := 0.35
+## How quickly recoil pitch settles back, per second.
+@export var recoil_recovery := 14.0
+
 var velocity := Vector3.ZERO
 var on_floor := false
 var crouching := false
@@ -51,18 +63,25 @@ var _height := standing_height
 var _step_offset := 0.0
 var _eye_height := standing_height - eye_offset
 var _previous_position := Vector3.ZERO
+var _trauma := 0.0
+var _recoil := 0.0
+var _shake_noise := FastNoiseLite.new()
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
 
 @onready var head: Node3D = $Head
+@onready var camera: Camera3D = $Head/Camera3D
 @onready var flashlight: SpotLight3D = $Head/Camera3D/Flashlight
+@onready var muzzle_flash: OmniLight3D = $Head/Camera3D/MuzzleFlash
 
 
 func _ready() -> void:
 	InputSetup.ensure_actions()
 	_height = standing_height
 	_previous_position = global_position
+	_shake_noise.frequency = 0.9
+	_shake_noise.seed = randi()
 
 
 func _notification(what: int) -> void:
@@ -89,7 +108,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("toggle_fly"):
+	elif event.is_action_pressed("toggle_fly") and OS.is_debug_build():
 		flying = not flying
 		velocity = Vector3.ZERO
 	elif event.is_action_pressed("toggle_flashlight"):
@@ -126,6 +145,33 @@ func _process(delta: float) -> void:
 		_previous_position = global_position # Moved by something other than walking; don't smear.
 	var smoothed := _previous_position.lerp(global_position, Engine.get_physics_interpolation_fraction())
 	head.position = Vector3(0.0, _eye_height + _step_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
+	_apply_shake(delta)
+
+
+## Adds camera trauma (0..1). Small values for gunfire, ~0.35 for a hit, ~0.6 for a blast.
+func add_shake(amount: float) -> void:
+	_trauma = clampf(_trauma + amount, 0.0, 1.0)
+
+
+## Kicks the view up by pitch radians; it settles back on its own without moving the aim pitch.
+func add_recoil(pitch: float) -> void:
+	_recoil += pitch
+
+
+## Shake and recoil ride on top of the interpolated head: translation on the head, rotation on the
+## camera, so neither the look pitch nor the step smoothing is touched.
+func _apply_shake(delta: float) -> void:
+	_recoil = lerpf(_recoil, 0.0, 1.0 - exp(-recoil_recovery * delta))
+	if _trauma <= 0.0:
+		camera.rotation = Vector3(_recoil, 0.0, 0.0)
+		return
+	_trauma = maxf(0.0, _trauma - shake_decay * delta)
+	var strength := _trauma * _trauma
+	var t := Time.get_ticks_msec() * 0.06
+	var n := _shake_noise
+	head.position += Vector3(n.get_noise_2d(t, 0.0), n.get_noise_2d(t, 100.0), 0.0) * shake_offset * strength
+	var angle := shake_angle * strength
+	camera.rotation = Vector3(_recoil + n.get_noise_2d(t, 200.0) * angle, n.get_noise_2d(t, 300.0) * angle, n.get_noise_2d(t, 400.0) * angle)
 
 
 ## from is where the hit came from, for knockback.
@@ -137,7 +183,8 @@ func take_damage(amount: float, from: Vector3) -> void:
 	var push := global_position - from
 	push.y = 0.0
 	velocity += push.normalized() * 4.0 + Vector3.UP * 2.0
-	damaged.emit(amount)
+	add_shake(hurt_shake)
+	damaged.emit(amount, from)
 	if health <= 0.0:
 		health = 0.0
 		is_dead = true

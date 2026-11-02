@@ -7,8 +7,11 @@ extends Node3D
 @export var max_particles_per_burst := 48
 @export var particles_per_voxel := 0.08
 @export var max_particles_per_fragment := 160
+## Most debris chip sounds per second, however many bursts there are.
+@export var chip_rate := 12.0
 
 var _cube := BoxMesh.new()
+var _last_chip_msec := -100000
 
 
 func _ready() -> void:
@@ -29,6 +32,7 @@ func _on_fragments_detached(fragments: Array) -> void:
 		for id in fragment.materials:
 			var share := maxi(2, int(amount * float(fragment.materials[id]) / total))
 			_spawn(bounds.get_center(), Vector3.DOWN, share, VoxelMaterials.get_color(id), total, bounds.size * 0.5)
+		_chip(bounds.get_center(), -4.0)
 
 
 ## removed maps material id -> voxels removed, as returned by VoxelWorld.carve_sphere.
@@ -39,10 +43,19 @@ func burst(at: Vector3, normal: Vector3, removed: Dictionary) -> void:
 	if total == 0:
 		return
 	var amount := clampi(int(total * particles_per_voxel) + 4, 4, max_particles_per_burst)
+	_chip(at, -10.0)
 
 	for id in removed:
 		var share := maxi(1, int(amount * float(removed[id]) / total))
 		_spawn(at, normal, share, VoxelMaterials.get_color(id), total)
+
+
+func _chip(at: Vector3, volume_db: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_chip_msec < 1000.0 / chip_rate:
+		return
+	_last_chip_msec = now
+	Sfx.play_at("chip", at, volume_db, 0.2)
 
 
 ## box_extents, when set, spawns particles throughout that box instead of from a point.

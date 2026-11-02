@@ -10,6 +10,13 @@ extends CanvasLayer
 var _timer := 0.0
 
 
+func _ready() -> void:
+	# Debug builds only: release players never get the overlay or its F3 toggle.
+	if not OS.is_debug_build():
+		visible = false
+		set_process(false)
+
+
 func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_debug"):
 		visible = not visible
@@ -32,5 +39,5 @@ func _process(delta: float) -> void:
 		lines.append("BUILD: %s%s  [1-4 piece, R turn, LMB place, Q weapons]" % [build_tool.get_piece().name, " (turned)" if build_tool.turned else ""])
 	else:
 		lines.append("WEAPONS: LMB rifle  RMB blast  [Q build]")
-	lines.append("arrows look  F fly  T light  F3 hide")
+	lines.append("arrows look  %sT light  F3 hide" % ("F fly  " if OS.is_debug_build() else ""))
 	label.text = "\n".join(lines)

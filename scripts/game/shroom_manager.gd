@@ -4,6 +4,7 @@ extends Node3D
 ## the player, weapon hit tests, and harvest rewards.
 
 signal harvested(shroom: Shroom)
+signal spore_matured(shroom: Shroom)
 
 @export var world: VoxelWorld
 @export var player: Player
@@ -79,6 +80,16 @@ func remaining() -> int:
 	return spores.size() + shrooms.size()
 
 
+## Spores still dormant or swelling.
+func growing() -> int:
+	return spores.size()
+
+
+## Grown shrooms currently hunting the player.
+func hunting() -> int:
+	return shrooms.size()
+
+
 ## Removes everything left at dawn.
 func clear_all() -> void:
 	for spore in spores:
@@ -109,9 +120,11 @@ func _on_spore_matured(spore: Spore) -> void:
 	shroom.setup(self, spore.variant)
 	shroom.died.connect(_on_shroom_died)
 	shrooms.append(shroom)
+	debris.burst(spore.global_position, Vector3.UP, {VoxelMaterials.SUBSTRATE: 12, VoxelMaterials.SHROOM_CAP: 10})
 	spore.queue_free()
 	if shrooms.size() == 1:
 		_flow_timer = 0.0 # Get a field before the first one starts moving.
+	spore_matured.emit(shroom)
 
 
 func _on_shroom_died(shroom: Shroom) -> void:
