@@ -54,18 +54,20 @@ For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set t
 
 ## Playing the prototype
 
-`scenes/test_world.tscn` runs the shift loop:
+`scenes/facility.tscn` (the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
 
-- **Day shift**: plant at least the quota of spores on floors (**E**), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money), dig and blast terrain (LMB rifle, RMB blast). Press **Enter** to start the night.
-- **Night shift**: the hatch closes, the lights die, and the spores grow into shrooms that hunt you, digging through planks, dirt and sandbags (not metal or concrete). Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
+- **Day shift**: plant at least the quota of spores in the grow-hall beds (**E** on the substrate), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money), dig and blast (LMB rifle, RMB blast). Then climb the ladder in the atrium (**W/S** on the ladder, Space to let go) and seal the hatch (**E**).
+- **Night shift**: the power dies, emergency lights come on, and the spores grow into shrooms that hunt you through the facility, digging through planks, dirt, sandbags and furniture (not metal, concrete or rock). Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
 - Dying or missing the quota ends the run; **R** restarts.
 
 Movement: WASD, Space, Shift sprint, Ctrl crouch, arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc releases the mouse.
 
+`scenes/test_world.tscn` is the old gray-box sandbox, kept for the voxel core tests.
+
 Tests (from the project root, with `godot` being the 4.7 editor binary):
 
 ```sh
-godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation
-godot --headless --path . --script res://tests/shift_loop_test.gd    # a full day/night shift, breaching
-godot --path . --script res://tests/night_screenshot.gd -- <dir>     # day/night screenshots
+godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation (sandbox)
+godot --headless --path . --script res://tests/shift_loop_test.gd    # a full shift in the facility, ladder, hatch, breaching
+godot --path . --script res://tests/facility_screenshots.gd -- <dir> # room and night screenshots
 ```

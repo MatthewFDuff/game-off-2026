@@ -8,6 +8,8 @@ uniform float ao_strength : hint_range(0.0, 1.0) = 0.7;
 uniform float voxel_variation : hint_range(0.0, 0.5) = 0.12;
 uniform float edge_darkening : hint_range(0.0, 0.5) = 0.08;
 uniform float emission_energy = 2.5;
+// 1 while the facility has power. Powered lamps fade out with it; emergency lights fade in.
+uniform float facility_power : hint_range(0.0, 1.0) = 1.0;
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -24,6 +26,8 @@ void vertex() {
 void fragment() {
 	int id = int(round(COLOR.g * 255.0));
 	vec4 entry = texelFetch(palette, ivec2(id, 0), 0);
+	vec4 flags = texelFetch(palette, ivec2(id, 1), 0);
+	float light_switch = mix(1.0, facility_power, flags.r) * mix(1.0, 1.0 - facility_power, flags.g);
 
 	// Nudge into the solid voxel so every pixel of a face agrees on which voxel it belongs to.
 	vec3 cell = floor((world_position - world_normal * voxel_size * 0.5) / voxel_size);
@@ -39,5 +43,5 @@ void fragment() {
 
 	ALBEDO = albedo * ao;
 	ROUGHNESS = 0.9;
-	EMISSION = entry.rgb * entry.a * emission_energy;
+	EMISSION = entry.rgb * entry.a * emission_energy * light_switch;
 }

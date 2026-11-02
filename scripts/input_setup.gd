@@ -11,8 +11,7 @@ const KEYS := {
 	sprint = [KEY_SHIFT],
 	crouch = [KEY_CTRL, KEY_C],
 	toggle_build = [KEY_Q],
-	plant = [KEY_E],
-	start_night = [KEY_ENTER, KEY_KP_ENTER],
+	interact = [KEY_E],
 	restart = [KEY_R],
 	rotate_piece = [KEY_R],
 	toggle_fly = [KEY_F],
@@ -32,6 +31,12 @@ const MOUSE_BUTTONS := {
 	fire = [MOUSE_BUTTON_LEFT],
 	alt_fire = [MOUSE_BUTTON_RIGHT],
 }
+
+
+## True when gameplay input should be live: the mouse is captured, or there is no display to
+## capture it on (headless test runs).
+static func is_playing() -> bool:
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
 
 
 static func ensure_actions() -> void:

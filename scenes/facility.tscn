@@ -1,0 +1,171 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/facility_world.gd" id="1_facility"]
+[ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://scripts/player/sandbox_tools.gd" id="4_tools"]
+[ext_resource type="Script" path="res://scripts/voxel/voxel_debris.gd" id="5_debris"]
+[ext_resource type="Script" path="res://scripts/debug/debug_overlay.gd" id="6_overlay"]
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="7_hud"]
+[ext_resource type="Script" path="res://scripts/building/build_tool.gd" id="8_build"]
+[ext_resource type="Script" path="res://scripts/game/game_state.gd" id="9_state"]
+[ext_resource type="Script" path="res://scripts/game/shroom_manager.gd" id="10_shrooms"]
+[ext_resource type="Script" path="res://scripts/game/hatch.gd" id="11_hatch"]
+[ext_resource type="Script" path="res://scripts/game/shift_director.gd" id="12_director"]
+[ext_resource type="Script" path="res://scripts/player/plant_tool.gd" id="13_plant"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
+resource_local_to_scene = true
+shader = ExtResource("2_shader")
+
+[sub_resource type="Environment" id="Environment_facility"]
+resource_local_to_scene = true
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.5, 0.5, 0.56, 1)
+ambient_light_energy = 0.25
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.9
+glow_bloom = 0.1
+fog_enabled = true
+fog_light_color = Color(0.015, 0.015, 0.02, 1)
+fog_density = 0.02
+fog_height = 9.5
+fog_height_density = -0.25
+
+[sub_resource type="LabelSettings" id="LabelSettings_debug"]
+font_size = 14
+outline_size = 4
+outline_color = Color(0, 0, 0, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_crosshair"]
+font_size = 22
+outline_size = 4
+outline_color = Color(0, 0, 0, 1)
+
+[node name="Facility" type="Node3D" node_paths=PackedStringArray("world", "player", "hatch", "director", "lights")]
+script = ExtResource("1_facility")
+world = NodePath("VoxelWorld")
+player = NodePath("Player")
+hatch = NodePath("Hatch")
+director = NodePath("ShiftDirector")
+lights = NodePath("Lights")
+
+[node name="GameState" type="Node" parent="."]
+script = ExtResource("9_state")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_facility")
+
+[node name="VoxelWorld" type="VoxelWorld" parent="."]
+size_in_chunks = Vector3i(16, 10, 16)
+material = SubResource("ShaderMaterial_terrain")
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="Hatch" type="Node3D" parent="."]
+script = ExtResource("11_hatch")
+
+[node name="Player" parent="." node_paths=PackedStringArray("world") instance=ExtResource("3_player")]
+world = NodePath("../VoxelWorld")
+
+[node name="Shrooms" type="Node3D" parent="." node_paths=PackedStringArray("world", "player", "debris", "state")]
+script = ExtResource("10_shrooms")
+world = NodePath("../VoxelWorld")
+player = NodePath("../Player")
+debris = NodePath("../Debris")
+state = NodePath("../GameState")
+
+[node name="Debris" type="Node3D" parent="." node_paths=PackedStringArray("world")]
+script = ExtResource("5_debris")
+world = NodePath("../VoxelWorld")
+
+[node name="BuildTool" type="Node3D" parent="." node_paths=PackedStringArray("player", "camera", "state")]
+script = ExtResource("8_build")
+player = NodePath("../Player")
+camera = NodePath("../Player/Head/Camera3D")
+state = NodePath("../GameState")
+
+[node name="ShiftDirector" type="Node" parent="." node_paths=PackedStringArray("state", "shrooms", "hatch", "player", "build_tool", "world", "environment")]
+script = ExtResource("12_director")
+state = NodePath("../GameState")
+shrooms = NodePath("../Shrooms")
+hatch = NodePath("../Hatch")
+player = NodePath("../Player")
+build_tool = NodePath("../BuildTool")
+world = NodePath("../VoxelWorld")
+environment = NodePath("../WorldEnvironment")
+
+[node name="PlantTool" type="Node" parent="." node_paths=PackedStringArray("player", "camera", "shrooms", "state", "director", "build_tool")]
+script = ExtResource("13_plant")
+player = NodePath("../Player")
+camera = NodePath("../Player/Head/Camera3D")
+shrooms = NodePath("../Shrooms")
+state = NodePath("../GameState")
+director = NodePath("../ShiftDirector")
+build_tool = NodePath("../BuildTool")
+
+[node name="SandboxTools" type="Node" parent="." node_paths=PackedStringArray("player", "camera", "debris", "build_tool", "shrooms")]
+script = ExtResource("4_tools")
+player = NodePath("../Player")
+camera = NodePath("../Player/Head/Camera3D")
+debris = NodePath("../Debris")
+build_tool = NodePath("../BuildTool")
+shrooms = NodePath("../Shrooms")
+
+[node name="DebugOverlay" type="CanvasLayer" parent="." node_paths=PackedStringArray("world", "player", "build_tool")]
+visible = false
+script = ExtResource("6_overlay")
+world = NodePath("../VoxelWorld")
+player = NodePath("../Player")
+build_tool = NodePath("../BuildTool")
+
+[node name="Label" type="Label" parent="DebugOverlay"]
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 600.0
+offset_bottom = 200.0
+label_settings = SubResource("LabelSettings_debug")
+
+[node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("director", "state", "player", "plant_tool")]
+script = ExtResource("7_hud")
+director = NodePath("../ShiftDirector")
+state = NodePath("../GameState")
+player = NodePath("../Player")
+plant_tool = NodePath("../PlantTool")
+
+[node name="Crosshair" type="Label" parent="Hud"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -16.0
+offset_right = 20.0
+offset_bottom = 16.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "+"
+label_settings = SubResource("LabelSettings_crosshair")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CaptureHint" type="Label" parent="Hud"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -16.0
+offset_right = 200.0
+offset_bottom = 16.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "Click to play  ·  Esc releases the mouse"
+label_settings = SubResource("LabelSettings_crosshair")
+horizontal_alignment = 1
+vertical_alignment = 1

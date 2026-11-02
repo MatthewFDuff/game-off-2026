@@ -12,7 +12,7 @@ const URL = process.env.WEB_URL ?? "http://localhost:8060/index.html";
 const CHROME = process.env.CHROME ?? "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const screenshotPath = process.argv[2] ?? "web_smoke.png";
 const seconds = Number(process.argv[3] ?? 60);
-const READY = /test world generated/;
+const READY = /(test world|facility) generated/;
 const PORT = 9333;
 
 const profile = mkdtempSync(join(tmpdir(), "web-smoke-"));

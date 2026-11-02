@@ -130,7 +130,7 @@ player = NodePath("../Player")
 camera = NodePath("../Player/Head/Camera3D")
 state = NodePath("../GameState")
 
-[node name="ShiftDirector" type="Node" parent="." node_paths=PackedStringArray("state", "shrooms", "hatch", "player", "build_tool", "environment", "work_lights")]
+[node name="ShiftDirector" type="Node" parent="." node_paths=PackedStringArray("state", "shrooms", "hatch", "player", "build_tool", "world", "environment")]
 script = ExtResource("12_director")
 state = NodePath("../GameState")
 shrooms = NodePath("../Shrooms")
@@ -138,7 +138,7 @@ hatch = NodePath("../Hatch")
 player = NodePath("../Player")
 build_tool = NodePath("../BuildTool")
 environment = NodePath("../WorldEnvironment")
-work_lights = NodePath("../HallLights")
+world = NodePath("../VoxelWorld")
 
 [node name="PlantTool" type="Node" parent="." node_paths=PackedStringArray("player", "camera", "shrooms", "state", "director", "build_tool")]
 script = ExtResource("13_plant")

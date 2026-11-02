@@ -23,6 +23,7 @@ signal died
 @export var gravity := 16.0
 @export var step_height := 0.45
 @export var fly_speed := 12.0
+@export var climb_speed := 2.6
 
 @export_group("Body")
 @export var width := 0.6
@@ -40,10 +41,12 @@ var velocity := Vector3.ZERO
 var on_floor := false
 var crouching := false
 var flying := false
+var on_ladder := false
 var health := max_health
 var is_dead := false
 
 var _since_damage := 0.0
+var _ladder_cooldown := 0.0
 var _height := standing_height
 var _step_offset := 0.0
 var _eye_height := standing_height - eye_offset
@@ -154,6 +157,20 @@ func _look(look: Vector2) -> void:
 	head.rotation.x = clampf(head.rotation.x - look.y, -PI * 0.49, PI * 0.49)
 
 
+## Direction from the player to a ladder they're touching, or zero if none.
+func _ladder_direction() -> Vector3:
+	# Rungs are one voxel tall, so check every voxel layer the body spans, not a few sample heights.
+	var reach := width * 0.5 + 0.06
+	var feet: Vector3i = world.world_to_voxel(global_position + Vector3.UP * 0.05)
+	var layers := ceili(_height / world.voxel_size)
+	for direction in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]:
+		var column: Vector3i = world.world_to_voxel(global_position + Vector3.UP * 0.05 + direction * reach)
+		for y in layers:
+			if world.get_voxel(Vector3i(column.x, feet.y + y, column.z)) == VoxelMaterials.LADDER:
+				return direction
+	return Vector3.ZERO
+
+
 func get_body_size() -> Vector3:
 	return Vector3(width, _height, width)
 
@@ -175,15 +192,30 @@ func _walk(delta: float) -> void:
 	elif Input.is_action_pressed("sprint"):
 		speed = sprint_speed
 
+	_ladder_cooldown -= delta
+	var ladder := _ladder_direction() if _ladder_cooldown <= 0.0 else Vector3.ZERO
+	on_ladder = ladder != Vector3.ZERO and not crouching
+
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	var acceleration := ground_acceleration if on_floor else air_acceleration
+	var acceleration := ground_acceleration if on_floor or on_ladder else air_acceleration
+	if on_ladder:
+		speed = minf(speed, climb_speed)
 	horizontal = horizontal.move_toward(wish * speed, acceleration * delta)
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 
-	velocity.y -= gravity * delta
-	if on_floor and Input.is_action_just_pressed("jump"):
-		velocity.y = jump_velocity
+	if on_ladder:
+		# Forward/back climbs. Without input the player just hangs on.
+		var climb := Input.get_axis("move_back", "move_forward")
+		velocity.y = climb * climb_speed
+		if Input.is_action_just_pressed("jump"):
+			velocity = -ladder * 3.0 + Vector3.UP * 2.0
+			_ladder_cooldown = 0.4
+			on_ladder = false
+	else:
+		velocity.y -= gravity * delta
+		if on_floor and Input.is_action_just_pressed("jump"):
+			velocity.y = jump_velocity
 
 	var start := global_position
 	var result: Dictionary = world.move_box(start, get_body_size(), velocity * delta, step_height, on_floor)

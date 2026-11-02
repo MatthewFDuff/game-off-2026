@@ -40,27 +40,17 @@ var _breach_timer := 0.0
 var _stuck_time := 0.0
 var _flash := 0.0
 var _visual := Node3D.new()
-var _cap := MeshInstance3D.new()
 
 
-func setup(stem_material: Material, cap_material: Material) -> void:
+func setup(manager_node: ShroomManager, variant: int) -> void:
+	manager = manager_node
 	health = max_health
-	var stem := MeshInstance3D.new()
-	var stem_mesh := CylinderMesh.new()
-	stem_mesh.top_radius = 0.16
-	stem_mesh.bottom_radius = 0.24
-	stem_mesh.height = 0.8
-	stem_mesh.material = stem_material
-	stem.mesh = stem_mesh
-	stem.position.y = 0.4
-	var cap_mesh := SphereMesh.new()
-	cap_mesh.radius = 0.45
-	cap_mesh.height = 0.5
-	cap_mesh.material = cap_material
-	_cap.mesh = cap_mesh
-	_cap.position.y = 0.85
-	_visual.add_child(stem)
-	_visual.add_child(_cap)
+	var model := manager.get_model(ShroomModels.MAX_STAGE, variant, true)
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = model.mesh
+	mesh.position = model.offset
+	mesh.material_override = manager.get_material()
+	_visual.add_child(mesh)
 	add_child(_visual)
 
 

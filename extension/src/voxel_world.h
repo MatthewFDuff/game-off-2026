@@ -2,12 +2,14 @@
 
 #include "voxel_mesher.h"
 
+#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/vector3i.hpp>
 
 #include <cstdint>
@@ -119,6 +121,10 @@ private:
 	void finish_edit(const Vector3i &from, const Vector3i &to);
 	void mark_dirty(int slot);
 	bool chunk_needs_mesh(int slot) const;
+	// True when every voxel in the chunk is solid (uniform solid, or expanded with no air).
+	bool chunk_fully_solid(int slot) const;
+	Ref<ArrayMesh> arrays_to_mesh(const voxel::MeshBuffers &buffers) const;
+	void build_host_table(const PackedByteArray &hosts, bool table[256]) const;
 	void build_chunk_mesh(int slot);
 	Vector3 camera_position_in_voxels() const;
 	void sort_by_camera_distance(std::vector<int> &slots) const;
@@ -199,6 +205,20 @@ public:
 	Dictionary carve_sphere(const Vector3 &center, float radius, int max_hardness);
 	// Same as carve_sphere, for every voxel whose center lies inside the world-space box.
 	Dictionary carve_box(const AABB &box, int max_hardness);
+
+	// Swaps voxels for material, but only where the current material is in hosts (any solid voxel
+	// when hosts is empty). Returns how many changed. Box is voxel space, from inclusive, to exclusive.
+	int replace_in_box(const Vector3i &from, const Vector3i &to, int material_id, const PackedByteArray &hosts);
+	int replace_in_sphere(const Vector3 &center, float radius, int material_id, const PackedByteArray &hosts);
+
+	// Fills the voxel box with horizontal layers. materials[k] fills up to height tops[k] (voxel y,
+	// bottom layer first); voxels above the last top are left alone. Each boundary undulates by up
+	// to `undulation` voxels following smooth noise with the given wavelength (in voxels).
+	void fill_layers(const Vector3i &from, const Vector3i &to, const PackedByteArray &materials, const PackedFloat32Array &tops, float undulation, float wavelength, int seed);
+
+	// Meshes a standalone voxel model (each side at most 32) with the same format as the world's
+	// chunks, so it can use the world's material. Vertices start at the model's corner.
+	Ref<ArrayMesh> build_model_mesh(const Vector3i &size, const PackedByteArray &voxels);
 
 	// Model voxels are indexed x + y * size.x + z * size.x * size.y; 0 entries are skipped.
 	// stamp writes the model at origin (voxel space) and returns how many voxels changed.

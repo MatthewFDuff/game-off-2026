@@ -48,7 +48,7 @@ func get_piece() -> Dictionary:
 func _process(_delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_build") and allowed:
 		active = not active
-	if not active or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if not active or not InputSetup.is_playing():
 		_ghost.visible = false
 		_target = {}
 		return

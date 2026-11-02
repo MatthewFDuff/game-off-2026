@@ -27,7 +27,7 @@ var _cooldown := 0.0
 
 func _process(delta: float) -> void:
 	_cooldown -= delta
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED or (build_tool and build_tool.active):
+	if not InputSetup.is_playing() or (build_tool and build_tool.active):
 		return
 
 	if Input.is_action_pressed("fire") and _cooldown <= 0.0:

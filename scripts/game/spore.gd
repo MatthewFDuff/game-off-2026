@@ -1,35 +1,26 @@
 class_name Spore
 extends Node3D
-## A planted spore. Dormant during the day; at night it swells into a mushroom and, once fully
-## grown, uproots as a Shroom.
+## A planted spore. Dormant during the day; at night it swells through the voxel growth stages and,
+## once fully grown, uproots as a Shroom.
 
 signal matured(spore: Spore)
 
 @export var growth_time := 7.0
 
 var growing := false
+var variant := 0
+var _manager: ShroomManager
 var _growth := 0.0
 var _delay := 0.0
-var _stem := MeshInstance3D.new()
-var _cap := MeshInstance3D.new()
+var _stage := -1
+var _model := MeshInstance3D.new()
 
 
-## Materials are shared across all spores and shrooms so the night glow can fade them together.
-func setup(stem_material: Material, cap_material: Material) -> void:
-	var stem_mesh := CylinderMesh.new()
-	stem_mesh.top_radius = 0.06
-	stem_mesh.bottom_radius = 0.09
-	stem_mesh.height = 0.5
-	stem_mesh.material = stem_material
-	_stem.mesh = stem_mesh
-	var cap_mesh := SphereMesh.new()
-	cap_mesh.radius = 0.2
-	cap_mesh.height = 0.2
-	cap_mesh.material = cap_material
-	_cap.mesh = cap_mesh
-	add_child(_stem)
-	add_child(_cap)
-	_apply_growth()
+func setup(manager: ShroomManager, model_variant: int) -> void:
+	_manager = manager
+	variant = model_variant
+	add_child(_model)
+	_set_stage(0)
 
 
 ## Starts growing after delay seconds.
@@ -45,20 +36,20 @@ func _process(delta: float) -> void:
 		_delay -= delta
 		return
 	_growth = minf(_growth + delta / growth_time, 1.0)
-	_apply_growth()
+	_set_stage(mini(floori(_growth * ShroomModels.MAX_STAGE + 0.25), ShroomModels.MAX_STAGE))
+	# Tremble harder the closer it is to bursting.
+	var shake := maxf(0.0, _growth - 0.6) * 0.25
+	_model.rotation = Vector3(sin(Time.get_ticks_msec() * 0.031) * shake, 0.0, sin(Time.get_ticks_msec() * 0.027) * shake)
 	if _growth >= 1.0:
 		growing = false
 		matured.emit(self)
 
 
-func _apply_growth() -> void:
-	# A dormant spore is a small bump. Fully grown, it is about the size of a Shroom.
-	var t := ease(_growth, 0.6)
-	var stem_scale := lerpf(0.25, 1.6, t)
-	_stem.scale = Vector3(stem_scale, stem_scale, stem_scale)
-	_stem.position.y = 0.25 * stem_scale
-	var cap_scale := lerpf(0.4, 2.2, t)
-	_cap.scale = Vector3(cap_scale, cap_scale * 0.8, cap_scale)
-	_cap.position.y = 0.5 * stem_scale
-	# Shake while about to burst.
-	_cap.rotation.z = sin(Time.get_ticks_msec() * 0.03) * 0.15 * maxf(0.0, _growth - 0.8) * 5.0
+func _set_stage(stage: int) -> void:
+	if stage == _stage:
+		return
+	_stage = stage
+	var model := _manager.get_model(stage, variant, false)
+	_model.mesh = model.mesh
+	_model.position = model.offset
+	_model.material_override = _manager.get_material()

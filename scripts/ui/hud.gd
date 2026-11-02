@@ -5,6 +5,7 @@ extends CanvasLayer
 @export var director: ShiftDirector
 @export var state: GameState
 @export var player: Player
+@export var plant_tool: PlantTool
 
 @onready var crosshair: Label = $Crosshair
 @onready var capture_hint: Label = $CaptureHint
@@ -13,6 +14,7 @@ var _phase := Label.new()
 var _status := Label.new()
 var _health := Label.new()
 var _message := Label.new()
+var _prompt := Label.new()
 var _hurt := ColorRect.new()
 var _message_time := 0.0
 
@@ -22,7 +24,7 @@ func _ready() -> void:
 	settings.font_size = 22
 	settings.outline_size = 5
 	settings.outline_color = Color.BLACK
-	for label in [_phase, _status, _health, _message]:
+	for label in [_phase, _status, _health, _message, _prompt]:
 		label.label_settings = settings
 		add_child(label)
 
@@ -38,6 +40,12 @@ func _ready() -> void:
 	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_message.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_message.grow_vertical = Control.GROW_DIRECTION_BEGIN
+
+	_prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt.position.y += 48.0
+	_prompt.modulate = Color(1.0, 0.95, 0.7)
 
 	_hurt.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_hurt.color = Color(0.8, 0.0, 0.0, 0.0)
@@ -76,6 +84,11 @@ func _process(delta: float) -> void:
 		if director and director.phase >= ShiftDirector.Phase.CLOSING and director.phase <= ShiftDirector.Phase.DAWN:
 			progress = "Harvested %d / %d" % [state.harvested, state.quota]
 		_status.text = "$%d\n%s" % [state.money, progress]
+	var prompt := director.get_prompt() if director else ""
+	if prompt.is_empty() and plant_tool:
+		prompt = plant_tool.get_prompt()
+	_prompt.text = prompt
+	_prompt.visible = captured and not prompt.is_empty()
 	if player:
 		_health.text = "HP %d" % ceili(player.health)
 		_health.modulate = Color.WHITE if player.health > 35.0 else Color(1, 0.4, 0.4)

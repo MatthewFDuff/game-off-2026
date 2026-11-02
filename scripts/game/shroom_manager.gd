@@ -18,25 +18,36 @@ var spores: Array[Spore] = []
 var shrooms: Array[Shroom] = []
 
 var _flow_timer := 0.0
-var _stem_material := StandardMaterial3D.new()
-var _cap_material := StandardMaterial3D.new()
+var _material: ShaderMaterial
+var _glow := 0.0
+var _models := {}
 
 
-func _ready() -> void:
-	_stem_material.albedo_color = Color(0.85, 0.82, 0.74)
-	_stem_material.roughness = 0.8
-	_cap_material.albedo_color = Color(0.45, 0.22, 0.55)
-	_cap_material.emission_enabled = true
-	_cap_material.emission = Color(0.3, 1.0, 0.8)
-	set_glow(0.0)
+## The world's terrain material with its own glow, so shrooms can light up at night on their own.
+func get_material() -> ShaderMaterial:
+	if _material == null:
+		_material = (world.material as ShaderMaterial).duplicate()
+		set_glow(_glow)
+	return _material
+
+
+## Cached voxel mesh for a growth stage: {mesh, offset} where offset centers it on its feet.
+func get_model(stage: int, variant: int, eyes: bool) -> Dictionary:
+	var key := "%d:%d:%s" % [stage, variant, eyes]
+	if not _models.has(key):
+		var model := ShroomModels.build(stage, variant, eyes)
+		var size: Vector3i = model.size
+		var offset := Vector3(-size.x * 0.5, 0.0, -size.z * 0.5) * world.voxel_size
+		_models[key] = {mesh = world.build_model_mesh(size, model.voxels), offset = offset}
+	return _models[key]
 
 
 ## 0 = daytime (dull), 1 = full night glow.
 func set_glow(amount: float) -> void:
-	_cap_material.emission_energy_multiplier = amount * 0.9
-	_stem_material.emission_enabled = amount > 0.0
-	_stem_material.emission = Color(0.2, 0.6, 0.5)
-	_stem_material.emission_energy_multiplier = amount * 0.15
+	_glow = amount
+	if _material:
+		_material.set_shader_parameter("emission_energy", lerpf(0.25, 1.6, amount))
+		_material.set_shader_parameter("facility_power", 1.0)
 
 
 func can_plant(at: Vector3) -> bool:
@@ -50,7 +61,8 @@ func plant(at: Vector3) -> Spore:
 	var spore := Spore.new()
 	add_child(spore)
 	spore.global_position = at
-	spore.setup(_stem_material, _cap_material)
+	spore.rotation.y = randf() * TAU
+	spore.setup(self, randi() % ShroomModels.VARIANTS)
 	spore.matured.connect(_on_spore_matured)
 	spores.append(spore)
 	return spore
@@ -94,7 +106,7 @@ func _on_spore_matured(spore: Spore) -> void:
 	shroom.manager = self
 	add_child(shroom)
 	shroom.global_position = spore.global_position
-	shroom.setup(_stem_material, _cap_material)
+	shroom.setup(self, spore.variant)
 	shroom.died.connect(_on_shroom_died)
 	shrooms.append(shroom)
 	spore.queue_free()
@@ -104,7 +116,7 @@ func _on_spore_matured(spore: Spore) -> void:
 
 func _on_shroom_died(shroom: Shroom) -> void:
 	shrooms.erase(shroom)
-	debris.burst(shroom.get_center(), Vector3.UP, {VoxelMaterials.GLOW: 120})
+	debris.burst(shroom.get_center(), Vector3.UP, {VoxelMaterials.SHROOM_CAP: 80, VoxelMaterials.SHROOM_SPOT: 30, VoxelMaterials.SHROOM_STEM: 40})
 	if state:
 		state.harvested += 1
 		state.earn(harvest_reward)

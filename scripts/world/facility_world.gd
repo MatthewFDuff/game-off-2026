@@ -1,0 +1,33 @@
+extends Node3D
+## Main game scene: builds the facility, then hands the hatch, ladder and spawn to the gameplay
+## nodes.
+
+@export var world: VoxelWorld
+@export var player: Player
+@export var hatch: Hatch
+@export var director: ShiftDirector
+@export var lights: Node3D
+@export var seed := 2026
+
+var info := {}
+
+
+func _ready() -> void:
+	VoxelMaterials.apply_to(world)
+	var start := Time.get_ticks_msec()
+
+	# Bulk edits would otherwise remesh (and check for loose fragments) after every call.
+	var immediate_limit := world.immediate_remesh_limit
+	world.immediate_remesh_limit = 0
+	world.detach_floating = false
+	info = FacilityBuilder.new().build(world, lights, seed)
+	world.remesh_all_now()
+	world.immediate_remesh_limit = immediate_limit
+	world.detach_floating = true
+
+	hatch.configure(world, info.hatch_from, info.hatch_to)
+	director.hatch_control_position = info.hatch_control
+	director.hatch_height = info.hatch_height
+	player.teleport(info.spawn)
+	player.rotation.y = info.spawn_yaw
+	print("facility generated in %d ms: %s" % [Time.get_ticks_msec() - start, world.get_stats()])

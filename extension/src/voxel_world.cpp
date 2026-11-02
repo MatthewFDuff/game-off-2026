@@ -584,15 +584,46 @@ void VoxelWorld::finish_edit(const Vector3i &from, const Vector3i &to) {
 	emit_signal("voxels_changed", from, to);
 }
 
+bool VoxelWorld::chunk_fully_solid(int slot) const {
+	const Chunk &c = chunks[slot];
+	if (c.data.empty()) {
+		return c.uniform_value != 0;
+	}
+	return std::memchr(c.data.data(), 0, c.data.size()) == nullptr;
+}
+
+Ref<ArrayMesh> VoxelWorld::arrays_to_mesh(const MeshBuffers &buffers) const {
+	PackedColorArray colors;
+	colors.resize(int64_t(buffers.colors.size()));
+	std::memcpy(colors.ptrw(), buffers.colors.data(), buffers.colors.size() * sizeof(Color));
+	PackedInt32Array indices;
+	indices.resize(int64_t(buffers.indices.size()));
+	std::memcpy(indices.ptrw(), buffers.indices.data(), buffers.indices.size() * sizeof(int32_t));
+
+	Array arrays;
+	arrays.resize(Mesh::ARRAY_MAX);
+	arrays[Mesh::ARRAY_VERTEX] = to_packed_vector3(buffers.vertices);
+	arrays[Mesh::ARRAY_NORMAL] = to_packed_vector3(buffers.normals);
+	arrays[Mesh::ARRAY_COLOR] = colors;
+	arrays[Mesh::ARRAY_INDEX] = indices;
+
+	Ref<ArrayMesh> mesh;
+	mesh.instantiate();
+	if (!buffers.indices.empty()) {
+		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+	}
+	return mesh;
+}
+
 bool VoxelWorld::chunk_needs_mesh(int slot) const {
 	const Chunk &c = chunks[slot];
-	if (!c.data.empty()) {
-		return true;
-	}
-	if (c.uniform_value == 0) {
+	if (c.data.empty() && c.uniform_value == 0) {
 		return false;
 	}
-	// A uniform solid chunk only has faces where it touches something that is not uniform solid.
+	if (!chunk_fully_solid(slot)) {
+		return true;
+	}
+	// A fully solid chunk only has faces where it touches a chunk that has air in it.
 	const int cx = slot % size_in_chunks.x;
 	const int cz = (slot / size_in_chunks.x) % size_in_chunks.z;
 	const int cy = slot / (size_in_chunks.x * size_in_chunks.z);
@@ -605,8 +636,7 @@ bool VoxelWorld::chunk_needs_mesh(int slot) const {
 			}
 			continue;
 		}
-		const Chunk &n = chunks[chunk_slot(nx, ny, nz)];
-		if (!n.data.empty() || n.uniform_value == 0) {
+		if (!chunk_fully_solid(chunk_slot(nx, ny, nz))) {
 			return true;
 		}
 	}
@@ -650,23 +680,7 @@ void VoxelWorld::build_chunk_mesh(int slot) {
 		}
 		c.triangle_count = 0;
 	} else {
-		PackedColorArray colors;
-		colors.resize(int64_t(mesh_buffers.colors.size()));
-		std::memcpy(colors.ptrw(), mesh_buffers.colors.data(), mesh_buffers.colors.size() * sizeof(Color));
-		PackedInt32Array indices;
-		indices.resize(int64_t(mesh_buffers.indices.size()));
-		std::memcpy(indices.ptrw(), mesh_buffers.indices.data(), mesh_buffers.indices.size() * sizeof(int32_t));
-
-		Array arrays;
-		arrays.resize(Mesh::ARRAY_MAX);
-		arrays[Mesh::ARRAY_VERTEX] = to_packed_vector3(mesh_buffers.vertices);
-		arrays[Mesh::ARRAY_NORMAL] = to_packed_vector3(mesh_buffers.normals);
-		arrays[Mesh::ARRAY_COLOR] = colors;
-		arrays[Mesh::ARRAY_INDEX] = indices;
-
-		Ref<ArrayMesh> mesh;
-		mesh.instantiate();
-		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+		Ref<ArrayMesh> mesh = arrays_to_mesh(mesh_buffers);
 
 		if (c.mesh_instance == nullptr) {
 			const int cx = slot % size_in_chunks.x;
@@ -975,6 +989,10 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("fill_sphere", "center", "radius", "material_id", "only_air"), &VoxelWorld::fill_sphere, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("carve_sphere", "center", "radius", "max_hardness"), &VoxelWorld::carve_sphere, DEFVAL(254));
 	ClassDB::bind_method(D_METHOD("carve_box", "box", "max_hardness"), &VoxelWorld::carve_box, DEFVAL(254));
+	ClassDB::bind_method(D_METHOD("replace_in_box", "from", "to", "material_id", "hosts"), &VoxelWorld::replace_in_box, DEFVAL(PackedByteArray()));
+	ClassDB::bind_method(D_METHOD("replace_in_sphere", "center", "radius", "material_id", "hosts"), &VoxelWorld::replace_in_sphere, DEFVAL(PackedByteArray()));
+	ClassDB::bind_method(D_METHOD("fill_layers", "from", "to", "materials", "tops", "undulation", "wavelength", "seed"), &VoxelWorld::fill_layers);
+	ClassDB::bind_method(D_METHOD("build_model_mesh", "size", "voxels"), &VoxelWorld::build_model_mesh);
 	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("check_stamp", "origin", "size", "voxels"), &VoxelWorld::check_stamp);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
