@@ -5,7 +5,7 @@ Underground mushroom-farming FPS for Game Off 2026 (theme: SHIFT). Godot 4.7, GL
 ## Layout
 
 - `extension/`: C++ GDExtension (`VoxelWorld`): voxel storage, greedy meshing, raycasts, box collision. `godot-cpp` is a submodule.
-- `bin/`: `voxelcore.gdextension` plus the compiled libraries (not committed; build them yourself).
+- `bin/`: `voxelcore.gdextension` plus the compiled libraries. The Windows library is committed so the project opens without a C++ toolchain; rebuild and commit it whenever you change the C++.
 - `scripts/`, `scenes/`, `shaders/`: game code.
 
 ## Building the extension
@@ -25,7 +25,7 @@ scons                          # debug build, used by the editor and debug runs
 scons target=template_release  # release exports
 ```
 
-Rebuild after pulling C++ changes. Rebuilding works while the editor or game is running (the build moves the locked DLL aside); restart the game to pick up the new library.
+Commit the rebuilt DLL along with your C++ changes. Close the editor before pulling, since it keeps the DLL locked. Rebuilding works while the editor or game is running (the build moves the locked DLL aside); restart the game to pick up the new library.
 
 If the Windows build crashes on load inside godot-cpp after a web build, do a clean rebuild (`scons -c && scons`). Windows and web builds share godot-cpp's generated bindings, and cleaning one platform regenerates them under the other.
 

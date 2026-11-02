@@ -2,10 +2,8 @@
 .godot/
 /android/
 
-# GDExtension build outputs (rebuild with `scons` in extension/)
-/bin/*.dll
-/bin/*.so
-/bin/*.dylib
+# GDExtension build byproducts. The libraries themselves (.dll/.so/.dylib) are committed so
+# the project opens without a C++ toolchain. The web .wasm is rebuilt by tools/export_web.sh.
 /bin/*.wasm
 /bin/*.lib
 /bin/*.exp
