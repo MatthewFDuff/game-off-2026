@@ -1,0 +1,750 @@
+#include "voxel_world.h"
+
+#include <godot_cpp/classes/array_mesh.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+
+using namespace godot;
+using namespace voxel;
+
+namespace {
+
+// Keeps boxes that rest exactly on a voxel face from counting as overlapping it.
+constexpr double SWEEP_EPSILON = 1e-4;
+
+inline int floor_to_int(double v) {
+	return int(std::floor(v));
+}
+
+template <typename T>
+PackedVector3Array to_packed_vector3(const std::vector<T> &src) {
+	PackedVector3Array dst;
+	dst.resize(int64_t(src.size()));
+	std::memcpy(dst.ptrw(), src.data(), src.size() * sizeof(Vector3));
+	return dst;
+}
+
+} // namespace
+
+VoxelWorld::VoxelWorld() {
+	padded.resize(PADDED_VOLUME);
+	allocate();
+}
+
+VoxelWorld::~VoxelWorld() {
+}
+
+void VoxelWorld::allocate() {
+	free_meshes();
+	chunks.clear();
+	chunks.resize(size_t(size_in_chunks.x) * size_in_chunks.y * size_in_chunks.z);
+	dirty_queue.clear();
+}
+
+void VoxelWorld::free_meshes() {
+	for (Chunk &c : chunks) {
+		if (c.mesh_instance != nullptr) {
+			c.mesh_instance->queue_free();
+			c.mesh_instance = nullptr;
+		}
+		c.triangle_count = 0;
+	}
+}
+
+void VoxelWorld::_ready() {
+	set_process(!Engine::get_singleton()->is_editor_hint());
+}
+
+void VoxelWorld::_process(double delta) {
+	if (dirty_queue.empty()) {
+		return;
+	}
+	dirty_queue.erase(std::remove_if(dirty_queue.begin(), dirty_queue.end(), [this](int slot) { return !chunks[slot].dirty; }), dirty_queue.end());
+	sort_by_camera_distance(dirty_queue);
+
+	// Always build at least one chunk so a huge backlog still drains.
+	Time *time = Time::get_singleton();
+	const uint64_t start = time->get_ticks_usec();
+	const uint64_t budget = uint64_t(remesh_budget_ms * 1000.0f);
+	size_t built = 0;
+	while (built < dirty_queue.size()) {
+		build_chunk_mesh(dirty_queue[built]);
+		built++;
+		if (time->get_ticks_usec() - start >= budget) {
+			break;
+		}
+	}
+	dirty_queue.erase(dirty_queue.begin(), dirty_queue.begin() + int64_t(built));
+}
+
+// --- Properties -------------------------------------------------------------------------------
+
+void VoxelWorld::set_size_in_chunks(const Vector3i &value) {
+	size_in_chunks = Vector3i(MAX(1, value.x), MAX(1, value.y), MAX(1, value.z));
+	allocate();
+}
+
+void VoxelWorld::set_voxel_size(float value) {
+	voxel_size = MAX(0.001f, value);
+	for (int slot = 0; slot < int(chunks.size()); slot++) {
+		mark_dirty(slot);
+	}
+}
+
+void VoxelWorld::set_material(const Ref<Material> &value) {
+	material = value;
+	for (Chunk &c : chunks) {
+		if (c.mesh_instance != nullptr) {
+			c.mesh_instance->set_material_override(material);
+		}
+	}
+}
+
+int VoxelWorld::hardness_of(uint8_t material_id) const {
+	if (material_id == BOUNDARY_MATERIAL) {
+		return 255;
+	}
+	if (material_id < material_hardness.size()) {
+		return material_hardness[material_id];
+	}
+	return 1;
+}
+
+// --- Coordinates ------------------------------------------------------------------------------
+
+Vector3 VoxelWorld::to_voxel_space(const Vector3 &world_position) const {
+	const Vector3 origin = is_inside_tree() ? get_global_position() : get_position();
+	return (world_position - origin) / voxel_size;
+}
+
+Vector3i VoxelWorld::world_to_voxel(const Vector3 &world_position) const {
+	const Vector3 p = to_voxel_space(world_position);
+	return Vector3i(floor_to_int(p.x), floor_to_int(p.y), floor_to_int(p.z));
+}
+
+Vector3 VoxelWorld::voxel_to_world(const Vector3i &voxel) const {
+	const Vector3 origin = is_inside_tree() ? get_global_position() : get_position();
+	return origin + (Vector3(voxel) + Vector3(0.5f, 0.5f, 0.5f)) * voxel_size;
+}
+
+// --- Storage ----------------------------------------------------------------------------------
+
+void VoxelWorld::write(int x, int y, int z, uint8_t value) {
+	Chunk &c = chunks[chunk_slot(x >> CHUNK_SHIFT, y >> CHUNK_SHIFT, z >> CHUNK_SHIFT)];
+	if (c.data.empty()) {
+		if (c.uniform_value == value) {
+			return;
+		}
+		c.data.assign(CHUNK_VOLUME, c.uniform_value);
+	}
+	c.data[chunk_index(x & CHUNK_MASK, y & CHUNK_MASK, z & CHUNK_MASK)] = value;
+}
+
+void VoxelWorld::try_compress(Chunk &c) {
+	if (c.data.empty()) {
+		return;
+	}
+	const uint8_t first = c.data[0];
+	for (int i = 1; i < CHUNK_VOLUME; i++) {
+		if (c.data[i] != first) {
+			return;
+		}
+	}
+	c.uniform_value = first;
+	std::vector<uint8_t>().swap(c.data);
+}
+
+int VoxelWorld::get_voxel(const Vector3i &voxel) const {
+	return read(voxel.x, voxel.y, voxel.z);
+}
+
+void VoxelWorld::set_voxel(const Vector3i &voxel, int material_id) {
+	if (!in_bounds(voxel.x, voxel.y, voxel.z)) {
+		return;
+	}
+	const uint8_t value = uint8_t(CLAMP(material_id, 0, 254));
+	if (read(voxel.x, voxel.y, voxel.z) == value) {
+		return;
+	}
+	write(voxel.x, voxel.y, voxel.z, value);
+	finish_edit(voxel, voxel);
+}
+
+void VoxelWorld::fill_all(int material_id) {
+	const uint8_t value = uint8_t(CLAMP(material_id, 0, 254));
+	for (int slot = 0; slot < int(chunks.size()); slot++) {
+		std::vector<uint8_t>().swap(chunks[slot].data);
+		chunks[slot].uniform_value = value;
+		mark_dirty(slot);
+	}
+	emit_signal("voxels_changed", Vector3i(), get_size_in_voxels() - Vector3i(1, 1, 1));
+}
+
+int VoxelWorld::fill_box(const Vector3i &from, const Vector3i &to, int material_id, bool only_air) {
+	const uint8_t value = uint8_t(CLAMP(material_id, 0, 254));
+	const Vector3i size = get_size_in_voxels();
+	const Vector3i lo = Vector3i(MAX(from.x, 0), MAX(from.y, 0), MAX(from.z, 0));
+	const Vector3i hi = Vector3i(MIN(to.x, size.x), MIN(to.y, size.y), MIN(to.z, size.z));
+	if (lo.x >= hi.x || lo.y >= hi.y || lo.z >= hi.z) {
+		return 0;
+	}
+
+	int changed = 0;
+	for (int cy = lo.y >> CHUNK_SHIFT; cy <= (hi.y - 1) >> CHUNK_SHIFT; cy++) {
+		for (int cz = lo.z >> CHUNK_SHIFT; cz <= (hi.z - 1) >> CHUNK_SHIFT; cz++) {
+			for (int cx = lo.x >> CHUNK_SHIFT; cx <= (hi.x - 1) >> CHUNK_SHIFT; cx++) {
+				Chunk &c = chunks[chunk_slot(cx, cy, cz)];
+				const Vector3i c_lo = Vector3i(cx, cy, cz) * CHUNK_SIZE;
+				const Vector3i c_hi = c_lo + Vector3i(CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE);
+				const bool covers_chunk = lo.x <= c_lo.x && lo.y <= c_lo.y && lo.z <= c_lo.z &&
+						hi.x >= c_hi.x && hi.y >= c_hi.y && hi.z >= c_hi.z;
+
+				if (covers_chunk && !only_air) {
+					if (!c.data.empty() || c.uniform_value != value) {
+						std::vector<uint8_t>().swap(c.data);
+						c.uniform_value = value;
+						changed += CHUNK_VOLUME;
+					}
+					continue;
+				}
+				if (covers_chunk && c.data.empty() && c.uniform_value != 0) {
+					continue; // only_air on a solid chunk: nothing to do.
+				}
+
+				const int x0 = MAX(lo.x, c_lo.x), x1 = MIN(hi.x, c_hi.x);
+				const int y0 = MAX(lo.y, c_lo.y), y1 = MIN(hi.y, c_hi.y);
+				const int z0 = MAX(lo.z, c_lo.z), z1 = MIN(hi.z, c_hi.z);
+				for (int y = y0; y < y1; y++) {
+					for (int z = z0; z < z1; z++) {
+						for (int x = x0; x < x1; x++) {
+							const uint8_t current = read(x, y, z);
+							if (current == value || (only_air && current != 0)) {
+								continue;
+							}
+							write(x, y, z, value);
+							changed++;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (changed > 0) {
+		finish_edit(lo, hi - Vector3i(1, 1, 1));
+	}
+	return changed;
+}
+
+int VoxelWorld::fill_sphere(const Vector3 &center, float radius, int material_id, bool only_air) {
+	const uint8_t value = uint8_t(CLAMP(material_id, 0, 254));
+	const Vector3 c = to_voxel_space(center);
+	const double r = double(radius) / voxel_size;
+	const double r2 = r * r;
+	const Vector3i lo = Vector3i(floor_to_int(c.x - r), floor_to_int(c.y - r), floor_to_int(c.z - r));
+	const Vector3i hi = Vector3i(floor_to_int(c.x + r), floor_to_int(c.y + r), floor_to_int(c.z + r));
+
+	int changed = 0;
+	for (int y = lo.y; y <= hi.y; y++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			for (int x = lo.x; x <= hi.x; x++) {
+				const double dx = x + 0.5 - c.x, dy = y + 0.5 - c.y, dz = z + 0.5 - c.z;
+				if (dx * dx + dy * dy + dz * dz > r2 || !in_bounds(x, y, z)) {
+					continue;
+				}
+				const uint8_t current = read(x, y, z);
+				if (current == value || (only_air && current != 0)) {
+					continue;
+				}
+				write(x, y, z, value);
+				changed++;
+			}
+		}
+	}
+	if (changed > 0) {
+		finish_edit(lo, hi);
+	}
+	return changed;
+}
+
+Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max_hardness) {
+	const Vector3 c = to_voxel_space(center);
+	const double r = double(radius) / voxel_size;
+	const double r2 = r * r;
+	const Vector3i lo = Vector3i(floor_to_int(c.x - r), floor_to_int(c.y - r), floor_to_int(c.z - r));
+	const Vector3i hi = Vector3i(floor_to_int(c.x + r), floor_to_int(c.y + r), floor_to_int(c.z + r));
+
+	int removed[256] = {};
+	int total = 0;
+	for (int y = lo.y; y <= hi.y; y++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			for (int x = lo.x; x <= hi.x; x++) {
+				const double dx = x + 0.5 - c.x, dy = y + 0.5 - c.y, dz = z + 0.5 - c.z;
+				if (dx * dx + dy * dy + dz * dz > r2 || !in_bounds(x, y, z)) {
+					continue;
+				}
+				const uint8_t current = read(x, y, z);
+				if (current == 0 || current == BOUNDARY_MATERIAL || hardness_of(current) > max_hardness) {
+					continue;
+				}
+				write(x, y, z, 0);
+				removed[current]++;
+				total++;
+			}
+		}
+	}
+
+	Dictionary result;
+	if (total == 0) {
+		return result;
+	}
+	for (int m = 1; m < 256; m++) {
+		if (removed[m] > 0) {
+			result[m] = removed[m];
+		}
+	}
+	finish_edit(lo, hi);
+	return result;
+}
+
+// --- Meshing ----------------------------------------------------------------------------------
+
+void VoxelWorld::mark_dirty(int slot) {
+	Chunk &c = chunks[slot];
+	if (!c.dirty) {
+		c.dirty = true;
+		dirty_queue.push_back(slot);
+	}
+}
+
+void VoxelWorld::finish_edit(const Vector3i &from, const Vector3i &to) {
+	// Faces and AO of voxels one step away depend on the edited voxels, so grow the range by one.
+	const int cx0 = CLAMP((from.x - 1) >> CHUNK_SHIFT, 0, size_in_chunks.x - 1);
+	const int cy0 = CLAMP((from.y - 1) >> CHUNK_SHIFT, 0, size_in_chunks.y - 1);
+	const int cz0 = CLAMP((from.z - 1) >> CHUNK_SHIFT, 0, size_in_chunks.z - 1);
+	const int cx1 = CLAMP((to.x + 1) >> CHUNK_SHIFT, 0, size_in_chunks.x - 1);
+	const int cy1 = CLAMP((to.y + 1) >> CHUNK_SHIFT, 0, size_in_chunks.y - 1);
+	const int cz1 = CLAMP((to.z + 1) >> CHUNK_SHIFT, 0, size_in_chunks.z - 1);
+
+	std::vector<int> touched;
+	for (int cy = cy0; cy <= cy1; cy++) {
+		for (int cz = cz0; cz <= cz1; cz++) {
+			for (int cx = cx0; cx <= cx1; cx++) {
+				const int slot = chunk_slot(cx, cy, cz);
+				try_compress(chunks[slot]);
+				mark_dirty(slot);
+				touched.push_back(slot);
+			}
+		}
+	}
+
+	if (int(touched.size()) <= immediate_remesh_limit) {
+		sort_by_camera_distance(touched);
+		for (int slot : touched) {
+			build_chunk_mesh(slot);
+		}
+	}
+	emit_signal("voxels_changed", from, to);
+}
+
+bool VoxelWorld::chunk_needs_mesh(int slot) const {
+	const Chunk &c = chunks[slot];
+	if (!c.data.empty()) {
+		return true;
+	}
+	if (c.uniform_value == 0) {
+		return false;
+	}
+	// A uniform solid chunk only has faces where it touches something that is not uniform solid.
+	const int cx = slot % size_in_chunks.x;
+	const int cz = (slot / size_in_chunks.x) % size_in_chunks.z;
+	const int cy = slot / (size_in_chunks.x * size_in_chunks.z);
+	static const int OFFSETS[6][3] = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 1, 0 }, { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
+	for (const auto &o : OFFSETS) {
+		const int nx = cx + o[0], ny = cy + o[1], nz = cz + o[2];
+		if (nx < 0 || ny < 0 || nz < 0 || nx >= size_in_chunks.x || ny >= size_in_chunks.y || nz >= size_in_chunks.z) {
+			if (!out_of_bounds_solid) {
+				return true;
+			}
+			continue;
+		}
+		const Chunk &n = chunks[chunk_slot(nx, ny, nz)];
+		if (!n.data.empty() || n.uniform_value == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void VoxelWorld::build_chunk_mesh(int slot) {
+	Chunk &c = chunks[slot];
+	if (!c.dirty) {
+		return;
+	}
+	c.dirty = false;
+
+	Time *time = Time::get_singleton();
+	const uint64_t start = time->get_ticks_usec();
+	uint64_t padded_at = start;
+	uint64_t greedy_at = start;
+
+	mesh_buffers.clear();
+	if (chunk_needs_mesh(slot)) {
+		const int cx = slot % size_in_chunks.x;
+		const int cz = (slot / size_in_chunks.x) % size_in_chunks.z;
+		const int cy = slot / (size_in_chunks.x * size_in_chunks.z);
+		const int ox = cx * CHUNK_SIZE, oy = cy * CHUNK_SIZE, oz = cz * CHUNK_SIZE;
+		for (int y = -1; y <= CHUNK_SIZE; y++) {
+			for (int z = -1; z <= CHUNK_SIZE; z++) {
+				for (int x = -1; x <= CHUNK_SIZE; x++) {
+					padded[padded_index(x, y, z)] = read(ox + x, oy + y, oz + z);
+				}
+			}
+		}
+		padded_at = time->get_ticks_usec();
+		mesh_padded_chunk(padded.data(), voxel_size, mesh_buffers);
+		greedy_at = time->get_ticks_usec();
+	}
+
+	if (mesh_buffers.indices.empty()) {
+		if (c.mesh_instance != nullptr) {
+			c.mesh_instance->queue_free();
+			c.mesh_instance = nullptr;
+		}
+		c.triangle_count = 0;
+	} else {
+		PackedColorArray colors;
+		colors.resize(int64_t(mesh_buffers.colors.size()));
+		std::memcpy(colors.ptrw(), mesh_buffers.colors.data(), mesh_buffers.colors.size() * sizeof(Color));
+		PackedInt32Array indices;
+		indices.resize(int64_t(mesh_buffers.indices.size()));
+		std::memcpy(indices.ptrw(), mesh_buffers.indices.data(), mesh_buffers.indices.size() * sizeof(int32_t));
+
+		Array arrays;
+		arrays.resize(Mesh::ARRAY_MAX);
+		arrays[Mesh::ARRAY_VERTEX] = to_packed_vector3(mesh_buffers.vertices);
+		arrays[Mesh::ARRAY_NORMAL] = to_packed_vector3(mesh_buffers.normals);
+		arrays[Mesh::ARRAY_COLOR] = colors;
+		arrays[Mesh::ARRAY_INDEX] = indices;
+
+		Ref<ArrayMesh> mesh;
+		mesh.instantiate();
+		mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+
+		if (c.mesh_instance == nullptr) {
+			const int cx = slot % size_in_chunks.x;
+			const int cz = (slot / size_in_chunks.x) % size_in_chunks.z;
+			const int cy = slot / (size_in_chunks.x * size_in_chunks.z);
+			c.mesh_instance = memnew(MeshInstance3D);
+			c.mesh_instance->set_position(Vector3(cx, cy, cz) * (CHUNK_SIZE * voxel_size));
+			add_child(c.mesh_instance, false, INTERNAL_MODE_BACK);
+		}
+		c.mesh_instance->set_mesh(mesh);
+		c.mesh_instance->set_material_override(material);
+		c.triangle_count = int(mesh_buffers.indices.size() / 3);
+	}
+
+	const uint64_t end = time->get_ticks_usec();
+	const double elapsed = double(end - start);
+	if (greedy_at != start) {
+		last_pad_usec = double(padded_at - start);
+		last_greedy_usec = double(greedy_at - padded_at);
+		last_upload_usec = double(end - greedy_at);
+	}
+	last_mesh_usec = elapsed;
+	max_mesh_usec = MAX(max_mesh_usec, elapsed);
+	meshes_built_total++;
+}
+
+Vector3 VoxelWorld::camera_position_in_voxels() const {
+	if (!is_inside_tree()) {
+		return Vector3();
+	}
+	Viewport *viewport = get_viewport();
+	Camera3D *camera = viewport != nullptr ? viewport->get_camera_3d() : nullptr;
+	if (camera == nullptr) {
+		return Vector3();
+	}
+	return to_voxel_space(camera->get_global_position());
+}
+
+void VoxelWorld::sort_by_camera_distance(std::vector<int> &slots) const {
+	const Vector3 cam = camera_position_in_voxels();
+	const int sx = size_in_chunks.x, sz = size_in_chunks.z;
+	auto distance = [&](int slot) {
+		const float half = CHUNK_SIZE * 0.5f;
+		const Vector3 center(float(slot % sx) * CHUNK_SIZE + half, float(slot / (sx * sz)) * CHUNK_SIZE + half, float((slot / sx) % sz) * CHUNK_SIZE + half);
+		return center.distance_squared_to(cam);
+	};
+	std::sort(slots.begin(), slots.end(), [&](int a, int b) { return distance(a) < distance(b); });
+}
+
+void VoxelWorld::remesh_all_now() {
+	for (int slot : dirty_queue) {
+		build_chunk_mesh(slot);
+	}
+	dirty_queue.clear();
+}
+
+Dictionary VoxelWorld::get_stats() const {
+	int meshed = 0;
+	int triangles = 0;
+	int expanded = 0;
+	int dirty = 0;
+	for (const Chunk &c : chunks) {
+		meshed += c.mesh_instance != nullptr ? 1 : 0;
+		triangles += c.triangle_count;
+		expanded += c.data.empty() ? 0 : 1;
+		dirty += c.dirty ? 1 : 0;
+	}
+	Dictionary stats;
+	stats["chunks"] = int(chunks.size());
+	stats["chunks_meshed"] = meshed;
+	stats["chunks_expanded"] = expanded;
+	stats["chunks_dirty"] = dirty;
+	stats["triangles"] = triangles;
+	stats["last_mesh_ms"] = last_mesh_usec / 1000.0;
+	stats["max_mesh_ms"] = max_mesh_usec / 1000.0;
+	stats["last_pad_ms"] = last_pad_usec / 1000.0;
+	stats["last_greedy_ms"] = last_greedy_usec / 1000.0;
+	stats["last_upload_ms"] = last_upload_usec / 1000.0;
+	stats["meshes_built"] = meshes_built_total;
+	return stats;
+}
+
+// --- Queries ----------------------------------------------------------------------------------
+
+Dictionary VoxelWorld::raycast(const Vector3 &origin, const Vector3 &direction, float max_distance) const {
+	Dictionary result;
+	result["hit"] = false;
+	if (direction.is_zero_approx()) {
+		return result;
+	}
+	const Vector3 dir = direction.normalized();
+	const Vector3 o = to_voxel_space(origin);
+	const double max_t = double(max_distance) / voxel_size;
+
+	int pos[3] = { floor_to_int(o.x), floor_to_int(o.y), floor_to_int(o.z) };
+	int step[3];
+	double t_max[3];
+	double t_delta[3];
+	for (int a = 0; a < 3; a++) {
+		if (dir[a] > 0.0f) {
+			step[a] = 1;
+			t_delta[a] = 1.0 / dir[a];
+			t_max[a] = (pos[a] + 1 - double(o[a])) * t_delta[a];
+		} else if (dir[a] < 0.0f) {
+			step[a] = -1;
+			t_delta[a] = -1.0 / dir[a];
+			t_max[a] = (double(o[a]) - pos[a]) * t_delta[a];
+		} else {
+			step[a] = 0;
+			t_delta[a] = INFINITY;
+			t_max[a] = INFINITY;
+		}
+	}
+
+	double t = 0.0;
+	Vector3 normal;
+	while (true) {
+		const uint8_t m = read(pos[0], pos[1], pos[2]);
+		if (m != 0) {
+			result["hit"] = true;
+			result["position"] = origin + dir * float(t * voxel_size);
+			result["normal"] = normal;
+			result["voxel"] = Vector3i(pos[0], pos[1], pos[2]);
+			result["material"] = int(m);
+			result["distance"] = float(t * voxel_size);
+			return result;
+		}
+		const int a = (t_max[0] < t_max[1]) ? (t_max[0] < t_max[2] ? 0 : 2) : (t_max[1] < t_max[2] ? 1 : 2);
+		if (t_max[a] > max_t) {
+			return result;
+		}
+		t = t_max[a];
+		t_max[a] += t_delta[a];
+		pos[a] += step[a];
+		normal = Vector3();
+		normal[a] = float(-step[a]);
+	}
+}
+
+bool VoxelWorld::box_hits_solid(int axis, int layer, int b0, int b1, int c0, int c1) const {
+	const int b = (axis + 1) % 3;
+	for (int i = b0; i <= b1; i++) {
+		for (int j = c0; j <= c1; j++) {
+			int p[3];
+			p[axis] = layer;
+			p[b] = i;
+			p[(axis + 2) % 3] = j;
+			if (read(p[0], p[1], p[2]) != 0) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Moves the box along one axis, stopping flush against the first solid voxel layer in the way.
+// Every layer crossed is checked, so fast movement cannot tunnel through thin walls.
+bool VoxelWorld::sweep_axis(double mn[3], double mx[3], int axis, double &delta) const {
+	if (delta == 0.0) {
+		return false;
+	}
+	const int b = (axis + 1) % 3;
+	const int c = (axis + 2) % 3;
+	const int b0 = floor_to_int(mn[b] + SWEEP_EPSILON), b1 = floor_to_int(mx[b] - SWEEP_EPSILON);
+	const int c0 = floor_to_int(mn[c] + SWEEP_EPSILON), c1 = floor_to_int(mx[c] - SWEEP_EPSILON);
+
+	bool hit = false;
+	if (delta > 0.0) {
+		const int first = int(std::ceil(mx[axis] - SWEEP_EPSILON));
+		const int last = floor_to_int(mx[axis] + delta - SWEEP_EPSILON);
+		for (int layer = first; layer <= last; layer++) {
+			if (box_hits_solid(axis, layer, b0, b1, c0, c1)) {
+				delta = MAX(0.0, double(layer) - mx[axis]);
+				hit = true;
+				break;
+			}
+		}
+	} else {
+		const int first = floor_to_int(mn[axis] + SWEEP_EPSILON) - 1;
+		const int last = int(std::ceil(mn[axis] + delta + SWEEP_EPSILON)) - 1;
+		for (int layer = first; layer >= last; layer--) {
+			if (box_hits_solid(axis, layer, b0, b1, c0, c1)) {
+				delta = MIN(0.0, double(layer + 1) - mn[axis]);
+				hit = true;
+				break;
+			}
+		}
+	}
+	mn[axis] += delta;
+	mx[axis] += delta;
+	return hit;
+}
+
+Dictionary VoxelWorld::move_box(const Vector3 &feet, const Vector3 &box_size, const Vector3 &motion, float step_height, bool allow_step) const {
+	const Vector3 base = to_voxel_space(feet);
+	const Vector3 half = box_size / voxel_size * 0.5f;
+	const Vector3 m = motion / voxel_size;
+
+	double mn[3] = { base.x - half.x, base.y, base.z - half.z };
+	double mx[3] = { base.x + half.x, base.y + box_size.y / voxel_size, base.z + half.z };
+
+	double dy = m.y;
+	const bool hit_y = sweep_axis(mn, mx, 1, dy);
+	bool on_floor = hit_y && m.y <= 0.0f;
+	const bool hit_ceiling = hit_y && m.y > 0.0f;
+
+	double flat_mn[3] = { mn[0], mn[1], mn[2] };
+	double flat_mx[3] = { mx[0], mx[1], mx[2] };
+	double dx = m.x, dz = m.z;
+	bool hit_wall = sweep_axis(flat_mn, flat_mx, 0, dx);
+	hit_wall = sweep_axis(flat_mn, flat_mx, 2, dz) || hit_wall;
+
+	double step_up = 0.0;
+	if (hit_wall && allow_step && step_height > 0.0f) {
+		// Retry the horizontal move from higher up, then drop back onto whatever is there.
+		double step_mn[3] = { mn[0], mn[1], mn[2] };
+		double step_mx[3] = { mx[0], mx[1], mx[2] };
+		double up = step_height / voxel_size;
+		sweep_axis(step_mn, step_mx, 1, up);
+		double sx = m.x, sz = m.z;
+		bool step_wall = sweep_axis(step_mn, step_mx, 0, sx);
+		step_wall = sweep_axis(step_mn, step_mx, 2, sz) || step_wall;
+		double down = -up;
+		const bool landed = sweep_axis(step_mn, step_mx, 1, down);
+
+		const double flat_progress = std::abs(dx) + std::abs(dz);
+		const double step_progress = std::abs(sx) + std::abs(sz);
+		if (landed && step_progress > flat_progress + 1e-3) {
+			step_up = step_mn[1] - mn[1];
+			for (int a = 0; a < 3; a++) {
+				flat_mn[a] = step_mn[a];
+				flat_mx[a] = step_mx[a];
+			}
+			hit_wall = step_wall;
+			on_floor = true;
+		}
+	}
+
+	const Vector3 origin = is_inside_tree() ? get_global_position() : get_position();
+	Dictionary result;
+	result["position"] = origin + Vector3((flat_mn[0] + flat_mx[0]) * 0.5, flat_mn[1], (flat_mn[2] + flat_mx[2]) * 0.5) * voxel_size;
+	result["on_floor"] = on_floor;
+	result["hit_ceiling"] = hit_ceiling;
+	result["hit_wall"] = hit_wall;
+	result["step_up"] = float(step_up * voxel_size);
+	return result;
+}
+
+bool VoxelWorld::box_overlaps_solid(const AABB &box) const {
+	const Vector3 lo = to_voxel_space(box.position);
+	const Vector3 hi = to_voxel_space(box.position + box.size);
+	for (int y = floor_to_int(lo.y + SWEEP_EPSILON); y <= floor_to_int(hi.y - SWEEP_EPSILON); y++) {
+		for (int z = floor_to_int(lo.z + SWEEP_EPSILON); z <= floor_to_int(hi.z - SWEEP_EPSILON); z++) {
+			for (int x = floor_to_int(lo.x + SWEEP_EPSILON); x <= floor_to_int(hi.x - SWEEP_EPSILON); x++) {
+				if (read(x, y, z) != 0) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+// --- Bindings ---------------------------------------------------------------------------------
+
+void VoxelWorld::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_size_in_chunks", "value"), &VoxelWorld::set_size_in_chunks);
+	ClassDB::bind_method(D_METHOD("get_size_in_chunks"), &VoxelWorld::get_size_in_chunks);
+	ClassDB::bind_method(D_METHOD("set_voxel_size", "value"), &VoxelWorld::set_voxel_size);
+	ClassDB::bind_method(D_METHOD("get_voxel_size"), &VoxelWorld::get_voxel_size);
+	ClassDB::bind_method(D_METHOD("set_out_of_bounds_solid", "value"), &VoxelWorld::set_out_of_bounds_solid);
+	ClassDB::bind_method(D_METHOD("get_out_of_bounds_solid"), &VoxelWorld::get_out_of_bounds_solid);
+	ClassDB::bind_method(D_METHOD("set_material", "value"), &VoxelWorld::set_material);
+	ClassDB::bind_method(D_METHOD("get_material"), &VoxelWorld::get_material);
+	ClassDB::bind_method(D_METHOD("set_material_hardness", "value"), &VoxelWorld::set_material_hardness);
+	ClassDB::bind_method(D_METHOD("get_material_hardness"), &VoxelWorld::get_material_hardness);
+	ClassDB::bind_method(D_METHOD("set_remesh_budget_ms", "value"), &VoxelWorld::set_remesh_budget_ms);
+	ClassDB::bind_method(D_METHOD("get_remesh_budget_ms"), &VoxelWorld::get_remesh_budget_ms);
+	ClassDB::bind_method(D_METHOD("set_immediate_remesh_limit", "value"), &VoxelWorld::set_immediate_remesh_limit);
+	ClassDB::bind_method(D_METHOD("get_immediate_remesh_limit"), &VoxelWorld::get_immediate_remesh_limit);
+
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR3I, "size_in_chunks"), "set_size_in_chunks", "get_size_in_chunks");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "voxel_size", PROPERTY_HINT_RANGE, "0.01,1.0,0.01,suffix:m"), "set_voxel_size", "get_voxel_size");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "out_of_bounds_solid"), "set_out_of_bounds_solid", "get_out_of_bounds_solid");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_material", "get_material");
+	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "material_hardness"), "set_material_hardness", "get_material_hardness");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "remesh_budget_ms", PROPERTY_HINT_RANGE, "0.5,16,0.5,suffix:ms"), "set_remesh_budget_ms", "get_remesh_budget_ms");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "immediate_remesh_limit", PROPERTY_HINT_RANGE, "0,64,1"), "set_immediate_remesh_limit", "get_immediate_remesh_limit");
+
+	ClassDB::bind_method(D_METHOD("get_size_in_voxels"), &VoxelWorld::get_size_in_voxels);
+	ClassDB::bind_method(D_METHOD("world_to_voxel", "world_position"), &VoxelWorld::world_to_voxel);
+	ClassDB::bind_method(D_METHOD("voxel_to_world", "voxel"), &VoxelWorld::voxel_to_world);
+	ClassDB::bind_method(D_METHOD("get_voxel", "voxel"), &VoxelWorld::get_voxel);
+	ClassDB::bind_method(D_METHOD("set_voxel", "voxel", "material_id"), &VoxelWorld::set_voxel);
+	ClassDB::bind_method(D_METHOD("fill_all", "material_id"), &VoxelWorld::fill_all);
+	ClassDB::bind_method(D_METHOD("fill_box", "from", "to", "material_id", "only_air"), &VoxelWorld::fill_box, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("fill_sphere", "center", "radius", "material_id", "only_air"), &VoxelWorld::fill_sphere, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("carve_sphere", "center", "radius", "max_hardness"), &VoxelWorld::carve_sphere, DEFVAL(254));
+	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
+	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("box_overlaps_solid", "box"), &VoxelWorld::box_overlaps_solid);
+	ClassDB::bind_method(D_METHOD("remesh_all_now"), &VoxelWorld::remesh_all_now);
+	ClassDB::bind_method(D_METHOD("get_stats"), &VoxelWorld::get_stats);
+
+	ADD_SIGNAL(MethodInfo("voxels_changed", PropertyInfo(Variant::VECTOR3I, "from"), PropertyInfo(Variant::VECTOR3I, "to")));
+
+	BIND_CONSTANT(BOUNDARY_MATERIAL);
+}

@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
+
+[node name="Player" type="Node3D"]
+script = ExtResource("1_player")
+
+[node name="Head" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.63, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Head"]
+current = true
+fov = 80.0
+near = 0.03
+
+[node name="Flashlight" type="SpotLight3D" parent="Head/Camera3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, -0.15, 0)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 5.0
+shadow_enabled = false
+spot_range = 30.0
+spot_angle = 30.0
+spot_attenuation = 0.8

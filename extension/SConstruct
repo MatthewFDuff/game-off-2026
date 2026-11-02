@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+# Builds the voxel core GDExtension into ../bin/.
+#
+#   scons                                  # windows, template_debug (editor + debug runs)
+#   scons target=template_release
+#   scons platform=web                     # threaded web build (needs emsdk 4.0.11 active)
+#   scons platform=web threads=no          # no-threads web build
+#
+# api_version is the *minimum* Godot version the library loads in. Newer engines load it too.
+
+env = SConscript("godot-cpp/SConstruct", {"api_version": "4.6"})
+
+env.Append(CPPPATH=["src/"])
+sources = Glob("src/*.cpp")
+
+library = env.SharedLibrary(
+    "../bin/libvoxelcore{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+    source=sources,
+)
+
+env.NoCache(library)
+Default(library)

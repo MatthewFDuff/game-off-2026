@@ -1,0 +1,18 @@
+[configuration]
+
+entry_symbol = "voxelcore_library_init"
+compatibility_minimum = "4.6"
+reloadable = true
+
+[libraries]
+
+windows.debug.x86_64 = "res://bin/libvoxelcore.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libvoxelcore.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://bin/libvoxelcore.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libvoxelcore.linux.template_release.x86_64.so"
+macos.debug = "res://bin/libvoxelcore.macos.template_debug.dylib"
+macos.release = "res://bin/libvoxelcore.macos.template_release.dylib"
+web.debug.threads.wasm32 = "res://bin/libvoxelcore.web.template_debug.wasm32.wasm"
+web.release.threads.wasm32 = "res://bin/libvoxelcore.web.template_release.wasm32.wasm"
+web.debug.wasm32 = "res://bin/libvoxelcore.web.template_debug.wasm32.nothreads.wasm"
+web.release.wasm32 = "res://bin/libvoxelcore.web.template_release.wasm32.nothreads.wasm"

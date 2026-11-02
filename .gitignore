@@ -1,3 +1,15 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# GDExtension build outputs (rebuild with `scons` in extension/)
+/bin/*.dll
+/bin/*.so
+/bin/*.dylib
+/bin/*.wasm
+/bin/*.lib
+/bin/*.exp
+/bin/*.pdb
+/extension/src/*.obj
+/extension/src/*.o
+/extension/.sconsign*.dblite
