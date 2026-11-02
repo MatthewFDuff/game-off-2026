@@ -40,6 +40,8 @@ private:
 	PackedByteArray material_hardness;
 	float remesh_budget_ms = 4.0f;
 	int immediate_remesh_limit = 24;
+	bool detach_floating = true;
+	int max_fragment_voxels = 6000;
 
 	std::vector<Chunk> chunks;
 	std::vector<int> dirty_queue;
@@ -90,6 +92,11 @@ private:
 	Vector3 camera_position_in_voxels() const;
 	void sort_by_camera_distance(std::vector<int> &slots) const;
 
+	// Flood-fills from solid voxels next to the removed ones. Any connected piece that reaches no
+	// unbreakable voxel within max_fragment_voxels is floating: it is removed, the edit bounds grow
+	// to cover it, and it is reported through fragments_detached.
+	void detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to);
+
 	Vector3 to_voxel_space(const Vector3 &world_position) const;
 	bool box_hits_solid(int axis, int layer, int b0, int b1, int c0, int c1) const;
 	bool sweep_axis(double mn[3], double mx[3], int axis, double &delta) const;
@@ -118,6 +125,10 @@ public:
 	float get_remesh_budget_ms() const { return remesh_budget_ms; }
 	void set_immediate_remesh_limit(int value) { immediate_remesh_limit = value; }
 	int get_immediate_remesh_limit() const { return immediate_remesh_limit; }
+	void set_detach_floating(bool value) { detach_floating = value; }
+	bool get_detach_floating() const { return detach_floating; }
+	void set_max_fragment_voxels(int value) { max_fragment_voxels = MAX(1, value); }
+	int get_max_fragment_voxels() const { return max_fragment_voxels; }
 
 	Vector3i get_size_in_voxels() const { return size_in_chunks * voxel::CHUNK_SIZE; }
 	Vector3i world_to_voxel(const Vector3 &world_position) const;
@@ -132,6 +143,13 @@ public:
 	int fill_sphere(const Vector3 &center, float radius, int material_id, bool only_air);
 	// Removes voxels whose hardness <= max_hardness. Returns {material_id: voxels_removed}.
 	Dictionary carve_sphere(const Vector3 &center, float radius, int max_hardness);
+
+	// Model voxels are indexed x + y * size.x + z * size.x * size.y; 0 entries are skipped.
+	// stamp writes the model at origin (voxel space) and returns how many voxels changed.
+	int stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels, bool only_air);
+	// Returns {free: model voxels over air, supported: model voxels touching or overlapping existing
+	// solid voxels}, so callers can reject pieces that would float or place nothing.
+	Dictionary check_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;
 
 	// Voxel DDA. Returns {hit, position, normal, voxel, material, distance}; hit is false on a miss.
 	Dictionary raycast(const Vector3 &origin, const Vector3 &direction, float max_distance) const;

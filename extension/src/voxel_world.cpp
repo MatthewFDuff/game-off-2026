@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <unordered_set>
 
 using namespace godot;
 using namespace voxel;
@@ -285,7 +286,7 @@ Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max
 	const Vector3i hi = Vector3i(floor_to_int(c.x + r), floor_to_int(c.y + r), floor_to_int(c.z + r));
 
 	int removed[256] = {};
-	int total = 0;
+	std::vector<Vector3i> removed_voxels;
 	for (int y = lo.y; y <= hi.y; y++) {
 		for (int z = lo.z; z <= hi.z; z++) {
 			for (int x = lo.x; x <= hi.x; x++) {
@@ -299,13 +300,13 @@ Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max
 				}
 				write(x, y, z, 0);
 				removed[current]++;
-				total++;
+				removed_voxels.push_back(Vector3i(x, y, z));
 			}
 		}
 	}
 
 	Dictionary result;
-	if (total == 0) {
+	if (removed_voxels.empty()) {
 		return result;
 	}
 	for (int m = 1; m < 256; m++) {
@@ -313,7 +314,188 @@ Dictionary VoxelWorld::carve_sphere(const Vector3 &center, float radius, int max
 			result[m] = removed[m];
 		}
 	}
-	finish_edit(lo, hi);
+	Vector3i edit_from = lo;
+	Vector3i edit_to = hi;
+	if (detach_floating) {
+		detach_fragments(removed_voxels, edit_from, edit_to);
+	}
+	finish_edit(edit_from, edit_to);
+	return result;
+}
+
+void VoxelWorld::detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to) {
+	static const Vector3i NEIGHBORS[6] = { Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1) };
+	auto key = [](const Vector3i &p) { return int64_t(p.x) | (int64_t(p.y) << 21) | (int64_t(p.z) << 42); };
+
+	// Anything that reaches this far from the edit is treated as attached. Together with a
+	// depth-first fill, proving that a rock wall is attached takes tens of steps, not thousands.
+	constexpr int ESCAPE_MARGIN = 48;
+	Vector3i escape_lo = removed[0];
+	Vector3i escape_hi = removed[0];
+	for (const Vector3i &p : removed) {
+		escape_lo = escape_lo.min(p);
+		escape_hi = escape_hi.max(p);
+	}
+	escape_lo -= Vector3i(ESCAPE_MARGIN, ESCAPE_MARGIN, ESCAPE_MARGIN);
+	escape_hi += Vector3i(ESCAPE_MARGIN, ESCAPE_MARGIN, ESCAPE_MARGIN);
+	auto escaped = [&](const Vector3i &p) {
+		return p.x < escape_lo.x || p.y < escape_lo.y || p.z < escape_lo.z || p.x > escape_hi.x || p.y > escape_hi.y || p.z > escape_hi.z;
+	};
+
+	// Pieces already proven to be attached, shared across seeds so each is only filled once.
+	std::unordered_set<int64_t> grounded;
+	std::unordered_set<int64_t> visited;
+	std::vector<Vector3i> piece;
+	std::vector<Vector3i> stack;
+	Array fragments;
+
+	for (const Vector3i &hole : removed) {
+		for (const Vector3i &offset : NEIGHBORS) {
+			const Vector3i seed = hole + offset;
+			const uint8_t seed_material = read(seed.x, seed.y, seed.z);
+			if (seed_material == 0 || hardness_of(seed_material) >= 255 || grounded.count(key(seed)) > 0) {
+				continue;
+			}
+
+			visited.clear();
+			piece.clear();
+			stack.clear();
+			visited.insert(key(seed));
+			piece.push_back(seed);
+			stack.push_back(seed);
+			bool anchored = false;
+			while (!stack.empty() && !anchored) {
+				const Vector3i current = stack.back();
+				stack.pop_back();
+				for (const Vector3i &step : NEIGHBORS) {
+					const Vector3i p = current + step;
+					const uint8_t m = read(p.x, p.y, p.z);
+					if (m == 0) {
+						continue;
+					}
+					const int64_t k = key(p);
+					if (hardness_of(m) >= 255 || escaped(p) || grounded.count(k) > 0) {
+						anchored = true;
+						break;
+					}
+					if (visited.insert(k).second) {
+						piece.push_back(p);
+						stack.push_back(p);
+						// Too big to be a loose piece. Treat it as part of the facility's structure.
+						if (int(piece.size()) > max_fragment_voxels) {
+							anchored = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (anchored) {
+				grounded.insert(visited.begin(), visited.end());
+				continue;
+			}
+
+			int counts[256] = {};
+			Vector3i lo = piece[0];
+			Vector3i hi = piece[0];
+			for (const Vector3i &p : piece) {
+				counts[read(p.x, p.y, p.z)]++;
+				write(p.x, p.y, p.z, 0);
+				lo = lo.min(p);
+				hi = hi.max(p);
+			}
+			edit_from = edit_from.min(lo);
+			edit_to = edit_to.max(hi);
+
+			Dictionary materials;
+			for (int m = 1; m < 256; m++) {
+				if (counts[m] > 0) {
+					materials[m] = counts[m];
+				}
+			}
+			const Vector3 world_lo = voxel_to_world(lo) - Vector3(0.5f, 0.5f, 0.5f) * voxel_size;
+			Dictionary fragment;
+			fragment["aabb"] = AABB(world_lo, Vector3(hi - lo + Vector3i(1, 1, 1)) * voxel_size);
+			fragment["voxel_count"] = int(piece.size());
+			fragment["materials"] = materials;
+			fragments.push_back(fragment);
+		}
+	}
+
+	if (!fragments.is_empty()) {
+		emit_signal("fragments_detached", fragments);
+	}
+}
+
+int VoxelWorld::stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels, bool only_air) {
+	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "stamp: voxels.size() must equal size.x * size.y * size.z.");
+	int changed = 0;
+	Vector3i lo = origin + size;
+	Vector3i hi = origin;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++) {
+				const uint8_t value = voxels[x + y * size.x + z * size.x * size.y];
+				const Vector3i p = origin + Vector3i(x, y, z);
+				if (value == 0 || value == BOUNDARY_MATERIAL || !in_bounds(p.x, p.y, p.z)) {
+					continue;
+				}
+				const uint8_t current = read(p.x, p.y, p.z);
+				if (current == value || (only_air && current != 0)) {
+					continue;
+				}
+				write(p.x, p.y, p.z, value);
+				lo = lo.min(p);
+				hi = hi.max(p);
+				changed++;
+			}
+		}
+	}
+	if (changed > 0) {
+		finish_edit(lo, hi);
+	}
+	return changed;
+}
+
+Dictionary VoxelWorld::check_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const {
+	Dictionary result;
+	result["free"] = 0;
+	result["supported"] = 0;
+	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), result, "check_stamp: voxels.size() must equal size.x * size.y * size.z.");
+
+	static const Vector3i NEIGHBORS[6] = { Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1) };
+	auto in_model = [&](const Vector3i &local) {
+		return local.x >= 0 && local.y >= 0 && local.z >= 0 && local.x < size.x && local.y < size.y && local.z < size.z &&
+				voxels[local.x + local.y * size.x + local.z * size.x * size.y] != 0;
+	};
+
+	int free = 0;
+	int supported = 0;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++) {
+				const Vector3i local(x, y, z);
+				if (!in_model(local)) {
+					continue;
+				}
+				const Vector3i p = origin + local;
+				if (read(p.x, p.y, p.z) != 0) {
+					supported++;
+					continue;
+				}
+				free++;
+				for (const Vector3i &step : NEIGHBORS) {
+					const Vector3i n = p + step;
+					if (!in_model(local + step) && read(n.x, n.y, n.z) != 0) {
+						supported++;
+						break;
+					}
+				}
+			}
+		}
+	}
+	result["free"] = free;
+	result["supported"] = supported;
 	return result;
 }
 
@@ -729,6 +911,13 @@ void VoxelWorld::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "remesh_budget_ms", PROPERTY_HINT_RANGE, "0.5,16,0.5,suffix:ms"), "set_remesh_budget_ms", "get_remesh_budget_ms");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "immediate_remesh_limit", PROPERTY_HINT_RANGE, "0,64,1"), "set_immediate_remesh_limit", "get_immediate_remesh_limit");
 
+	ClassDB::bind_method(D_METHOD("set_detach_floating", "value"), &VoxelWorld::set_detach_floating);
+	ClassDB::bind_method(D_METHOD("get_detach_floating"), &VoxelWorld::get_detach_floating);
+	ClassDB::bind_method(D_METHOD("set_max_fragment_voxels", "value"), &VoxelWorld::set_max_fragment_voxels);
+	ClassDB::bind_method(D_METHOD("get_max_fragment_voxels"), &VoxelWorld::get_max_fragment_voxels);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "detach_floating"), "set_detach_floating", "get_detach_floating");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_fragment_voxels", PROPERTY_HINT_RANGE, "1,100000,1"), "set_max_fragment_voxels", "get_max_fragment_voxels");
+
 	ClassDB::bind_method(D_METHOD("get_size_in_voxels"), &VoxelWorld::get_size_in_voxels);
 	ClassDB::bind_method(D_METHOD("world_to_voxel", "world_position"), &VoxelWorld::world_to_voxel);
 	ClassDB::bind_method(D_METHOD("voxel_to_world", "voxel"), &VoxelWorld::voxel_to_world);
@@ -738,6 +927,8 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("fill_box", "from", "to", "material_id", "only_air"), &VoxelWorld::fill_box, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("fill_sphere", "center", "radius", "material_id", "only_air"), &VoxelWorld::fill_sphere, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("carve_sphere", "center", "radius", "max_hardness"), &VoxelWorld::carve_sphere, DEFVAL(254));
+	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("check_stamp", "origin", "size", "voxels"), &VoxelWorld::check_stamp);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("box_overlaps_solid", "box"), &VoxelWorld::box_overlaps_solid);
@@ -745,6 +936,8 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_stats"), &VoxelWorld::get_stats);
 
 	ADD_SIGNAL(MethodInfo("voxels_changed", PropertyInfo(Variant::VECTOR3I, "from"), PropertyInfo(Variant::VECTOR3I, "to")));
+	// Each fragment is {aabb: AABB (world space), voxel_count: int, materials: {material_id: count}}.
+	ADD_SIGNAL(MethodInfo("fragments_detached", PropertyInfo(Variant::ARRAY, "fragments")));
 
 	BIND_CONSTANT(BOUNDARY_MATERIAL);
 }

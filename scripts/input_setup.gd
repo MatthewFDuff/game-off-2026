@@ -10,7 +10,8 @@ const KEYS := {
 	jump = [KEY_SPACE],
 	sprint = [KEY_SHIFT],
 	crouch = [KEY_CTRL, KEY_C],
-	place = [KEY_E],
+	toggle_build = [KEY_Q],
+	rotate_piece = [KEY_R],
 	toggle_fly = [KEY_F],
 	toggle_debug = [KEY_F3],
 	toggle_flashlight = [KEY_T],
@@ -18,10 +19,10 @@ const KEYS := {
 	look_right = [KEY_RIGHT],
 	look_up = [KEY_UP],
 	look_down = [KEY_DOWN],
-	material_1 = [KEY_1],
-	material_2 = [KEY_2],
-	material_3 = [KEY_3],
-	material_4 = [KEY_4],
+	slot_1 = [KEY_1],
+	slot_2 = [KEY_2],
+	slot_3 = [KEY_3],
+	slot_4 = [KEY_4],
 }
 
 const MOUSE_BUTTONS := {

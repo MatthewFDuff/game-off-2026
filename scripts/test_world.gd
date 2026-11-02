@@ -11,12 +11,15 @@ func _ready() -> void:
 	VoxelMaterials.apply_to(world)
 	var start := Time.get_ticks_msec()
 
-	# Bulk edits would otherwise remesh after every call. Queue everything, mesh once at the end.
+	# Bulk edits would otherwise remesh (and check for loose fragments) after every call.
+	# Queue everything, mesh once at the end.
 	var immediate_limit := world.immediate_remesh_limit
 	world.immediate_remesh_limit = 0
+	world.detach_floating = false
 	_generate()
 	world.remesh_all_now()
 	world.immediate_remesh_limit = immediate_limit
+	world.detach_floating = true
 
 	print("test world generated in %d ms: %s" % [Time.get_ticks_msec() - start, world.get_stats()])
 
@@ -69,4 +72,4 @@ func _generate() -> void:
 		var p := Vector3(rng.randf_range(hall_from.x + 10, hall_to.x - 10), 22, rng.randf_range(hall_from.z + 10, hall_to.z - 10)) * vs
 		world.fill_sphere(p, rng.randf_range(0.2, 0.45), VoxelMaterials.GLOW, true)
 
-	player.global_position = Vector3(320, 22.5, 330) * vs
+	player.teleport(Vector3(320, 22.5, 330) * vs)

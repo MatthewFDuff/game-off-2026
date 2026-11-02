@@ -8,6 +8,9 @@
 #
 # api_version is the *minimum* Godot version the library loads in. Newer engines load it too.
 
+import os
+import time
+
 env = SConscript("godot-cpp/SConstruct", {"api_version": "4.6"})
 
 env.Append(CPPPATH=["src/"])
@@ -17,6 +20,28 @@ library = env.SharedLibrary(
     "../bin/libvoxelcore{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
     source=sources,
 )
+
+
+def move_locked_library(target, source, env):
+    # A running editor keeps the DLL locked, but Windows allows renaming a loaded DLL. Move it
+    # aside so the link succeeds and the editor can hot-reload the new one.
+    for node in target:
+        path = str(node)
+        folder = os.path.dirname(path)
+        for name in os.listdir(folder):
+            if ".old." in name:
+                try:
+                    os.remove(os.path.join(folder, name))
+                except OSError:
+                    pass  # Still loaded; cleaned up on a later build.
+        if os.path.exists(path):
+            os.replace(path, "{}.old.{}".format(path, int(time.time() * 1000)))
+
+
+if env["platform"] == "windows":
+    # Precious stops SCons deleting the old DLL itself (which fails while it is loaded).
+    env.Precious(library)
+    env.AddPreAction(library, move_locked_library)
 
 env.NoCache(library)
 Default(library)

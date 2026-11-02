@@ -40,4 +40,7 @@ Rebuild after pulling C++ changes. Godot needs a restart to pick up a new librar
 
 ## Test scene controls
 
-`scenes/test_world.tscn`: WASD, Space, Shift sprint, Ctrl crouch, LMB rifle, RMB blast, E place block, 1-4 block material, Arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc release mouse.
+`scenes/test_world.tscn`: WASD, Space, Shift sprint, Ctrl crouch, Arrow keys look (backup for remote desktop), F fly, T flashlight, F3 stats, Esc release mouse.
+
+- **Weapons** (default): LMB rifle, RMB blast. Loose pieces left floating after a blast crumble.
+- **Build** (Q toggles): 1-4 piece (plank, sheet metal, sandbag, concrete block), R turn, LMB place. Pieces fill only open air and must touch something solid.

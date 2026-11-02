@@ -38,6 +38,9 @@ var _step_offset := 0.0
 var _eye_height := standing_height - eye_offset
 var _previous_position := Vector3.ZERO
 
+## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
+const MAX_INTERPOLATED_STEP := 2.0
+
 @onready var head: Node3D = $Head
 @onready var flashlight: SpotLight3D = $Head/Camera3D/Flashlight
 
@@ -100,8 +103,17 @@ func _process(delta: float) -> void:
 
 	# Movement runs at the physics rate, but the screen refreshes faster. Interpolate the camera
 	# between the last two physics positions so it moves smoothly at any frame rate.
+	if _previous_position.distance_squared_to(global_position) > MAX_INTERPOLATED_STEP * MAX_INTERPOLATED_STEP:
+		_previous_position = global_position # Moved by something other than walking; don't smear.
 	var smoothed := _previous_position.lerp(global_position, Engine.get_physics_interpolation_fraction())
 	head.position = Vector3(0.0, _eye_height + _step_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
+
+
+## Moves the player without the camera smoothing across the gap.
+func teleport(feet: Vector3) -> void:
+	global_position = feet
+	_previous_position = feet
+	velocity = Vector3.ZERO
 
 
 ## Turns by look.x radians of yaw and look.y radians of pitch (positive is right / down).

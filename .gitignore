@@ -13,3 +13,4 @@
 /extension/src/*.obj
 /extension/src/*.o
 /extension/.sconsign*.dblite
+/bin/*.old.*

@@ -1,9 +1,12 @@
 class_name VoxelDebris
 extends Node3D
-## Spawns short-lived voxel-colored particle bursts where terrain gets carved.
+## Spawns short-lived voxel-colored particle bursts where terrain gets carved, and crumbles pieces
+## that the world reports as detached (no longer connected to anything solid).
 
+@export var world: VoxelWorld
 @export var max_particles_per_burst := 48
 @export var particles_per_voxel := 0.08
+@export var max_particles_per_fragment := 160
 
 var _cube := BoxMesh.new()
 
@@ -14,6 +17,18 @@ func _ready() -> void:
 	material.vertex_color_use_as_albedo = true
 	material.roughness = 0.9
 	_cube.material = material
+	if world:
+		world.fragments_detached.connect(_on_fragments_detached)
+
+
+func _on_fragments_detached(fragments: Array) -> void:
+	for fragment in fragments:
+		var bounds: AABB = fragment.aabb
+		var total: int = fragment.voxel_count
+		var amount := clampi(int(total * 0.25) + 6, 6, max_particles_per_fragment)
+		for id in fragment.materials:
+			var share := maxi(2, int(amount * float(fragment.materials[id]) / total))
+			_spawn(bounds.get_center(), Vector3.DOWN, share, VoxelMaterials.get_color(id), total, bounds.size * 0.5)
 
 
 ## removed maps material id -> voxels removed, as returned by VoxelWorld.carve_sphere.
@@ -30,7 +45,8 @@ func burst(at: Vector3, normal: Vector3, removed: Dictionary) -> void:
 		_spawn(at, normal, share, VoxelMaterials.get_color(id), total)
 
 
-func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: int) -> void:
+## box_extents, when set, spawns particles throughout that box instead of from a point.
+func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: int, box_extents := Vector3.ZERO) -> void:
 	var particles := CPUParticles3D.new()
 	particles.mesh = _cube
 	particles.amount = amount
@@ -45,8 +61,14 @@ func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: 
 	particles.scale_amount_min = 0.6
 	particles.scale_amount_max = 1.6 + minf(size_hint / 1000.0, 2.0)
 	particles.color = color
-	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	particles.emission_sphere_radius = 0.1 + minf(size_hint / 4000.0, 0.8)
+	if box_extents != Vector3.ZERO:
+		particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		particles.emission_box_extents = box_extents
+		particles.initial_velocity_min = 0.0
+		particles.initial_velocity_max = 1.5
+	else:
+		particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		particles.emission_sphere_radius = 0.1 + minf(size_hint / 4000.0, 0.8)
 	add_child(particles)
 	particles.global_position = at
 	particles.emitting = true

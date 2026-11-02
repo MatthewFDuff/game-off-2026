@@ -60,15 +60,66 @@ func _run() -> void:
 		timings.append((Time.get_ticks_usec() - start) / 1000.0)
 		if i == 0:
 			_check("blast removes voxels", removed.get(VoxelMaterials.ROCK, 0) > 3000, str(removed))
-	print("  blast r=1.2m carve+remesh ms: %s" % [timings])
+	print("  blast r=1.2m carve+detach+remesh ms: %s" % [timings])
+	world.detach_floating = false
+	var no_detach := PackedFloat64Array()
+	for i in 3:
+		var t := Time.get_ticks_usec()
+		world.carve_sphere(Vector3(20.0, 4.0, 24.0 + i * 3.0), 1.2, 6)
+		no_detach.append((Time.get_ticks_usec() - t) / 1000.0)
+	world.detach_floating = true
+	print("  same blast without detach ms: %s" % [no_detach])
 	var s: Dictionary = world.get_stats()
 	print("  last chunk: pad %.2f  greedy %.2f  upload %.2f ms" % [s.last_pad_ms, s.last_greedy_ms, s.last_upload_ms])
 
 	var bedrock: Dictionary = world.carve_sphere(Vector3(32, 0.3, 32), 0.5, 254)
 	_check("bedrock is uncarvable", not bedrock.has(VoxelMaterials.BEDROCK), str(bedrock))
 
+	# Floating fragments: a 5x5x5 cube on a thin stem drops once the stem is cut.
+	var fragments := []
+	world.fragments_detached.connect(func(f: Array) -> void: fragments.append_array(f))
+	world.fill_box(Vector3i(302, 22, 342), Vector3i(303, 40, 343), VoxelMaterials.CONCRETE)
+	world.fill_box(Vector3i(300, 40, 340), Vector3i(305, 45, 345), VoxelMaterials.CONCRETE)
+	_check("no fragments while cube is attached", fragments.is_empty(), str(fragments))
+	var start := Time.get_ticks_usec()
+	world.carve_sphere(Vector3(30.25, 3.15, 34.25), 0.12, 6)
+	var cut_ms := (Time.get_ticks_usec() - start) / 1000.0
+	var cube_gone: bool = world.get_voxel(Vector3i(302, 42, 342)) == VoxelMaterials.AIR
+	var stem_base_kept: bool = world.get_voxel(Vector3i(302, 23, 342)) == VoxelMaterials.CONCRETE
+	_check("cut stem detaches cube", fragments.size() == 1 and fragments[0].voxel_count >= 125 and cube_gone and stem_base_kept, str(fragments))
+	print("  stem cut with fragment detection: %.2f ms" % cut_ms)
+
+	fragments.clear()
+	world.carve_sphere(Vector3(20.0, 4.0, 38.0), 1.2, 6)
+	_check("blast into a wall detaches nothing large", fragments.all(func(f: Dictionary) -> bool: return f.voxel_count < 200), str(fragments))
+
+	# Building: a plank against the floor is supported, one in mid-air is not.
+	var plank := BuildPieces.oriented(BuildPieces.PIECES[0], Vector3.UP, false)
+	_check("plank on floor lies flat", plank.size == Vector3i(2, 1, 12), str(plank.size))
+	var on_floor: Dictionary = world.check_stamp(Vector3i(330, 22, 300), plank.size, plank.voxels)
+	var in_air: Dictionary = world.check_stamp(Vector3i(330, 50, 300), plank.size, plank.voxels)
+	_check("plank on floor is supported", on_floor.supported > 0 and on_floor.free == 24, str(on_floor))
+	_check("plank in mid-air is unsupported", in_air.supported == 0 and in_air.free == 24, str(in_air))
+	var placed: int = world.stamp(Vector3i(330, 22, 300), plank.size, plank.voxels, true)
+	_check("stamp places plank", placed == 24 and world.get_voxel(Vector3i(331, 22, 311)) == VoxelMaterials.PLANK, str(placed))
+	var wall := BuildPieces.oriented(BuildPieces.PIECES[0], Vector3.RIGHT, false)
+	_check("plank on wall runs horizontally", wall.size == Vector3i(1, 2, 12), str(wall.size))
+	var turned := BuildPieces.oriented(BuildPieces.PIECES[0], Vector3.RIGHT, true)
+	_check("turned plank on wall runs vertically", turned.size == Vector3i(1, 12, 2), str(turned.size))
+
+	# Only-air stamping fits around existing voxels instead of replacing them.
+	var overlap: int = world.stamp(Vector3i(330, 22, 300), Vector3i(2, 2, 12), _filled(48, VoxelMaterials.METAL), true)
+	_check("only-air stamp skips occupied voxels", overlap == 24 and world.get_voxel(Vector3i(330, 22, 300)) == VoxelMaterials.PLANK, str(overlap))
+
 	print("voxel smoke test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+func _filled(count: int, material: int) -> PackedByteArray:
+	var voxels := PackedByteArray()
+	voxels.resize(count)
+	voxels.fill(material)
+	return voxels
 
 
 func _check(label: String, ok: bool, detail := "") -> void:

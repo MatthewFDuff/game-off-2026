@@ -3,7 +3,7 @@ extends CanvasLayer
 
 @export var world: VoxelWorld
 @export var player: Player
-@export var tools: SandboxTools
+@export var build_tool: BuildTool
 
 @onready var label: Label = $Label
 
@@ -28,7 +28,9 @@ func _process(delta: float) -> void:
 	if player:
 		var p := player.global_position
 		lines.append("pos %.1f %.1f %.1f  %s%s" % [p.x, p.y, p.z, "floor" if player.on_floor else "air", "  FLY" if player.flying else ""])
-	if tools:
-		lines.append("place: %s  [1-4]" % VoxelMaterials.get_material_name(tools.place_material))
-	lines.append("LMB rifle  RMB blast  E place  arrows look  F fly  T light  F3 hide")
+	if build_tool and build_tool.active:
+		lines.append("BUILD: %s%s  [1-4 piece, R turn, LMB place, Q weapons]" % [build_tool.get_piece().name, " (turned)" if build_tool.turned else ""])
+	else:
+		lines.append("WEAPONS: LMB rifle  RMB blast  [Q build]")
+	lines.append("arrows look  F fly  T light  F3 hide")
 	label.text = "\n".join(lines)
