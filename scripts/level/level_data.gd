@@ -12,8 +12,10 @@ const RES_DIR := "res://levels/"
 const USER_DIR := "user://levels/"
 const FORMAT := 1
 
-## Settings: size_in_chunks, fill, ambient / fog, room-tool defaults, and start_power (the power
-## state play begins in: "facility" or "backup"; see LevelPlay.power). Missing keys take defaults.
+## Settings: size_in_chunks, fill, ambient / fog, room-tool defaults, start_power (the power state
+## play begins in: "facility" or "backup"; see LevelPlay.power), start_unarmed (no spore shooter
+## until one is picked up; LevelPlay.armed) and spawns_dormant (nothing spawns until a trigger's
+## `wake` action; HordeDirector.dormant). Missing keys take defaults.
 
 ## Keys whose values are vectors / colors; JSON stores them as arrays / hex strings.
 const VECTOR3I_KEYS := ["origin", "size", "door_offset", "size_in_chunks", "from", "to"]

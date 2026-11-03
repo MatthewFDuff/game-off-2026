@@ -50,6 +50,7 @@ func build(parent: Node) -> Error:
 	level.settings.room_thickness = Layout.T
 	level.settings.start_power = "facility"
 	level.settings.start_unarmed = true # The spore shooter is in grow room 0's case (docs/story.md).
+	level.settings.spawns_dormant = true # Nothing spawns until the outbreak's `wake` (t_0_outbreak).
 	level.settings.ambient_energy = 0.18
 	level.settings.fog_density = 0.025
 

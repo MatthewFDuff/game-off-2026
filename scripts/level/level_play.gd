@@ -19,7 +19,8 @@ extends Node
 ## terminal's or the generator's `on_use`, the director's "finale_survived" / "finale_failed", a
 ## spawner's `on_dead`), comma-separated: `power=facility|backup|restored`, `lock=<door>`,
 ## `unlock=<door>`, `open=<door>`, `close=<door>` (story moves, locks ignored), `on=<spawner>`,
-## `off=<spawner>`, `horde`. The host runs them; the results replicate as usual.
+## `off=<spawner>`, `horde`, `wake` (HordeDirector.wake: spawning begins in a `spawns_dormant`
+## level). The host runs them; the results replicate as usual.
 ##
 ## Checkpoint: the clone vat the party reached last (any living player within CHECKPOINT_REACH of
 ## its marker); Lab respawns the dead there. The host decides and tells everyone.
@@ -797,6 +798,9 @@ func _run_actions(id: String, _peer_id: int) -> void:
 			"horde":
 				if lab.director:
 					lab.director.start_horde(lab.director.horde_size)
+			"wake":
+				if lab.director:
+					lab.director.wake()
 			_:
 				push_warning("trigger %s: unknown action '%s'" % [id, item])
 

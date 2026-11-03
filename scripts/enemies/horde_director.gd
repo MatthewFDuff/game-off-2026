@@ -10,6 +10,11 @@ extends Node
 ##   finale  finale(duration): the generator finale (see below)
 ## The trickle keeps going in every state.
 ##
+## Dormant: a level whose `spawns_dormant` setting is true starts with the director dormant: nothing
+## trickles and no horde starts whatever spawners triggers turn on (they stay on, and start once
+## woken). The `wake` trigger action (the laboratory's outbreak) or the finale clears it, so a
+## player who wanders into a side room before the story's outbreak meets nothing.
+##
 ## Wake range: a spawner only trickles while the flow field (walking distance to the nearest living
 ## player, EnemyManager.refresh_flow) reaches it within wake_range meters, so a floor above or below
 ## through a slab is far away however close it is in a straight line. Only when the field is empty
@@ -101,6 +106,8 @@ const SPAWN_RETRY := 0.25
 const FINALE_PREFIX := "s_m4_gen_"
 
 var state := "calm"
+## Host: nothing spawns while true (the level's `spawns_dormant` setting, cleared by wake()).
+var dormant := false
 ## Host: spawns put off for want of a fair spot (for tests and tuning).
 var deferred_spawns := 0
 var running := false
@@ -140,6 +147,7 @@ func start() -> void:
 	if not multiplayer.is_server() or running:
 		return
 	running = true
+	dormant = bool(lab.level.settings.get("spawns_dormant", false))
 	spawners.clear()
 	_queue.clear()
 	_horde_ids.clear()
@@ -152,6 +160,7 @@ func start() -> void:
 
 func stop() -> void:
 	running = false
+	dormant = false
 	spawners.clear()
 	_queue.clear()
 	_horde_ids.clear()
@@ -186,9 +195,14 @@ func set_spawner_active(id: String, on: bool) -> void:
 	_queue.assign(_queue.filter(func(source: String) -> bool: return source != id))
 
 
-## Host: a burst of count enemies from the spawners nearest the players.
+## Host (the `wake` trigger action): spawning begins; active spawners trickle from here on.
+func wake() -> void:
+	dormant = false
+
+
+## Host: a burst of count enemies from the spawners nearest the players. Nothing while dormant.
 func start_horde(count: int) -> void:
-	if not running or spawners.is_empty():
+	if not running or dormant or spawners.is_empty():
 		return
 	var nearest := _spawners_by_distance()
 	var sources := nearest.slice(0, maxi(horde_spawners, 1))
@@ -205,6 +219,7 @@ func start_horde(count: int) -> void:
 func finale(duration: float) -> void:
 	if not running or finale_active:
 		return
+	dormant = false
 	lab.play.set_power("restored")
 	_saved_active.clear()
 	enemies.refresh_flow()
@@ -426,7 +441,7 @@ func _everyone_dead() -> bool:
 func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 	var object: Dictionary = spawner.object
 	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * player_factor()
-	if not spawner.active or rate <= 0.0:
+	if dormant or not spawner.active or rate <= 0.0:
 		return
 	if not spawner.finale and wake_range > 0.0 and walk_distance(object) > wake_range:
 		return

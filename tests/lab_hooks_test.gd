@@ -2,7 +2,7 @@ extends SceneTree
 ## Headless checks for the laboratory's level hooks:
 ##   godot --headless --path . --script res://tests/lab_hooks_test.gd
 ## Two concrete rooms joined by a gap at one end. Checks trigger `actions` (power, lock / unlock,
-## open, on), a "finale_survived" marker's actions running when the finale ends, a boss spawner's
+## open, on, wake: the level is `spawns_dormant`), a "finale_survived" marker's actions running when the finale ends, a boss spawner's
 ## `on_dead` trigger, the checkpoint vat (reached by walking, used on respawn), hordes ranking
 ## spawners by walking distance rather than straight-line, and player-count scaling of spawners.
 ##
@@ -79,6 +79,19 @@ func _run() -> void:
 	_check("on=a", director.spawners.a.active)
 	var opened := await _wait_until(func() -> bool: return play.is_door_open("d1"), 3.0)
 	_check("open=d1", opened)
+
+	# Dormant (spawns_dormant): a at 600 / min is on, yet nothing comes until a trigger's `wake`.
+	_check("the level starts dormant", director.dormant)
+	var early := await _wait_until(func() -> bool: return not director.spawners.a.alive.is_empty(), 1.0)
+	_check("an active spawner doesn't trickle while dormant", not early and enemies.get_child_count() == 0)
+	director.start_horde(3)
+	_check("no horde while dormant", director._queue.is_empty() and director.state == "calm")
+	me.teleport(_at(Vector3(40, FLOOR, 30)))
+	hit = await _wait_until(func() -> bool: return "t_wake" in fired, 2.0)
+	await _frames(2)
+	_check("wake", hit and not director.dormant)
+	var woke := await _wait_until(func() -> bool: return not director.spawners.a.alive.is_empty(), 3.0)
+	_check("the spawner trickles once woken", woke)
 	director.set_spawner_active("a", false)
 
 	# on_dead: the boss spawner (max_alive 1) births one enemy; killing it fires its trigger, which
@@ -138,6 +151,7 @@ func _make_level() -> void:
 	var level := LevelData.new()
 	level.name = LEVEL
 	level.settings = LevelData.default_settings(SIZE, "rock")
+	level.settings.spawns_dormant = true
 	var world := VoxelWorld.new()
 	world.size_in_chunks = SIZE
 	world.immediate_remesh_limit = 0
@@ -173,6 +187,9 @@ func _make_level() -> void:
 	var un := LevelSchema.new_marker("trigger", Vector3(70.0, FLOOR, 60.0))
 	un.actions = "unlock=d1,open=d1,on=a"
 	add.call("t_un", un)
+	var wake := LevelSchema.new_marker("trigger", Vector3(40.0, FLOOR, 30.0))
+	wake.actions = "wake"
+	add.call("t_wake", wake)
 	var survived := LevelSchema.new_marker("trigger", Vector3(170.0, FLOOR, 20.0))
 	survived.actions = "power=backup,close=d1"
 	add.call("finale_survived", survived)

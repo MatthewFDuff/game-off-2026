@@ -424,7 +424,9 @@ func _floor_0() -> void:
 	# Under the lobby's vent grate (north wall, 0.85 along): they come out of the vent.
 	spawner("s_0_lobby_vent_1", "lobby", 0.82, 0.03, "basic", 4.0, 2, false)
 	spawner("s_0_office_1", "open_office", 0.9, 0.9, "basic", 6.0, 2, false)
-	trigger("t_0_outbreak", "training", "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
+	# `wake`: the level starts with the director dormant (spawns_dormant), so the office's and the
+	# lower floors' entry triggers can't put anything in the halls before this.
+	trigger("t_0_outbreak", "training", "wake,power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
 	# The grow beds wake once the player has the spore shooter (Story fires "armed" on the pickup).
 	trigger("armed", "grow_0", "on=s_0_grow_1", {nowhere = true, fx = 0.2, fz = 0.2})
 	trigger("t_0_gun_taken", "grow_0", "on=s_0_lobby_vent_1", {fx = 0.85, fz = 0.7, w = 30, d = 30})

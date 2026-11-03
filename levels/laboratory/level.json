@@ -15839,7 +15839,7 @@
 			"yaw": 0.0
 		},
 		"t_0_outbreak": {
-			"actions": "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3",
+			"actions": "wake,power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3",
 			"activates": "",
 			"kind": "marker",
 			"position": [267.5, 247.0, 300.0],
@@ -16621,6 +16621,7 @@
 		"room_thickness": 5,
 		"room_wall": 14,
 		"size_in_chunks": [16, 12, 16],
+		"spawns_dormant": true,
 		"start_power": "facility",
 		"start_unarmed": true
 	}

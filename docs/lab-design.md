@@ -42,6 +42,9 @@ and slabs, so floors are 40 apart) and by what fit:
   The drift's side burrows are boarded with a 5-voxel plank face. Killing the mother fires
   `t_m4_mother_dead`, which turns off the cavern's trickle spawners; the wither effect is not
   built.
+- Nothing spawns before the outbreak: the level's `spawns_dormant` setting keeps the director
+  dormant (no trickle, no hordes, whatever entry triggers fire: the open-plan office, Cultivation
+  via the blue card) until `t_0_outbreak`'s `wake` action.
 - Engine hooks from section 9 that are in: trigger `actions`, spawner `on_dead`, hordes ranked by
   walking distance, checkpoint vats (the last vat any player reached), player-count scaling of
   spawners (data is tuned for two players). Not built: the ladder break, secret 2b (the bathroom

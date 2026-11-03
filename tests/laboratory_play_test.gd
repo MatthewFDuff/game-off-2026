@@ -79,6 +79,20 @@ func _run() -> void:
 	var at_vat_0 := await _wait_until(func() -> bool: return play.checkpoint == "vat_0", 3.0)
 	_check("the break room vat is floor 0's checkpoint", at_vat_0, play.checkpoint)
 
+	# Wandering into the open-plan office first turns its spawner on, but the director is dormant
+	# until the outbreak: with a full budget and no wake range it still spawns nothing.
+	_check("the laboratory starts dormant", director.dormant)
+	_teleport_to("open_office", 0.5, 0.5)
+	var office := await _wait_until(func() -> bool: return "t_0_office_enter" in fired, 3.0)
+	_check("the office trigger fires", office and director.spawners.s_0_office_1.active, str(fired))
+	var saved_wake_range: float = director.wake_range
+	director.wake_range = 0.0
+	director.spawners.s_0_office_1.budget = 1.0
+	await _wait_until(func() -> bool: return _lab.enemies.get_child_count() > 0, 1.0)
+	_check("nothing spawns before the outbreak", _lab.enemies.get_child_count() == 0 and director.spawners.s_0_office_1.budget == 1.0,
+			str(_lab.enemies.get_child_count()))
+	director.wake_range = saved_wake_range
+
 	# The training terminal: power to backup, grow room 0 unlocked and open, its spawner on.
 	_teleport_to("training", 0.5, 0.5)
 	await _frames(5)
@@ -92,6 +106,8 @@ func _run() -> void:
 	await _frames(3)
 	_check("the experiment's last step fires the outbreak trigger", outbreak, str(fired))
 	_check("power goes to backup", play.power == "backup", play.power)
+	_check("the outbreak wakes the director", not director.dormant)
+	director.set_spawner_active("s_0_office_1", false)
 	var grow_open := await _wait_until(func() -> bool: return play.is_door_open("d_0_grow"), 3.0)
 	_check("grow room 0 unlocks and opens", not play.is_door_locked("d_0_grow") and grow_open)
 	_check("the grow room stays quiet until the player is armed", not director.spawners.s_0_grow_1.active and _lab.enemies.get_child_count() == 0)
