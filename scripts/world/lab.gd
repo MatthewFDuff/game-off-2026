@@ -41,6 +41,7 @@ const RESPAWN_DELAY := 3.0
 @export var enemies: EnemyManager
 @export var director: HordeDirector
 @export var items: ItemManager
+@export var fire: Fire
 
 var level: LevelData
 var mode := "play"

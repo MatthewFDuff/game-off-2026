@@ -102,6 +102,8 @@ var _axe_pivot: Node3D
 var _axe_model: Node3D
 var _flash_timer := 0.0
 var _flame_time := 0.0
+## Flame cone checks fired, for how often they light the terrain.
+var _flame_ignites := 0
 var _kick := 0.0
 var _sync_timer := 0.0
 var _tracers: Array[MeshInstance3D] = []
@@ -316,6 +318,12 @@ func _fire_cone(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector3) 
 			enemies.request_hit(enemy.id, type.damage, center - to.normalized() * radius, type.kind)
 			if type.status != "":
 				enemies.request_status(enemy.id, type.status, type.status_seconds)
+	# Whatever the flame licks catches, a few checks a second (each is a request to the host).
+	_flame_ignites += 1
+	if type.ignite_radius > 0.0 and _flame_ignites % 3 == 0:
+		var lick: Dictionary = player.world.raycast(origin, aim, type.reach)
+		if lick.hit:
+			Fire.ignite_at(lick.position - aim * 0.05, type.ignite_radius, type.ignite_count)
 	_show_shots(type, muzzle, PackedVector3Array())
 	for peer_id in player.net_peers:
 		_remote_shot.rpc_id(peer_id, type.name, muzzle, PackedVector3Array())
@@ -399,6 +407,8 @@ func _on_impacted(shot: Projectile, at: Vector3, normal: Vector3, enemy: Enemy) 
 			if enemies:
 				for victim in Combat.sphere_hit(at, type.splash_radius):
 					enemies.request_hit(victim.id, type.blast_damage, victim.get_center(), type.kind)
+			if type.ignite_radius > 0.0:
+				Fire.ignite_at(at, type.ignite_radius, type.ignite_count)
 		"cloud":
 			spawn_cloud(type, at + (normal * 0.2 if normal != Vector3.ZERO else Vector3.ZERO))
 		_:

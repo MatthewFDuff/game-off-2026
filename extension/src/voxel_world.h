@@ -218,6 +218,14 @@ public:
 	int replace_in_box(const Vector3i &from, const Vector3i &to, int material_id, const PackedByteArray &hosts);
 	int replace_in_sphere(const Vector3 &center, float radius, int material_id, const PackedByteArray &hosts);
 
+	// Many single voxels in one edit (fire): points holds x, y, z per voxel and materials one id
+	// each. Voxels turned to air drop any loose pieces, like a carve. Only the chunks around the
+	// points are remeshed, however far apart they are. Returns {material_id: voxels_removed}.
+	Dictionary set_voxels(const PackedInt32Array &points, const PackedByteArray &materials);
+	// Voxels inside the sphere whose material is in hosts, as x, y, z per voxel, nearest the center
+	// first, at most max_count. exposed_only keeps those with air on at least one face.
+	PackedInt32Array find_in_sphere(const Vector3 &center, float radius, const PackedByteArray &hosts, bool exposed_only, int max_count) const;
+
 	// Fills the voxel box with horizontal layers. materials[k] fills up to height tops[k] (voxel y,
 	// bottom layer first); voxels above the last top are left alone. Each boundary undulates by up
 	// to `undulation` voxels following smooth noise with the given wavelength (in voxels).

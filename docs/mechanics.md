@@ -90,6 +90,31 @@ leave an area effect for a few seconds:
   a player buff.
 - **Freeze**: Frozen (stopped) for a few seconds, then slowed.
 
+### Fire and reactions (added 2026-11-03)
+
+Fire spreads through the voxels so the lab gets wrecked over a playthrough (`scripts/world/fire.gd`,
+tests in `tests/fire_test.gd`):
+
+- Flammable materials carry `burn` (seconds), `catch` (how readily they catch) and `ash` (chance to
+  leave char) in `VoxelMaterials.DEFS`: wood, plank, cloth, plastic, rubber, substrate, and every
+  shroom material. Burning voxels are the `EMBER` / `EMBER_DEEP` materials, and they go out to air
+  or `CHAR`. Heat rises: fire catches upward twice as readily as sideways.
+- Only voxels with air on a face catch, so solid things burn from the outside in. Burnt-through
+  supports drop what they held (the play-mode `detach_floating` falling pieces), and burnt assets
+  cost payroll like any other damage.
+- What lights it: the fire flask (the pool engulfs everything flammable in it), flame ammo (what
+  the cone licks), explosive ammo and exploding shrooms (around the blast), and burning shrooms,
+  which set fire to what they walk on.
+- Standing in fire gives Burning to players and enemies.
+- What puts it out: water next to a burning voxel, and the freeze flask around its burst.
+- Reactions: lab samples next to fire boil away into their cloud (green: poison, pink: rage,
+  blue: freeze, which then puts the fire out). Spore and poison clouds touching fire or a fire pool
+  go up in a fireball (damage, a short fire pool, and more fire).
+- Cost: the host visits each burning voxel 4 times a second, and the burn is capped at 2,500 voxels.
+  Edits go out as one `WorldSync.set_voxels` batch every 0.1 s, and the native
+  `VoxelWorld.set_voxels` remeshes only the chunks around them. A burning 22 x 18 m floor runs at
+  the full 60 physics frames per second on the host (headless).
+
 ### Status effects
 
 The doc calls these scope creep, to be added if the game needs more balance / challenge. But the

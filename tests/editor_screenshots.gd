@@ -1,7 +1,8 @@
 extends SceneTree
 ## Screenshots of the level editor (needs a window, not --headless):
 ##   godot --path . --script res://tests/editor_screenshots.gd -- <output_dir>
-## Works on a scratch copy of the lab. Shoots the builder view (auto cut, whole level, manual cut),
+## Works on a scratch copy of the lab. Shoots the builder view (auto cut, a room being sized, whole
+## level, manual cut),
 ## then paints a strip of each pattern material on the atrium's west wall and shoots the box tool, the room tool, the prop browser, markers, the inspector and a
 ## play-test view.
 ##
@@ -44,6 +45,16 @@ func _run() -> void:
 	tool.set_tool(2)
 	await _frames(20)
 	await _shot("builder_auto_cut")
+	# A room being dug down from the cut beside the atrium, on its height step: labels and readout.
+	tool.set_tool(1)
+	var cut: int = camera.cut_layer
+	tool.volume.begin(Vector3i(170, cut - 1, 230), camera.cut_y(), 5, -1)
+	tool.volume.extent = Vector3i(30, -1, 20)
+	tool.volume.advance(-(cut - 40))
+	await _frames(4)
+	await _shot("builder_room_sizing")
+	tool.cancel()
+	tool.set_tool(2)
 	camera.frame_world()
 	camera.pitch = 70.0
 	camera.snap_to_target()
@@ -71,14 +82,15 @@ func _run() -> void:
 	tool.set_tool(2)
 	tool.material = M.BLOCK_WALL
 	await _frames(4)
-	tool._corner = Vector3i(206, 40, 240)
+	tool.volume.begin(Vector3i(205, 40, 240), 4.0, 5, 1)
 	await _shot("editor_box_patterns")
 	tool.cancel()
 
 	_look(me, Vector3(27.0, 6.0, 33.0), Vector3(20.4, 4.0, 26.0))
 	tool.set_tool(1)
 	await _frames(4)
-	tool._corner = tool.solid_cell + Vector3i(0, 0, -20)
+	tool.volume.begin(tool._start_cell(false) + Vector3i(0, 0, -20), 4.0, 5, 1)
+	tool.volume.advance(30)
 	await _shot("editor_room")
 	tool.cancel()
 

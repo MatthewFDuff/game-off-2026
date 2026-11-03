@@ -1,0 +1,620 @@
+# The laboratory: level design plan
+
+Drafted 2026-11-03. The lab is the main level: a secret underground bunker where the company grew
+the mushrooms and tried to wire them into its language model. This document is the build brief for
+it: what the facility is, how it is laid out, where every door, key, enemy and pickup goes, and
+what the engine still needs before it can be built. It assumes `docs/mechanics.md` (enemies,
+weapon, interactables, power, finale) and the level editor (`docs/level-editor.md`,
+`docs/level-editor-v2.md`).
+
+## 1. Premise
+
+**Fung AI** (CEO **Guy Fung**, decided 2026-11-03) found a mycelium that stores and processes
+data: the colony "talks" by glowing and pulsing, and a sample wired to electrodes behaves like a
+memory bank. The bunker was built on top of the cave where it was found. Upstairs they grow it;
+in the middle they racked it next to the servers and tried to use it as storage and compute for
+the model; at the bottom they shock the big specimens to see what they do. The night the player
+starts, the migration job that copies the model into the mycelium finishes. It does not expand the
+model. It gives the mushrooms a mind, and every grow bed, rack and specimen in the building wakes
+up at once.
+
+Suggested tie-in with the intro: the model is the one whose thought log the player kept pressing
+SHIFT for in the cubicle. Its migration into the substrate is the night shift's job. The lore
+terminals below assume this; drop it if the intro goes another way.
+
+What the layout has to deliver:
+
+- A sprawling facility with many kinds of room (grow halls, wet labs, server halls, test chambers,
+  offices, break rooms, bathrooms, storage, caves), spread over several floors.
+- Keycard gates: each floor ends at a locked door and the key is somewhere on that floor.
+- **No backtracking**: every key is on a loop that comes back out next to its door, and every
+  floor-to-floor link is one way (a drop, a ladder you kick away, an airlock that seals).
+- Secret rooms that reward looking at walls, vents and glass.
+- An enemy curve from "a few basic shrooms in a corridor" to the generator finale, with each kind
+  introduced in a room built to teach its counter.
+
+## 2. Engine facts the design is built on
+
+| Fact | Where | What it means for the lab |
+|---|---|---|
+| 1 voxel = 0.1 m; a chunk is 32 voxels | `VoxelWorld` | Room sizes below are in meters; multiply by 10 for voxels |
+| `levels/laboratory` is 16 x 10 x 16 chunks, empty fill | `levels/laboratory/level.json` | Recreate it as **rock fill, 16 x 12 x 16** (51.2 x 38.4 x 51.2 m): five floors plus a tall cave |
+| Rock is hardness 4, concrete and painted wall 5; shrooms dig through hardness 2 and below (dirt, gravel, substrate, plank, wood, glass, plastic) | `VoxelMaterials`, `Enemy` | Lab walls hold. Where shrooms should pour through a wall, build that patch from substrate, plank or glass |
+| Player steps 0.45 m, jumps about 0.85 m, crouches to 1.1 m; enemies step 0.5 m and cannot climb ladders | `Player`, `nav_step` | Stairs: 4-voxel risers, 6-voxel treads. Ladders are enemy-free. Vent ducts at 1.4 m tall are crawlable |
+| Flow field covers 80 m of walking around the players | `EnemyManager.FLOW_RANGE` | Enemies more than 80 m of path away stand still; spawners must be near the route |
+| Hordes come from the `horde_spawners` (2) nearest spawners by straight line, active or not | `HordeDirector._spawners_by_distance` | See engine work: switch to walking distance, or spawners on the floor above get picked through the slab |
+| Spawner fields: kinds, rate/min, max_alive, active, radius (<= 10 m), on_ceiling | `LevelSchema.MARKERS.horde` | All enemy placement is spawners; nothing is hand-placed |
+| Trigger fields: size, repeat, who (any/all), activates (spawner ids or `horde`) | `LevelSchema.MARKERS.trigger` | Triggers can only turn spawners on. Power, locks and door opening need the hooks in section 9 |
+| Keycards are party-wide; `door_key` names a color; `door_power` doors refuse on backup power | `LevelPlay` | One pickup per key is enough in co-op |
+| Respawn goes to the first clone vat in the file | `Lab._on_local_died` | Needs "nearest vat" (section 9) or a single vat is the whole game's checkpoint |
+| Generator: restores power, fires `on_use`, runs the finale; `finale_survived` / `finale_failed` fire as trigger ids | `HordeDirector`, `LevelPlay` | The exit elevator opens on `finale_survived` |
+| Global cap 80 enemies; horde burst 12; finale bursts grow 1.5x every 20 s | `EnemyManager`, `HordeDirector` | Finale arena needs room for 40 to 60 shrooms |
+| Props have no door model yet; a door is any prop with `door = true` | prop catalog | Door placeholders are the first thing to make |
+
+## 3. Shape of the facility
+
+### Floors
+
+The bunker is a stack. Players enter at the top and only ever go down. Power (the generator) is at
+the bottom, and so is the only exit that still works: the freight elevator, which needs power.
+
+| Floor | Name | Interior Y (voxels) | Purpose | Enemies introduced |
+|---|---|---|---|---|
+| G | Gatehouse | 330 to 362 | Surface entry, blast door exit (dead without power) | none |
+| 0 | Admin | 280 to 312 | Lobby, offices, break room, training room, the first grow room. Tutorial and outbreak | basic |
+| -1 | Cultivation | 230 to 262 | Grow halls, wet lab, incubation, cold store | fast, spore |
+| -2 | Compute | 180 to 212 | Server hall, inference lab, archive, cooling plant, ops | ranged, exploding, alarm, ceiling cloud |
+| -3 | Containment | 130 to 162 | Test chambers, observation, specimen vault, quarantine | tentacle, mommy, giant |
+| -4 | The Dig | 20 to 110 (cave, variable) | Mine tunnels, mother cavern, generator hall, freight elevator | everything, finale |
+
+Floor pitch is 5 m: 3.2 m of room, 1.8 m of slab and plenum. The plenum is where vent ducts run,
+so vents genuinely connect floors. Slabs are concrete (hardness 5), so shrooms never dig between
+floors; they use the vents you leave for them.
+
+### Footprint
+
+The level is 51.2 m square. Think of each floor as a 4 x 4 grid of 12.8 m blocks, columns A to D
+(west to east) and rows 1 to 4 (north to south). Room tables below give the block each room sits
+in; the generator or whoever lays it out in the editor fixes exact coordinates. Keep the walls
+between blocks thick (3 voxels is the default) and the rooms off the grid edges by 2 m so the
+rock stays solid around the building.
+
+Floors are **staggered**: the route on floor 0 runs north to south, on -1 south to north, and so
+on, and the stairwell down is always at the far end from the one you arrived by. This keeps the
+walk long, and it keeps spawners on different floors from sitting directly above each other.
+
+### The one-way rule
+
+Every floor-to-floor link is one way, and it is always obvious:
+
+| Link | How | Why it reads |
+|---|---|---|
+| G to 0 | Stairs down; the blast door at the top needs power (`door_power`) and power is gone the moment the outbreak fires | "Can't escape, no power" |
+| 0 to -1 | Cargo lift shaft: the lift is stuck a floor down, you drop 2.6 m onto its roof and climb down the hatch. No way back up | Drop |
+| -1 to -2 | Service stairwell with a `door_power` fire door at the top that closes and locks behind the party (trigger, `who = all`) | Fire doors seal on backup power |
+| -2 to -3 | Decontamination airlock: two doors, inner opens once everyone is inside and the outer has sealed (`who = all`) | Airlock |
+| -3 to -4 | Cage lift shaft, cage broken at the bottom. Ladder down the shaft; enemies cannot follow. The ladder's top rungs are plank and break when the last player passes a trigger (one-way) | Breather, then commitment |
+| -4 to exit | Freight elevator, `door_power`, opens on `finale_survived` | The ending |
+
+### The keycard loop
+
+Each floor has one gate door at the end of its main route, one keycard, and the same pattern:
+
+```
+ main route  ──►  hub  ──►  (locked gate)  ──►  next floor
+                   │              ▲
+                   └── key loop ──┘   3 to 5 rooms, exits beside the gate
+```
+
+The key loop leaves the hub by one door and rejoins the main route next to the gate by another,
+so finding the key never means walking back the way you came. The key sits in a room with a
+reason to be there (security office, mycology office, ops room, control booth) and the loop holds
+the floor's set piece.
+
+Keycards in order: **blue** (0), **green** (-1), **red** (-2), **black** (-3). The generator hall
+has no key; the Dig is gated by the broken lift.
+
+### Checkpoints
+
+One clone vat per floor, in a defensible room on the main route past the floor's set piece, with a
+medkit station beside it. The vat is the lab's own clone machine, so it fits that every floor has
+one. Respawn must pick the nearest vat (section 9).
+
+### Secret rooms
+
+One or two per floor. Secrets are never on the critical path and never require going back: each
+is an alcove off the route or a short loop that rejoins it further on. Three ways to hide them,
+all readable once you know the language:
+
+- **Breakable wall**: a patch of plank, plastic or glass in a concrete wall, painted over. Melee or
+  shoot it. A faint glow seam or draft of spores at floor level marks it.
+- **Vent crawl**: a `vent_grate` (shoot it) into a `vent_duct` run through the plenum, out into a
+  space the floor plan does not show.
+- **Dark alcove**: an unlit recess behind props, visible only by flashlight.
+
+Rewards: flasks, special ammo, a lore terminal or note that explains something the main route
+only hints at, and twice in the game a spare clone vat.
+
+## 4. Floor by floor
+
+Room sizes are interior width x depth in meters; all rooms are 3.2 m tall unless noted. Spawner
+ids are `s_<floor>_<room>_<n>`, triggers `t_<floor>_<name>`, doors `d_<floor>_<name>`, vats
+`vat_<floor>`. Rates are spawns per minute per spawner; max is `max_alive`.
+
+### Floor G: Gatehouse (surface)
+
+A small block carved to the top of the world so the sky and fog show. Night, floodlights on.
+
+| Room | Block | Size | Contents |
+|---|---|---|---|
+| Loading yard | B1 to C1 | 14 x 8, open to the sky | Crates, barrels, sandbags, a truck's worth of crates. Player spawns here |
+| Gatehouse | B2 | 6 x 5 | Security desk (terminal: sign-in, intercom begins), turnstile, lockers |
+| Blast door | between B2 and the stairs | 2.4 x 2.4 | `d_g_blast`, `door_power`, opens inward on the way in (trigger `t_g_enter` opens it, then it is the locked exit) |
+| Stair down | B3 | 4 x 6 | Hazard stripes, "Level 0 Admin" sign |
+
+No enemies, no pickups. Intercom onboarding starts at the desk and continues down the stairs.
+
+### Floor 0: Admin (tutorial and outbreak)
+
+Route: stairs arrive in the north (B1), the lobby is the hub, the training room and grow room are
+south, the lift shaft down is in the south-west (A4).
+
+| Room | Block | Size | Contents and lore |
+|---|---|---|---|
+| Lobby | B1 to B2 | 10 x 12 | Reception desk, couch, corkboard ("Hang in there" poster, required), vending machine, water cooler. Hub |
+| Security office | A1 | 6 x 5 | Terminal (camera feeds: "no change detected" on every grow room), lockers, **blue keycard** on the desk |
+| Open-plan office | C1 to C2 | 12 x 12 | Desks, chairs, whiteboards, drawer desks (containers: notes, a medkit). Note: an email about tonight's "migration window" |
+| Manager's office | D1 | 5 x 5 | Desk, corkboard, cabinet (container). Note: a budget memo signed by Guy Fung, the payroll deduction policy ("damage to Fung AI property is recovered from wages; clones are property") |
+| Break room | C3 | 7 x 6 | Counter with sink, coffee counter, fridge (container), table, chairs, trash cans |
+| Bathrooms | D3 | 2 x (3 x 5) | Tile. One stall's plank wall is the first secret (below) |
+| Training room | B3 | 8 x 8 | Whiteboard, chairs, terminal with the monitoring station ("no change detected... Thoughts detected... deciphering") beside a single spore tank. Intercom walkthrough ends here |
+| Grow room 0 | A3 | 8 x 6 | Two grow beds, shelves, the **glass case with the shroom shooter** (`glass_case`, contents `weapon`), emergency light |
+| Supply closet | A2 | 3 x 4 | Shelves, crates: `ammo_shotgun` x1, medkit |
+| Lift lobby | A4 | 6 x 6 | Cargo lift doors `d_0_lift` (`door_key = blue`), the shaft behind, hazard stripes |
+
+Flow:
+
+1. Training room terminal fires `t_0_outbreak` (via `on_use`): power to **backup**, emergency
+   lights only, a crash from grow room 0, the door between training room and grow room 0 unlocks.
+2. Grow room 0: the spore tank is empty, the case is the only light. Break the glass, take the gun.
+   `s_0_grow_1` activates: 3 basic shrooms over 20 s from the grow beds. First fight in a small
+   room with one door.
+3. Back through the training room into the lobby. `s_0_lobby_vent_1` (a vent grate high on the
+   lobby wall) trickles basic shrooms at 4/min, max 2, so the lobby is never empty but never a
+   fight you cannot walk away from.
+4. Blue keycard in the security office, which is 6 m from the lift doors. The office is the key
+   loop in its smallest form: in by the lobby door, out by a second door into the lift lobby.
+5. Lift lobby: lift doors open onto an empty shaft, the lift roof 2.6 m below. Drop. Floor done.
+
+| Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
+|---|---|---|---|---|---|---|
+| `s_0_grow_1` | Grow room 0, grow beds | basic | 12 | 3 | no | `t_0_outbreak` (`activates`) |
+| `s_0_lobby_vent_1` | Lobby, vent grate north wall | basic | 4 | 2 | no | `t_0_gun_taken` (a trigger volume at the case) |
+| `s_0_office_1` | Open-plan office, far corner | basic | 6 | 2 | no | `t_0_office_enter` |
+
+Worst case alive: 7 basic. Teaches: shooting, the infinite basic ammo, that shrooms chitter only
+when close, that doors and props stop them.
+
+Pickups: `ammo_shotgun` (supply closet), medkit (office drawer), `flask_fire` (secret).
+
+Secret 0a: the end bathroom stall's back wall is plank. Behind it, a janitor's cubby with a fire
+flask and a note from the janitor, who has been feeding the grow room 0 shroom coffee.
+
+### Floor -1: Cultivation
+
+Arrive on the lift roof in A4, climb down the hatch into the lift car, doors forced open onto the
+floor. Route runs north. Everything glows: grow beds, spore tanks and substrate, with the
+emergency lights red on top.
+
+| Room | Block | Size | Contents and lore |
+|---|---|---|---|
+| Lift car and dock | A4 | 6 x 8 | Crates, a pallet jack's worth of plank stacks. Vent duct opening in the dock wall (secret 1a) |
+| Substrate store | A3 | 8 x 8 | Barrels, crates, shelves; the walls are **substrate**, so shrooms dig in from the sides when the spawner wakes |
+| Grow hall 1 | B3 to B4 | 12 x 14 | Eight grow beds in rows, spore tanks, pipes overhead, catwalk along the east wall (1.2 m up, ladder). Hub |
+| Wet lab | C4 | 10 x 8 | Lab benches, fume hoods, sink counter, glass cases (ammo). Terminal: growth logs ("the pulse period is shortening, they are syncing across beds") |
+| Cold store | D4 | 5 x 5 | Fridges (containers: medkit, `flask_freeze`), frost tiles |
+| Incubation | C3 | 8 x 8 | Warm, red light, shelves of spore tanks, fog. **Spore shrooms** live here |
+| Clean room and decon | C2 | 6 x 5 + 3 x 3 | Lockers, glass walls (breachable) onto grow hall 2 |
+| Grow hall 2 | B1 to B2 | 12 x 12 | The big one: beds in a grid, half the lights broken. Set piece |
+| Mycology office | D2 | 6 x 6 | Desks, corkboards of pinned photos, terminal (the discovery of the pulsing: "it is not noise, it is a carrier"), **green keycard** |
+| Bathroom | D3 | 3 x 5 | |
+| Clone bay | A1 | 6 x 6 | `vat_m1`, medkit station (3 charges), ammo bench (`station_ammo_type` empty, 2 charges) |
+| Stair lobby | A2 | 5 x 6 | Fire door `d_m1_stair` (`door_key = green`, `door_power` off; this is the floor's gate), stairs down behind it. `t_m1_stair_seal` (`who = all`, in the stairwell) closes and locks `d_m1_stair` behind the party |
+
+Flow:
+
+1. Dock to substrate store. `t_m1_store_enter` wakes `s_m1_store_1`: basic shrooms dig in through
+   the substrate walls (first time a wall moves; the holes are the tell for breachable material).
+2. Grow hall 1 is calm at first. A fast shroom spawner wakes when the party reaches the catwalk
+   ladder: **fast shrooms** zigzag down the bed rows. The catwalk is the counter: they have to
+   come up the ladder's end, so the aisles funnel them. Rate low, max 3.
+3. Wet lab and cold store: pickups, then back out through the wet lab's second door into
+   incubation.
+4. Incubation: three **spore shrooms** among the tanks, slow, fog on approach. The room is wide
+   enough to shoot them at 6 m. A terminal says the spores are harmless, "just blinding".
+5. Grow hall 2 is the key loop's set piece. Entering the middle of the hall fires `t_m1_hall2`,
+   lights go to broken flicker, `s_m1_hall2_1` and `_2` run basic plus fast at 10/min, max 4 each,
+   for as long as the party is in the hall. The mycology office at the far side has the green
+   keycard and a second door into the stair lobby. Picking up the key (trigger at the desk)
+   stops nothing; the party leaves under pressure.
+6. Clone bay sits between the hall and the stair lobby: heal, refill, vat.
+7. Green door, stairs down, the fire door seals behind the last player.
+
+| Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
+|---|---|---|---|---|---|---|
+| `s_m1_store_1` | Substrate store, inside the east wall (2 m of substrate) | basic | 8 | 3 | no | `t_m1_store_enter` |
+| `s_m1_hall1_1` | Grow hall 1, north end beds | basic | 4 | 2 | yes | |
+| `s_m1_hall1_2` | Grow hall 1, under the catwalk | fast | 5 | 3 | no | `t_m1_catwalk` |
+| `s_m1_incub_1` | Incubation, between tanks | spore | 3 | 3 | yes | |
+| `s_m1_hall2_1` | Grow hall 2, west beds | basic, fast | 10 | 4 | no | `t_m1_hall2` |
+| `s_m1_hall2_2` | Grow hall 2, vent grate east wall | basic | 10 | 4 | no | `t_m1_hall2` |
+| `s_m1_clean_1` | Clean room (behind glass onto hall 2) | fast | 6 | 2 | no | `t_m1_hall2` |
+
+Worst case alive: 13. Teaches: breachable walls, range on spore shrooms, fast shrooms in aisles,
+leaving a room under pressure instead of clearing it.
+
+Pickups: `ammo_shotgun` x2 (wet lab cases), `ammo_poison` (wet lab), medkit (cold store),
+`flask_freeze` (cold store), `flask_poison` (secret).
+
+Secret 1a: a vent duct from the lift dock runs through the plenum to a fertilizer loft above grow
+hall 1 (the catwalk's hidden upper level): `ammo_flame` x2, a poison flask, and the floor's second
+medkit. Secret 1b: a dark alcove behind the incubation shelves holds a note from a technician who
+started talking back to the beds.
+
+### Floor -2: Compute
+
+The heart of the story. Cold, blue screens on backup, racks pulsing in time with the fungus that
+has grown through them. Route runs south.
+
+| Room | Block | Size | Contents and lore |
+|---|---|---|---|
+| Stair lobby | A1 | 5 x 6 | Arrive. Corkboard: rack map, "Substrate Array B online" |
+| Network closet | A2 | 4 x 4 | Cabinets (container: `ammo_ricochet`), a vent grate |
+| Server hall | B1 to C2 | 20 x 12 | Four aisles of racks (shelf_storage props with screens), mycelium over everything, glow pulsing. Hub, long sightlines |
+| Cooling plant | A3 to A4 | 8 x 16 | Pipes, water tanks, barrels, narrow walkways over water. Hazard barrels |
+| Inference lab | C3 | 10 x 8 | The rig: a chair ringed with terminals and spore tanks wired to a rack. Terminal: the migration job log (the model's final messages, then "transfer complete, 100% of weights resident in substrate") |
+| Ops room | D2 | 8 x 6 | Monitors, desks, the **red keycard** on the ops lead's desk, terminal (alarm log: every sensor in the building tripping at once at 02:14) |
+| Electrical room | D3 | 5 x 5 | Breaker panels, a terminal (`needs_power`: refuses on backup, and tells you so, pointing at the generator) |
+| Data archive | B3 to B4 | 10 x 10 | Tape library shelves in rows, dark. **Alarm shroom** lair |
+| Engineers' bullpen | C4 | 10 x 8 | Desks, whiteboards, couch. `vat_m2`, medkit station |
+| Break room 2 and bathroom | D4 | 6 x 5 + 3 x 4 | Fridge (medkit), vending machine |
+| Decon airlock | D1 | 3 x 6 (two doors) | `d_m2_airlock_out` (`door_key = red`) and `d_m2_airlock_in`. Gate |
+
+Flow:
+
+1. Server hall. Entering fires `t_m2_hall`: **ranged shrooms** at the far end of two aisles spit
+   across the hall; racks are cover; the counter is to close along a parallel aisle. Max 2 at a
+   time, never more, so it stays a lesson, not a wall.
+2. Cooling plant is the key loop's first leg (the hall's west door). **Exploding shrooms** run
+   down the walkways; the pipes and tanks are assets, and blasts carve them, so the payroll
+   ticker is the lesson: kill them at range or take the dock. A ceiling spawner over the water
+   drops a poison cloud on the central walkway if you linger.
+3. Inference lab: the loop's lore room, calm, the big terminal. Leaving it fires `t_m2_inference`
+   which wakes the archive.
+4. Ops room: red keycard. Its second door opens on the server hall's south-east corner, next to
+   the archive and the bullpen.
+5. Data archive is optional but on the way to the bullpen if you take the short route. Two alarm
+   shrooms deep in the stacks: see one, shoot it during the wind-up or a horde comes through the
+   hall's vents. First horde of the game either way if the party is careless.
+6. Bullpen: vat, medkit. Break room: pickups.
+7. Airlock: red door, everyone in, outer seals, inner opens onto the containment stairs.
+
+| Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
+|---|---|---|---|---|---|---|
+| `s_m2_hall_1` | Server hall, south end of aisle 2 | ranged | 4 | 1 | no | `t_m2_hall` |
+| `s_m2_hall_2` | Server hall, south end of aisle 4 | ranged | 4 | 1 | no | `t_m2_hall` |
+| `s_m2_hall_3` | Server hall, vent grate north wall | basic | 6 | 3 | no | `t_m2_hall` |
+| `s_m2_cool_1` | Cooling plant, north end | exploding | 5 | 2 | no | `t_m2_cool` |
+| `s_m2_cool_2` | Cooling plant, over the central walkway, `on_ceiling` | ceiling_cloud | 2 | 1 | no | `t_m2_cool` |
+| `s_m2_cool_3` | Cooling plant, south end | basic | 6 | 3 | no | `t_m2_cool` |
+| `s_m2_arch_1` | Archive, deep stacks | alarm | 1 | 2 | no | `t_m2_inference` |
+| `s_m2_arch_2` | Archive, vent grate | basic, fast | 8 | 4 | no | `t_m2_inference` |
+| `s_m2_vent_1` | Server hall, vent grate south wall | basic, fast | 0 | 6 | no | never trickles; exists so hordes come from the hall's vents |
+| `s_m2_vent_2` | Bullpen, vent grate | basic | 0 | 4 | no | same |
+
+Worst case alive without a horde: 12. With an alarm horde: +12 from the two nearest spawners.
+Teaches: cover against ranged, assets cost money, alarm shrooms are a priority target, hordes come
+from vents.
+
+Pickups: `ammo_ricochet` (network closet), `ammo_explosive` x2 (ops room cabinet, cooling plant
+crate), medkit x2 (break room fridge, bullpen drawer), `flask_rage` (secret), `ammo_homing`
+(secret).
+
+Secret 2a: a false rack at the end of aisle 1 is plastic; behind it a cage with the original
+"Substrate Array A", a terminal with the first successful read-back (the mycelium answered a
+query before it was asked), `ammo_homing` and a rage flask. Secret 2b: the bathroom vent leads
+through the plenum to a drop into the containment stair lobby, bypassing the airlock, for anyone
+who finds it before they find the key.
+
+### Floor -3: Containment
+
+Where they hurt the big ones. Glass everywhere, and glass is breachable. Route runs north, then
+east to the cage lift.
+
+| Room | Block | Size | Contents and lore |
+|---|---|---|---|
+| Stair lobby and decon showers | D1 | 6 x 8 | Tile, showers, lockers (container: medkit) |
+| Observation gallery | C1 to C2 | 12 x 6 | A long room with glass walls onto test chambers 1 to 3. Terminals per chamber (stimulation logs; chamber 3's: "subject responded to the shock by shocking back") |
+| Test chamber 1 | B1 | 6 x 6 | Rig, pipes; empty, cracked glass |
+| Test chamber 2 | B2 | 6 x 6 | **Tentacle** rooted in the middle; glass toward the gallery |
+| Test chamber 3 | A1 to A2 | 10 x 12, 5 m tall | The **mommy shroom** on a dais of substrate, cables into her cap. Control booth on a mezzanine (ladder) with the **black keycard** |
+| Specimen vault | C3 | 8 x 8 | Rows of glass cases (`glass_case`, contents: ammo of every type, flasks). Every case is an asset: smash or pay |
+| Dissection lab | B3 | 8 x 8 | Lab benches, fume hoods, specimen tanks, ceiling sacs |
+| Quarantine ward | A3 to A4 | 8 x 16 | A corridor of cells with glass fronts. **Giant** in the last cell; cells hold basics that break out through the glass as you pass |
+| Hazmat store | B4 | 6 x 6 | `vat_m3`, medkit station, ammo bench, shelves |
+| Security checkpoint | C4 | 6 x 5 | Desk, turnstile, `d_m3_cage` (`door_key = black`) |
+| Cage lift head | D4 | 5 x 5 (shaft down 20 m) | Cage stuck at the bottom; ladder down the shaft. `t_m3_ladder_break` (`who = all`, at the shaft's foot) replaces the top 3 m of ladder with air |
+
+Flow:
+
+1. Gallery: watch the tentacle and the mommy through glass. Calm, lore heavy. The chamber doors
+   are on the gallery's far end.
+2. Test chamber 2: **tentacle** in a 6 x 6 room you must cross (the dissection lab's door is on
+   its far side). Solo: shoot it until it lets go. Co-op: the partner melees it. The first grab
+   is scripted close to the door so a solo player gets dragged only 2 m.
+3. Dissection lab: ceiling sacs over the benches, basics from a vent. Pickups.
+4. Specimen vault: loot, each case a payroll line. A note from accounting is pinned to the door.
+5. Quarantine ward: the long corridor. Cells open (glass breaks) as you pass: basics and fast in
+   threes. At the end the **giant** breaks out of the last cell and the corridor is the kite:
+   16 m to back up along while shooting the antennae. Freeze flask placed earlier for this.
+6. Hazmat store: vat, stations.
+7. Test chamber 3 is the key loop: from the ward's north end, through the chamber's floor door.
+   The mommy births basics every few seconds, brood up to 6; the control booth with the black
+   keycard is up a ladder on the mezzanine (enemies cannot follow). Kill her and the brood pops,
+   or grab the key and run: the booth's far door opens onto the checkpoint corridor.
+8. Checkpoint, black door, cage lift shaft, ladder down. Breather. The ladder top breaks.
+
+| Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
+|---|---|---|---|---|---|---|
+| `s_m3_tc2_1` | Test chamber 2, center | tentacle | 1 | 1 | yes | |
+| `s_m3_diss_1` | Dissection lab, over the benches, `on_ceiling` | ceiling_cloud | 2 | 2 | yes | |
+| `s_m3_diss_2` | Dissection lab, vent grate | basic | 6 | 3 | no | `t_m3_diss` |
+| `s_m3_ward_1` | Quarantine, cells 1 to 3 (radius 4) | basic, fast | 12 | 4 | no | `t_m3_ward_a` |
+| `s_m3_ward_2` | Quarantine, cells 4 to 6 | basic, fast, spore | 12 | 4 | no | `t_m3_ward_b` |
+| `s_m3_ward_3` | Quarantine, last cell | giant | 1 | 1 | no | `t_m3_ward_b` |
+| `s_m3_tc3_1` | Test chamber 3, the dais | mommy | 1 | 1 | yes | |
+| `s_m3_tc3_2` | Test chamber 3, vent grate | fast | 4 | 2 | no | `t_m3_tc3` |
+| `s_m3_vent_1` | Gallery, vent grate | basic | 0 | 6 | no | horde source only |
+
+Worst case alive: giant + 8 in the ward, or mommy + 6 brood + 2 fast in chamber 3. Teaches: the
+tentacle rescue, antennae crits, kiting in a corridor, killing a brood mother or choosing not to.
+
+Pickups: specimen vault cases `ammo_explosive`, `ammo_homing`, `ammo_flame`, `ammo_ricochet`,
+`flask_fire`, `flask_freeze`; medkit x2 (decon lockers, dissection drawer); `flask_rage` (secret).
+
+Secret 3a: test chamber 1's cracked glass breaks into a service gap behind the rigs, running to a
+sealed sample room: a vat (`vat_m3b`), a rage flask, and the first core sample in a glass case
+with the original survey note ("found at 40 m, glowing, do not touch with bare hands"). Secret 3b:
+a plank-boarded doorway in the hazmat store opens onto the cage lift shaft one floor down the
+ladder: a shortcut that skips the checkpoint, for a party that already has the key or does not.
+
+### Floor -4: The Dig
+
+Rock-walled, timber-propped tunnels into the cavern where the colony was found, with the
+generator hall and freight elevator built into the cave's east wall. Tunnels are 2.4 m wide and
+2.6 m tall; the cavern is up to 9 m tall. Wood and plank props are breachable, and the shrooms
+know it. Route runs west into the cavern, then east to the generator.
+
+| Room | Block | Size | Contents and lore |
+|---|---|---|---|
+| Lift foot | D4 | 5 x 5 | The broken cage, the ladder's end. Mine carts, plank stacks |
+| Main drift | D4 to B4 | 24 m long tunnel | Timber props, pipes, lamps dead. Side drifts boarded with plank (shrooms burst through) |
+| Pump room | C3 | 6 x 6 | Pumps, water on the floor, barrels. `ammo_poison`, medkit. Terminal (water table log, "the glow is in the water now") |
+| Core sample lab | B3 | 8 x 6 (prefab, concrete) | Lab benches, glass cases of samples, the survey map on a corkboard. `vat_m4`, medkit station |
+| Mother cavern | A1 to B3 | 24 x 24, 9 m tall | The colony: substrate floor, glowing stems, a lake. The **mother mass** at the center: a mommy with two tentacles and ceiling sacs in the roof. Catwalks and ladders to a ledge on the east side |
+| Survey tunnel (secret) | A4 | 2 x 10 | Boarded, behind the cavern's south wall |
+| Generator hall | C1 to D2 | 16 x 14, 5 m tall | The **generator** in the middle on a raised pad, breaker cabinets, sandbag lines, ammo bench (4 charges), medkit station (4 charges), crates. Four tunnel mouths (north, south, two west), two ceiling spawners, a vent shaft |
+| Freight elevator | D1 | 4 x 4 | `d_m4_exit`, `door_power`. Opens on `finale_survived` |
+
+Flow:
+
+1. Main drift. Calm for 20 m, then `t_m4_drift` and boarded side drifts burst: basic, fast and
+   exploding in a tunnel with no cover. Teaches: in tunnels, the flamethrower.
+2. Pump room and core sample lab: refill, vat. The lab's survey map is the "you are here" for the
+   cavern.
+3. Mother cavern: the spectacle. The ledge route around the east side is the safe path if nobody
+   fires; firing wakes everything (`t_m4_cavern` fires on the first shot in the cavern, or on
+   reaching the lake's edge, whichever first). The mother mass is optional: killing her pops
+   her brood and the cavern quiets, and her dais holds the last cache. Stretch: on her death the
+   cavern's tendrils and glow shrivel to dark substrate from the dais outward (section 11). The
+   exit tunnel to the generator hall leaves from the ledge.
+4. Generator hall. Set up: sandbags, stations, the four mouths. Using the generator: power
+   restored, lights up for the first time since floor 0, finale for 150 s (set
+   `finale_seconds`). Every spawner in the level turns on, but the ones that matter are the
+   six in the hall; the flow field keeps the others busy walking.
+5. Survive: the elevator opens. Fail: back to backup power, enemies cleared, generator usable
+   again, party at `vat_m4`.
+
+| Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
+|---|---|---|---|---|---|---|
+| `s_m4_drift_1` | Main drift, boarded side drift west | basic, fast | 10 | 4 | no | `t_m4_drift` |
+| `s_m4_drift_2` | Main drift, boarded side drift east | exploding | 6 | 2 | no | `t_m4_drift` |
+| `s_m4_cav_1` | Cavern, the mass | mommy | 1 | 1 | yes | |
+| `s_m4_cav_2` | Cavern, either side of the mass (radius 5) | tentacle | 1 | 2 | yes | |
+| `s_m4_cav_3` | Cavern, roof, `on_ceiling` | ceiling_cloud | 2 | 3 | yes | |
+| `s_m4_cav_4` | Cavern, west stems | ranged, spore | 6 | 4 | no | `t_m4_cavern` |
+| `s_m4_cav_5` | Cavern, south stems | basic, fast, alarm | 10 | 6 | no | `t_m4_cavern` |
+| `s_m4_gen_n` | Generator hall, north mouth | basic, fast | 6 | 4 | no | finale |
+| `s_m4_gen_s` | Generator hall, south mouth | basic, exploding | 6 | 4 | no | finale |
+| `s_m4_gen_w1` | Generator hall, west mouth 1 | ranged, spore | 4 | 3 | no | finale |
+| `s_m4_gen_w2` | Generator hall, west mouth 2 | basic, fast, giant | 5 | 4 | no | finale |
+| `s_m4_gen_c` | Generator hall roof, `on_ceiling` | ceiling_cloud | 3 | 2 | no | finale |
+| `s_m4_gen_v` | Generator hall, vent shaft | basic, fast, tentacle | 6 | 4 | no | finale |
+
+Finale math with the director's defaults (rate x4, caps x2, bursts of 12, 18, 27, 40 at 20 s
+intervals): trickle caps in the hall alone reach 42, bursts land on top, the 80 cap bites around
+the third burst. That is intended: the last 50 s are a wall of shrooms and the stations are what
+carry the party. Tune `finale_seconds` first (120 to 180), then the hall's caps.
+
+Pickups: `ammo_poison`, medkit (pump room); `ammo_flame` x2, `ammo_explosive` x2 (core sample
+lab); the mother's cache `ammo_homing` x2, `flask_fire`, `flask_rage`; generator hall crates
+`ammo_shotgun` x2, `ammo_explosive`, `flask_freeze` x2, `flask_poison`.
+
+Secret 4a: the survey tunnel, boarded, behind the cavern's south wall: the first survey camp
+(bedrolls, a corkboard, a terminal with the discovery log: the surveyor's lamp went out and the
+walls kept glowing in a pattern that repeated when she spoke), `ammo_homing`, a spare vat.
+
+## 5. Difficulty curve
+
+| Floor | New kinds | Peak alive (calm) | Hordes possible | Lesson | Expected time (2 players) |
+|---|---|---|---|---|---|
+| 0 | basic | 7 | no | aim, doors, props | 6 min |
+| -1 | fast, spore | 13 | no | breaches, range, aisles, leaving | 10 min |
+| -2 | ranged, exploding, alarm, ceiling cloud | 12 (+12 horde) | yes (alarm) | cover, assets, priority targets | 12 min |
+| -3 | tentacle, mommy, giant | 10 to 12 | yes (gallery vent) | rescue, crits, kiting, broods | 14 min |
+| -4 | mixed, finale | 16 calm, 40 to 60 finale | yes (alarm, finale) | everything, holding a room | 15 min |
+
+Threat weights for sanity checks when tuning (sum the `max_alive` x weight of every spawner that
+can be live at once in a room): basic 1, fast 1.5, spore 1.5, ranged 2, exploding 2, ceiling 1,
+alarm 3, tentacle 3, giant 8, mommy 6 (plus her brood). Targets: floor 0 under 8, -1 under 18,
+-2 under 24 before hordes, -3 under 30, finale unbounded.
+
+Rules that keep it fair:
+
+- A new kind always appears alone or with basics the first time, in a room shaped for its counter.
+- Nothing attacks the party in a stair lobby, airlock, ladder shaft or clone bay. Those are
+  the breathing rooms, and the vats sit in them.
+- Every set piece has an exit that is closer than the entrance, so running works.
+- Alarm shrooms are only ever placed where there is a line of sight long enough to see the
+  wind-up (archive end of aisle, cavern).
+- Horde-only spawners (rate 0) sit in vents on every floor so a horde arrives from the walls
+  the party can see, never from behind a locked door.
+- Exploding shrooms are placed near assets on purpose: the payroll is the pressure, not the damage.
+
+Co-op: spawner numbers above are for two players. Solo is easier by design (the mushroom gun is
+strong and basic ammo is infinite); the tentacle and the giant are the only places solo play is
+harder, and both have a solo counter (break damage, antenna crits). Four players need the
+scaling hook in section 9.
+
+## 6. Items and stations
+
+Per player over the whole run (one pickup per marker, party shares): 1 shotgun pickup per floor
+or so, 2 to 3 explosive, 2 flame, 2 ricochet, 3 homing, 2 poison, and 10 flasks (3 fire, 3
+freeze, 2 poison, 2 rage). Rare ammo is weighted toward secrets so exploring pays, and the
+specimen vault is the one place everything is on offer at once, priced in payroll.
+
+Stations: a medkit station in every clone bay (3 charges, 4 at the generator), an ammo bench on
+floors -1, -3 and -4 (2, 3, 4 charges). Medkits as pickups: two per floor in containers (fridges,
+drawers, lockers), so opening things is worth it.
+
+## 7. Lore delivery
+
+Terminals and notes carry the story; nothing is required reading. The thread, in route order:
+
+1. Gatehouse sign-in: the night shift's single duty, "monitor the migration".
+2. Security camera feed: "no change detected" on every grow room.
+3. Office email: the migration window is tonight; the model is being moved into the substrate.
+4. Training station: "no change detected... Thoughts detected... deciphering."
+5. Mycology office: the pulsing is a carrier signal; the beds are syncing.
+6. Server hall rack map: Substrate Array B online, racks 12 to 40 "hybrid".
+7. Inference lab: the migration log, the model's last messages, "100% of weights resident".
+8. Ops alarm log: every sensor trips at 02:14.
+9. Electrical room: the breaker wants the generator.
+10. Secret 2a: Array A answered a query before it was asked.
+11. Gallery chamber 3: the subject shocked back.
+12. Specimen vault: accounting's note on asset write-offs.
+13. Pump room: the glow is in the water.
+14. Core sample lab: the survey map, where it was found.
+15. Secret 4a: the surveyor's log, the walls repeating her words.
+
+Intercom lines (speaker markers) at every gate and clone bay: corporate, unbothered, charging
+the party for each vat and door. The voice is Fung AI's automated system; Guy Fung himself only
+appears in writing (memos, the onboarding welcome) and in the ending.
+
+### The ending
+
+After `finale_survived` the elevator opens and rises. The end screen is the payroll statement:
+every Fung AI asset the party broke, itemized by prop name and price (`LevelPlay` already tracks
+asset damage in dollars), plus one line per clone vat use and one per door forced, against the
+night's wages. The total owed is the reveal: the party survived and is deeper in debt to Fung AI
+than when they clocked in. A short note from Guy Fung thanks them for their service and gives the
+date of their next shift. Payroll numbers come from the `ASSET_VALUES` table and the per-prop
+`value` field, so the vault, the server racks and the cooling plant decide how big the number is.
+
+## 8. Materials and lighting per floor
+
+| Floor | Floor material | Walls | Accents | Light on backup |
+|---|---|---|---|---|
+| G | concrete | concrete | warning paint, metal | floodlights (`emergency`) |
+| 0 | tile light | painted wall over lower paint | corkboards, glass | emergency reds, screens off |
+| -1 | tile dark, substrate in halls | painted wall, glass | glow seams, pipes | grow beds glow, emergency |
+| -2 | concrete | sheet metal, block wall | screens, glow in racks | screens dim, racks pulse |
+| -3 | tile light | concrete, glass | warning paint | emergency, chamber glow |
+| -4 | rock, substrate, water | rock, wood props | glow stems, lamps dead | glow only, flashlights |
+
+Lights are markers with `power = facility`, so the whole building goes dark at the outbreak and
+comes back for the finale. Emergency lights (`power = emergency`) are the breadcrumb: one over
+every door on the route, none on the side loops, so the lit path is the way forward and the dark
+rooms are where the keys and secrets are.
+
+## 9. Engine and editor work needed first
+
+All small, all in the systems the mechanics branch added. Items that touch `level_schema.gd`
+(door props, trigger `actions`) are described here and folded in by the editor v2 work, which is
+adding `room` and `opening` object kinds and prop mount rules to the same file; doors there cut
+their own opening.
+
+1. **Door props**: placeholder `.vox` models and catalog entries for a single sliding lab door
+   (1.2 x 2.2 m), a double door (2.4 x 2.2), a security door with a keycard reader, a blast door
+   (2.4 x 2.4), and a vent hatch (1.2 x 1.2). `docs/level-editor.md` promised these; none exist.
+2. **Respawn at the nearest clone vat** (`Lab._on_local_died` uses the first vat in the file).
+   Nearest by walking distance to where the player died, or the last vat the party passed; the
+   latter is simpler and never sends anyone backward.
+3. **Trigger actions**: add an `actions` field to triggers (and to `on_use`) parsed the same way
+   as `activates`: `power=backup`, `power=facility`, `lock=<door>`, `unlock=<door>`,
+   `open=<door>`, `close=<door>`, `off=<spawner>`. The outbreak, the sealing fire door, the
+   airlock, the ladder break and the elevator are all data then. `LevelPlay` already has
+   `set_power`, `set_door_locked` and open/close for story scripts.
+4. **Hordes pick spawners by walking distance**: `_spawners_by_distance` should rank by the flow
+   field's distance at the spawner (and skip unreached ones) instead of straight-line, or a
+   spawner on the floor above will be "nearest" through the slab.
+5. **Ladder break**: a trigger action `replace=<box>,<material>` (or the ladder as a small door
+   prop that "opens" into the wall) so the cage-lift ladder's top can go.
+6. **Player-count scaling**: multiply each spawner's `max_alive` and rate by `0.75 + 0.25 x
+   players` on the host. The tables above are for two.
+7. **Recreate `levels/laboratory`** as rock fill, 16 x 12 x 16 chunks, `start_power = facility`.
+8. **Blockout generator** (recommended): a tool script like `facility_builder.gd` that reads a
+   room table (floor, block, size, materials, doors, markers) and writes the shell, stairs,
+   shafts, ladders and all markers into the level once, so the whole plan exists in an hour and
+   the editor is used for dressing, not digging. Once editor v2's rooms-as-objects lands, emit
+   rooms as objects so they stay editable; until then, plain voxels.
+9. **Stairs**: 4-voxel risers, 6-voxel treads, in the generator. No stair tool is needed in the
+   editor for this level.
+10. **Spawner `on_dead`** (stretch, for the mother mass): a trigger id a spawner fires when its
+    last living enemy dies, so a kill can drive actions like the cavern's `wither`.
+
+## 10. Build order
+
+1. Engine work above (items 1 to 7; 8 and 9 together as one script).
+2. Blockout: every room, corridor, stair, shaft and ladder on all six floors, with doors and
+   their keys and the one-way links. Walk it end to end with no enemies and time it (target 45
+   to 60 minutes with fights, so about 25 minutes empty).
+3. Markers: spawners, triggers, vats, item spots, lights, speakers, from the tables. Play it
+   through with two players. Tune caps and rates floor by floor against the threat targets in
+   section 5.
+4. Dressing in the editor: props, materials, glow, breakable patches, secrets. Asset values on
+   the props that should hurt.
+5. Lore: terminal and note texts, speaker lines.
+6. Finale tuning: `finale_seconds`, hall caps, station charges. Then solo and four-player passes.
+7. Hand `.vox` work (the user and Zack): doors, racks, rig, mother mass, cave stems, signage.
+
+## 11. Open questions
+
+- Decided 2026-11-03: the company is Fung AI, the CEO is Guy Fung, and the ending is the payroll
+  statement (section 7). The model's name and the SHIFT tie-in are still placeholders.
+- The mother mass (section 4, the Dig): the colony's central body in the mother cavern, the
+  original organism everything upstairs was cut from. Built from existing kinds: a mommy shroom
+  on a substrate dais with two tentacles beside it and ceiling sacs in the roof above, so it
+  births basics, grabs, and drops poison, with no new enemy code. It is optional: the ledge
+  route to the generator hall goes around it. Decided 2026-11-03: **killable and optional**
+  (killing it pops the brood and quiets the cavern, and its dais holds the last cache). It may
+  not make the final game.
+- Stretch, if the mass stays in: killing it makes the mycelium **shrivel**. Over a few seconds
+  the glow stems, tendrils and glow seams in the cavern go dark and shrink: glow and shroom
+  voxels within the cavern are replaced in an expanding sphere from the dais (`WorldSync`
+  already has `replace_sphere`), the glow lights turn off, and the sound drops to dripping
+  water. Needs one hook: a spawner `on_dead` trigger id that fires when its last enemy dies
+  (section 9), plus a `wither=<center>,<radius>` trigger action that runs the replacement over
+  time. The tendrils are plain voxels of SHROOM_STEM and GLOW laid by the generator or by hand,
+  so the effect is a material swap, not an animation.
+- Surface rain: cosmetic, needs a particle effect in the loading yard, not planned here.

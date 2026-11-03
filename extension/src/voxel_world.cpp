@@ -443,6 +443,143 @@ Dictionary VoxelWorld::finish_carve(const int removed[256], const std::vector<Ve
 	return result;
 }
 
+Dictionary VoxelWorld::set_voxels(const PackedInt32Array &points, const PackedByteArray &materials) {
+	Dictionary result;
+	ERR_FAIL_COND_V_MSG(points.size() != materials.size() * 3, result, "set_voxels: points must hold x, y, z for each material.");
+	int removed[256] = {};
+	std::vector<Vector3i> removed_voxels;
+	std::vector<Vector3i> changed;
+	for (int64_t i = 0; i < materials.size(); i++) {
+		const Vector3i p(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+		if (!in_bounds(p.x, p.y, p.z)) {
+			continue;
+		}
+		const uint8_t value = uint8_t(CLAMP(int(materials[i]), 0, 254));
+		const uint8_t current = read(p.x, p.y, p.z);
+		if (current == value || current == BOUNDARY_MATERIAL) {
+			continue;
+		}
+		write(p.x, p.y, p.z, value);
+		changed.push_back(p);
+		if (value == 0) {
+			removed[current]++;
+			removed_voxels.push_back(p);
+		}
+	}
+	if (changed.empty()) {
+		return result;
+	}
+	for (int m = 1; m < 256; m++) {
+		if (removed[m] > 0) {
+			result[m] = removed[m];
+		}
+	}
+
+	Vector3i lo = changed[0];
+	Vector3i hi = changed[0];
+	for (const Vector3i &p : changed) {
+		lo = lo.min(p);
+		hi = hi.max(p);
+	}
+	// Loose pieces: detach_fragments grows a box around whatever it removes.
+	const Vector3i none_lo(INT32_MAX, INT32_MAX, INT32_MAX);
+	const Vector3i none_hi(INT32_MIN, INT32_MIN, INT32_MIN);
+	Vector3i fragment_lo = none_lo;
+	Vector3i fragment_hi = none_hi;
+	if (detach_floating && !removed_voxels.empty()) {
+		detach_fragments(removed_voxels, fragment_lo, fragment_hi);
+	}
+
+	// The chunks each point's mesh faces can reach (one voxel out), not the whole bounding box: a
+	// fire's points are scattered across the level.
+	std::unordered_set<int> seen;
+	std::vector<int> touched;
+	auto touch_range = [&](const Vector3i &from, const Vector3i &to) {
+		const int cx0 = CLAMP((from.x - 1) >> CHUNK_SHIFT, 0, size_in_chunks.x - 1);
+		const int cy0 = CLAMP((from.y - 1) >> CHUNK_SHIFT, 0, size_in_chunks.y - 1);
+		const int cz0 = CLAMP((from.z - 1) >> CHUNK_SHIFT, 0, size_in_chunks.z - 1);
+		const int cx1 = CLAMP((to.x + 1) >> CHUNK_SHIFT, 0, size_in_chunks.x - 1);
+		const int cy1 = CLAMP((to.y + 1) >> CHUNK_SHIFT, 0, size_in_chunks.y - 1);
+		const int cz1 = CLAMP((to.z + 1) >> CHUNK_SHIFT, 0, size_in_chunks.z - 1);
+		for (int cy = cy0; cy <= cy1; cy++) {
+			for (int cz = cz0; cz <= cz1; cz++) {
+				for (int cx = cx0; cx <= cx1; cx++) {
+					const int slot = chunk_slot(cx, cy, cz);
+					if (seen.insert(slot).second) {
+						touched.push_back(slot);
+					}
+				}
+			}
+		}
+	};
+	for (const Vector3i &p : changed) {
+		touch_range(p, p);
+	}
+	if (fragment_lo.x <= fragment_hi.x) {
+		touch_range(fragment_lo, fragment_hi);
+		lo = lo.min(fragment_lo);
+		hi = hi.max(fragment_hi);
+	}
+	for (int slot : touched) {
+		try_compress(chunks[slot]);
+		mark_dirty(slot);
+	}
+	if (int(touched.size()) <= immediate_remesh_limit) {
+		sort_by_camera_distance(touched);
+		for (int slot : touched) {
+			build_chunk_mesh(slot);
+		}
+	}
+	emit_signal("voxels_changed", lo, hi);
+	return result;
+}
+
+PackedInt32Array VoxelWorld::find_in_sphere(const Vector3 &center, float radius, const PackedByteArray &hosts, bool exposed_only, int max_count) const {
+	PackedInt32Array out;
+	bool wanted[256];
+	build_host_table(hosts, wanted);
+	const Vector3 c = to_voxel_space(center);
+	const double r = double(radius) / voxel_size;
+	const double r2 = r * r;
+	const Vector3i lo = Vector3i(floor_to_int(c.x - r), floor_to_int(c.y - r), floor_to_int(c.z - r));
+	const Vector3i hi = Vector3i(floor_to_int(c.x + r), floor_to_int(c.y + r), floor_to_int(c.z + r));
+	struct Found {
+		double distance2;
+		Vector3i p;
+	};
+	std::vector<Found> found;
+	for (int y = lo.y; y <= hi.y; y++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			for (int x = lo.x; x <= hi.x; x++) {
+				const double dx = x + 0.5 - c.x, dy = y + 0.5 - c.y, dz = z + 0.5 - c.z;
+				const double d2 = dx * dx + dy * dy + dz * dz;
+				if (d2 > r2 || !in_bounds(x, y, z)) {
+					continue;
+				}
+				const uint8_t current = read(x, y, z);
+				if (current == 0 || current == BOUNDARY_MATERIAL || !wanted[current]) {
+					continue;
+				}
+				if (exposed_only && read(x + 1, y, z) != 0 && read(x - 1, y, z) != 0 && read(x, y + 1, z) != 0 &&
+						read(x, y - 1, z) != 0 && read(x, y, z + 1) != 0 && read(x, y, z - 1) != 0) {
+					continue;
+				}
+				found.push_back({ d2, Vector3i(x, y, z) });
+			}
+		}
+	}
+	// Stable, so equal distances keep scan order and every peer gets the same list.
+	std::stable_sort(found.begin(), found.end(), [](const Found &a, const Found &b) { return a.distance2 < b.distance2; });
+	const int count = MIN(int(found.size()), MAX(0, max_count));
+	out.resize(int64_t(count) * 3);
+	for (int i = 0; i < count; i++) {
+		out[i * 3] = found[i].p.x;
+		out[i * 3 + 1] = found[i].p.y;
+		out[i * 3 + 2] = found[i].p.z;
+	}
+	return out;
+}
+
 void VoxelWorld::detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to) {
 	static const Vector3i NEIGHBORS[6] = { Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1) };
 	auto key = [](const Vector3i &p) { return int64_t(p.x) | (int64_t(p.y) << 21) | (int64_t(p.z) << 42); };
@@ -1161,6 +1298,8 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("carve_box", "box", "max_hardness"), &VoxelWorld::carve_box, DEFVAL(254));
 	ClassDB::bind_method(D_METHOD("replace_in_box", "from", "to", "material_id", "hosts"), &VoxelWorld::replace_in_box, DEFVAL(PackedByteArray()));
 	ClassDB::bind_method(D_METHOD("replace_in_sphere", "center", "radius", "material_id", "hosts"), &VoxelWorld::replace_in_sphere, DEFVAL(PackedByteArray()));
+	ClassDB::bind_method(D_METHOD("set_voxels", "points", "materials"), &VoxelWorld::set_voxels);
+	ClassDB::bind_method(D_METHOD("find_in_sphere", "center", "radius", "hosts", "exposed_only", "max_count"), &VoxelWorld::find_in_sphere);
 	ClassDB::bind_method(D_METHOD("fill_layers", "from", "to", "materials", "tops", "undulation", "wavelength", "seed"), &VoxelWorld::fill_layers);
 	ClassDB::bind_method(D_METHOD("build_model_mesh", "size", "voxels"), &VoxelWorld::build_model_mesh);
 	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));

@@ -9,6 +9,8 @@ extends Node
 
 ## Every peer, after a carve lands in its world, for debris and sound.
 signal carved(center: Vector3, normal: Vector3, removed: Dictionary)
+## Every peer, after a set_voxels batch lands in its world (Fire keeps its burning set with it).
+signal voxels_set(points: PackedInt32Array, materials: PackedByteArray, removed: Dictionary)
 ## This peer's world was replaced by a snapshot from the host.
 signal snapshot_applied
 ## A blob sent with send_blob arrived whole (tags other than "world", which is applied directly).
@@ -18,6 +20,8 @@ signal blob_received(tag: String, bytes: PackedByteArray)
 const PART_SIZE := 4000
 ## Requests from peers are clamped to this so a bad packet can't carve out the whole level.
 const MAX_CARVE_RADIUS := 3.0
+## Voxels per set_voxels RPC (13 bytes each, so a part stays near PART_SIZE).
+const SET_PART := 300
 
 @export var world: VoxelWorld
 
@@ -88,6 +92,28 @@ func replace_sphere(center: Vector3, radius: float, material: int, sources: Pack
 @rpc("authority", "reliable")
 func _apply_replace_sphere(center: Vector3, radius: float, material: int, sources: PackedByteArray) -> void:
 	world.replace_in_sphere(center, minf(radius, MAX_CARVE_RADIUS), material, sources)
+
+
+## Host: sets many single voxels everywhere (points: x, y, z per voxel; one material each), in
+## parts of SET_PART voxels. Voxels set to air drop loose pieces like a carve (fire).
+func set_voxels(points: PackedInt32Array, materials: PackedByteArray) -> void:
+	if not multiplayer.is_server():
+		push_error("only the host sets voxels")
+		return
+	for start in range(0, materials.size(), SET_PART):
+		var part_points := points.slice(start * 3, (start + SET_PART) * 3)
+		var part_materials := materials.slice(start, start + SET_PART)
+		_apply_set_voxels(part_points, part_materials)
+		for peer_id in _synced:
+			_apply_set_voxels.rpc_id(peer_id, part_points, part_materials)
+
+
+@rpc("authority", "reliable")
+func _apply_set_voxels(points: PackedInt32Array, materials: PackedByteArray) -> void:
+	if points.size() != materials.size() * 3:
+		return
+	var removed: Dictionary = world.set_voxels(points, materials)
+	voxels_set.emit(points, materials, removed)
 
 
 ## Host: applies an editor operation (see _apply_op) everywhere.

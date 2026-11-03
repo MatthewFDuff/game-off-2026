@@ -48,6 +48,8 @@ var cut_mode := Cut.AUTO
 var cut_layer := 0
 ## Page Up / Down step, in voxels (the editor keeps it at the grid snap).
 var cut_step := 5
+## Off while a tool step uses the wheel to size things.
+var zoom_enabled := true
 
 var camera := Camera3D.new()
 
@@ -147,7 +149,8 @@ func cut_y() -> float:
 
 
 ## VoxelWorld.raycast that sees what the cutaway shows: it starts at the cut plane (so it hits the
-## cap first) and misses anything above the cut. distance is from origin, as usual.
+## cap first) and misses anything above the cut. distance is from origin, as usual; cap is true
+## on a hit on the cap.
 func raycast(origin: Vector3, direction: Vector3, reach := REACH) -> Dictionary:
 	var world := lab.world
 	if not is_cutting():
@@ -167,6 +170,7 @@ func raycast(origin: Vector3, direction: Vector3, reach := REACH) -> Dictionary:
 		return {hit = false}
 	if hit.normal == Vector3.ZERO:
 		hit.normal = Vector3.UP # Started inside a solid voxel: that's the cap, facing up.
+		hit.cap = true
 	hit.distance += skipped
 	return hit
 
@@ -208,7 +212,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_drag_pans = button.button_index == MOUSE_BUTTON_MIDDLE and button.shift_pressed
 				get_viewport().set_input_as_handled()
 			MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
-				if not button.ctrl_pressed:
+				if not button.ctrl_pressed and zoom_enabled:
 					zoom(1.0 / ZOOM_STEP if button.button_index == MOUSE_BUTTON_WHEEL_UP else ZOOM_STEP)
 					get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed:

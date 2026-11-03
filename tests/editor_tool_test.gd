@@ -40,7 +40,8 @@ func _run() -> void:
 	await _frames(3)
 	_check("cursor on the floor", tool.has_cursor and tool.solid_cell.y == 39 and tool.cell.y == 40, "%s / %s" % [tool.solid_cell, tool.cell])
 
-	# Box tool, grid 1: two clicks fill a column of the current material.
+	# Box tool, grid 1: corner, floor, then a typed height of 4 voxels fills a box of the current
+	# material.
 	await _key(KEY_3)
 	await _key(KEY_G)
 	await _key(KEY_G)
@@ -52,12 +53,20 @@ func _run() -> void:
 	await _frames(2)
 	await _click(MOUSE_BUTTON_LEFT)
 	var far_cell: Vector3i = tool.cell
-	var filled := _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i.ONE, M.BLOCK_WALL)
-	_check("two clicks fill the box", filled == (far_cell - floor_cell + Vector3i.ONE).x * (far_cell - floor_cell + Vector3i.ONE).z and filled > 1, "%d voxels" % filled)
+	_check("second click: on to the height", tool.volume.step == 2)
+	await _key(KEY_4)
+	await _key(KEY_V)
+	_check("typing sets the height", tool.volume.extent.y == 4 and tool.tool == 2, "%s" % tool.volume.extent)
+	await _click(MOUSE_BUTTON_LEFT)
+	var top := Vector3i(0, 4, 0)
+	var area: int = (far_cell - floor_cell + Vector3i.ONE).x * (far_cell - floor_cell + Vector3i.ONE).z
+	var filled := _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i(1, 4, 1), M.BLOCK_WALL)
+	_check("third click fills the box", filled == area * 4 and area > 1, "%d voxels, area %d" % [filled, area])
+	_check("...and no higher", _count(lab.world, floor_cell.min(far_cell) + top, floor_cell.max(far_cell) + top + Vector3i.ONE, M.BLOCK_WALL) == 0)
 	await _key(KEY_Z, true)
-	_check("Ctrl+Z undoes it", _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i.ONE, M.BLOCK_WALL) == 0)
+	_check("Ctrl+Z undoes it", _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i(1, 4, 1), M.BLOCK_WALL) == 0)
 	await _key(KEY_Y, true)
-	_check("Ctrl+Y redoes it", _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i.ONE, M.BLOCK_WALL) == filled)
+	_check("Ctrl+Y redoes it", _count(lab.world, floor_cell.min(far_cell), floor_cell.max(far_cell) + Vector3i(1, 4, 1), M.BLOCK_WALL) == filled)
 	await _key(KEY_Z, true)
 
 	# Brush: hold LMB for a few dabs while moving; one undo removes the whole stroke.

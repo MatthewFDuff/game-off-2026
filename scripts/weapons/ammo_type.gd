@@ -28,11 +28,13 @@ const DEFS := {
 			carve_power = 3, recoil = 0.07, shake = 0.4, pickup = 12, max_count = 48},
 	flame = {label = "Flame", color = Color(1.0, 0.45, 0.1), mode = "cone", damage = 4.0, spread = 20.0,
 			rate = 10.0, reach = 4.5, sound = "flame", sound_db = -6.0, kind = "flame", status = "burning",
-			status_seconds = 3.0, recoil = 0.0, shake = 0.04, pickup = 60, max_count = 240},
+			status_seconds = 3.0, recoil = 0.0, shake = 0.04, pickup = 60, max_count = 240, ignite_radius = 0.35,
+			ignite_count = 6},
 	explosive = {label = "Explosive", color = Color(1.0, 0.28, 0.2), mode = "projectile", damage = 20.0,
 			rate = 1.2, speed = 30.0, gravity = 6.0, impact = "blast", blast_radius = 1.2, blast_power = 6,
 			blast_damage = 40.0, splash_radius = 2.0, sound = "blast", sound_db = -8.0, sound_pitch = 1.8,
-			kind = "blast", recoil = 0.06, shake = 0.3, pickup = 4, max_count = 16},
+			kind = "blast", recoil = 0.06, shake = 0.3, pickup = 4, max_count = 16, ignite_radius = 1.6,
+			ignite_count = 25},
 	ricochet = {label = "Ricochet", color = Color(0.6, 0.78, 1.0), mode = "projectile", damage = 18.0,
 			rate = 3.0, speed = 40.0, bounces = 4, pierce = true, sound = "ricochet", kind = "ricochet",
 			carve_radius = 0.1, carve_power = 3, pickup = 15, max_count = 60},
@@ -79,6 +81,10 @@ var kind := "rifle"
 ## Terrain chip where a hitscan pellet or a bouncing / impacting projectile hits voxels (0 = none).
 var carve_radius := 0.0
 var carve_power := 0
+## Sets flammable voxels alight (Fire.ignite_at) where it lands: the cone's aim point, a blast's
+## crater. At most ignite_count voxels within ignite_radius meters (0 = none).
+var ignite_radius := 0.0
+var ignite_count := 0
 ## Status applied to enemies hit (Enemy.apply_status), "" for none.
 var status := ""
 var status_seconds := 0.0

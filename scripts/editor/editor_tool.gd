@@ -35,10 +35,10 @@ const TOOL_ABOUT := [
 ]
 const TOOL_HINTS := [
 	"LMB select · M move · Ctrl+D duplicate · R rotate · Delete",
-	"LMB two corners (inside of the room): carve it and line it · RMB / Esc back",
-	"LMB two corners: fill · RMB two corners: carve · Esc back",
+	"LMB corner, LMB floor, LMB height (the inside of the room) · wheel / type sizes · Tab next size · RMB back",
+	"LMB corner, floor, height: fill · RMB first: carve · wheel / type sizes · Tab next size",
 	"LMB hold: paint · RMB hold: carve · [ ] size",
-	"LMB on the material to replace, then the far corner · RMB / Esc back",
+	"LMB on the material to replace, then floor and height · wheel / type sizes · RMB back",
 	"LMB place · R / RMB rotate · Alt+LMB pick a placed prop's type",
 	"LMB place the marker · facing follows your view",
 ]
@@ -70,17 +70,24 @@ var room_wall := VoxelMaterials.WALL_PAINT
 var room_ceiling := VoxelMaterials.CONCRETE
 var room_thickness := 3
 
-## Cursor this frame: the empty cell in front of the aimed surface, the solid cell aimed at, and
-## the placed object under the crosshair.
+## Cursor this frame: the empty cell in front of the aimed surface, the solid cell aimed at, the
+## surface's normal (on_cap: it's the cutaway's cross section) and the placed object under it.
 var has_cursor := false
 var cell := Vector3i.ZERO
 var solid_cell := Vector3i.ZERO
+var cursor_normal := Vector3i.UP
+var cursor_on_cap := false
 var object_under := ""
 
-## First corner of a box tool, and whether it carves.
-var _corner: Variant = null
-var _corner_carve := false
+## Room / Box / Replace sizing (three clicks), whether the box carves, and what Replace swaps.
+var volume := VolumeSteps.new()
+var _volume_carve := false
 var _replace_source := 0
+## Last height built per tool, in voxels: the next one starts there.
+var _last_height := {Tool.ROOM: 30, Tool.BOX: 10, Tool.REPLACE: 10}
+## This frame's aim ray (mouse or crosshair).
+var _aim_from := Vector3.ZERO
+var _aim_direction := Vector3.FORWARD
 ## Object being moved / duplicated (a copy with the pending changes), its original id ("" = new).
 var _grab := {}
 var _grab_id := ""
@@ -91,6 +98,11 @@ var _dab_timer := 0.0
 var _cursor_lines := MeshInstance3D.new()
 var _volume := MeshInstance3D.new()
 var _ghost := MeshInstance3D.new()
+## Width, height and length labels on the sized box's edges (Vector3 axis order).
+var _size_labels: Array[Label3D] = []
+
+const LABEL_COLOR := Color(0.92, 0.95, 1.0)
+const LABEL_ACTIVE_COLOR := Color(1.0, 0.85, 0.3)
 
 
 func _ready() -> void:
@@ -107,7 +119,19 @@ func _ready() -> void:
 	volume_material.no_depth_test = true
 	_volume.material_override = volume_material
 	_ghost.transparency = 0.45
-	for node in [_cursor_lines, _volume, _ghost]:
+	volume.world = lab.world
+	for i in 3:
+		var label := Label3D.new()
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.fixed_size = true
+		label.no_depth_test = true
+		label.pixel_size = 0.001
+		label.font_size = 26
+		label.outline_size = 8
+		label.outline_modulate = Color(0.06, 0.09, 0.12)
+		label.render_priority = 10
+		_size_labels.append(label)
+	for node in [_cursor_lines, _volume, _ghost] + _size_labels:
 		node.visible = false
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		lab.view.add_child.call_deferred(node)
@@ -131,7 +155,7 @@ func _load_room_defaults() -> void:
 
 
 func _exit_tree() -> void:
-	for node in [_cursor_lines, _volume, _ghost, camera]:
+	for node in [_cursor_lines, _volume, _ghost, camera] + _size_labels:
 		if is_instance_valid(node):
 			node.queue_free()
 
@@ -214,9 +238,9 @@ func is_aiming() -> bool:
 	return InputSetup.is_playing()
 
 
-## Drops the pending corner / move / stroke.
+## Drops the pending volume / move / stroke.
 func cancel() -> void:
-	_corner = null
+	volume.cancel()
 	_grab = {}
 	_grab_id = ""
 	_end_stroke()
@@ -224,22 +248,25 @@ func cancel() -> void:
 
 # --- Per frame -----------------------------------------------------------------------------------
 
-## Something to back out of with Esc: a corner down, a move or a stroke.
+## Something to back out of with Esc: a volume being sized, a move or a stroke.
 func has_step() -> bool:
-	return _corner != null or not _grab.is_empty() or _stroke != 0
+	return volume.is_active() or not _grab.is_empty() or _stroke != 0
 
 
 func _process(delta: float) -> void:
 	if camera.active != (builder and is_active()):
 		_apply_view()
+	camera.zoom_enabled = not volume.is_active()
 	if not is_active():
-		for node in [_cursor_lines, _volume, _ghost]:
+		for node in [_cursor_lines, _volume, _ghost] + _size_labels:
 			node.visible = false
 		return
 	if not selected.is_empty() and not lab.level.objects.has(selected):
 		select("") # Removed by someone else (or undone).
 	camera.cut_step = snap()
 	_update_cursor()
+	if volume.is_active() and is_aiming():
+		volume.aim(_aim_from, _aim_direction)
 	if _stroke != 0:
 		_dab_timer -= delta
 		if _dab_timer <= 0.0:
@@ -255,8 +282,11 @@ func _update_cursor() -> void:
 		var ray := camera.mouse_ray()
 		from = ray[0]
 		direction = ray[1]
+	_aim_from = from
+	_aim_direction = direction
 	var world := lab.world
 	object_under = ""
+	cursor_on_cap = false
 	if not is_aiming():
 		has_cursor = false
 		return
@@ -277,12 +307,15 @@ func _update_cursor() -> void:
 		has_cursor = true
 		cell = world.world_to_voxel(from + direction * free_distance)
 		solid_cell = cell
+		cursor_normal = Vector3i.UP
 		return
 	var hit: Dictionary = camera.raycast(from, direction) if builder else world.raycast(from, direction, REACH)
 	has_cursor = hit.hit or object_under != ""
 	if hit.hit:
 		solid_cell = hit.voxel
-		cell = hit.voxel + Vector3i(hit.normal)
+		cursor_normal = Vector3i(hit.normal)
+		cell = hit.voxel + cursor_normal
+		cursor_on_cap = hit.get("cap", false)
 	# Props and markers aren't voxels while editing; placing on top of one uses its surface.
 	if object_under != "" and (not hit.hit or object_distance < hit.distance) and tool in [Tool.PROP, Tool.MARKER, Tool.SELECT]:
 		cell = world.world_to_voxel(from + direction * (object_distance - 0.05))
@@ -294,15 +327,25 @@ func snapped_cell(c: Vector3i) -> Vector3i:
 	return Vector3i(floori(c.x / float(s)) * s, floori(c.y / float(s)) * s, floori(c.z / float(s)) * s)
 
 
-## The grid-aligned box covering two corner cells, as [from, to).
-func box_between(a: Vector3i, b: Vector3i) -> Array[Vector3i]:
-	var sa := snapped_cell(a)
-	var sb := snapped_cell(b)
-	return [sa.min(sb), sa.max(sb) + Vector3i.ONE * snap()]
+func _starts_on_solid(carve: bool) -> bool:
+	return carve or tool == Tool.REPLACE or (tool == Tool.ROOM and cursor_on_cap)
 
 
-func _corner_cell(carve: bool) -> Vector3i:
-	return solid_cell if carve or tool in [Tool.ROOM, Tool.REPLACE] else cell
+## A volume's start cell under the cursor: the solid voxel for carving and Replace (and a room dug
+## down from the cutaway's cross section), otherwise the empty cell in front of the surface. x and
+## z snap to the grid; y stays on the surface.
+func _start_cell(carve: bool) -> Vector3i:
+	var start := cell
+	if _starts_on_solid(carve):
+		start = solid_cell
+	elif tool == Tool.ROOM and cursor_normal.y == 0:
+		# A room started on a wall stands on the floor below.
+		for i in 200:
+			if start.y <= 0 or lab.world.get_voxel(start + Vector3i.DOWN) != 0:
+				break
+			start.y -= 1
+	var snapped := snapped_cell(start)
+	return Vector3i(snapped.x, start.y, snapped.z)
 
 
 # --- Input ---------------------------------------------------------------------------------------
@@ -349,6 +392,17 @@ func back() -> void:
 
 
 func _mouse(event: InputEventMouseButton) -> void:
+	# Sizing a volume: the wheel grows or shrinks the active size (Shift: the other floor size).
+	if volume.is_active() and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+		var grow := event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_RIGHT]
+		var other := event.shift_pressed or event.button_index in [MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]
+		var on_axis := volume.axis
+		if other and on_axis != Vector3.AXIS_Y:
+			on_axis = Vector3.AXIS_Z if on_axis == Vector3.AXIS_X else Vector3.AXIS_X
+		volume.apply_typed()
+		volume.nudge(on_axis, 1 if grow else -1)
+		get_viewport().set_input_as_handled()
+		return
 	# Builder view: the camera has the wheel and the right button (a right click comes back as
 	# right_clicked).
 	if builder and event.button_index != MOUSE_BUTTON_LEFT:
@@ -379,6 +433,8 @@ func _mouse(event: InputEventMouseButton) -> void:
 
 ## Returns true if the key was used.
 func _key(event: InputEventKey) -> bool:
+	if volume.is_active() and _volume_key(event):
+		return true
 	for i in TOOL_ACTIONS.size():
 		if InputSetup.pressed(event, TOOL_ACTIONS[i]):
 			set_tool(i as Tool)
@@ -429,11 +485,14 @@ func frame_selection() -> void:
 
 
 func _primary() -> void:
+	if volume.is_active():
+		_volume_click(false)
+		return
 	if not has_cursor:
 		return
 	match tool:
 		Tool.BOX, Tool.ROOM, Tool.REPLACE:
-			_corner_click(false)
+			_volume_click(false)
 		Tool.BRUSH:
 			_begin_stroke(1)
 		Tool.PROP:
@@ -452,14 +511,18 @@ func _primary() -> void:
 
 
 func _secondary() -> void:
-	# RMB is "carve" for Box; for every other tool it backs out of a pending step.
-	if has_step() and tool != Tool.BOX:
+	# RMB steps back while sizing a volume, starts a carve with Box, and backs out of other steps.
+	if volume.is_active():
+		volume.back()
+		changed.emit()
+		return
+	if has_step():
 		cancel()
 		return
 	match tool:
 		Tool.BOX:
 			if has_cursor:
-				_corner_click(true)
+				_volume_click(true)
 		Tool.BRUSH:
 			if has_cursor:
 				_begin_stroke(2)
@@ -482,24 +545,117 @@ func _on_right_click() -> void:
 		_end_stroke()
 
 
-func _corner_click(carve: bool) -> void:
-	if _corner == null:
-		_corner_carve = carve
-		_corner = _corner_cell(carve)
+## A volume tool click: the start corner, then the floor, then the height (which builds it).
+func _volume_click(carve: bool) -> void:
+	if not volume.is_active():
+		if not has_cursor:
+			return
+		_volume_carve = carve
+		var start := _start_cell(carve)
+		var from_solid := _starts_on_solid(carve)
+		# Picked on a floor's top (or the cut): the height goes down into it by default.
+		var down := from_solid and cursor_normal == Vector3i.UP
+		var surface := start.y + (1 if from_solid else 0)
+		volume.begin(start, lab.view.to_world(Vector3(0, surface, 0)).y, snap(), -1 if down else 1)
 		if tool == Tool.REPLACE:
-			_replace_source = lab.world.get_voxel(_corner)
+			_replace_source = lab.world.get_voxel(solid_cell)
+		changed.emit()
 		return
-	var box := box_between(_corner, _corner_cell(_corner_carve))
+	if volume.step == VolumeSteps.Step.FLOOR:
+		volume.advance(_default_height())
+		changed.emit()
+		return
+	_build_volume()
+
+
+## The height the height step starts at (signed voxels): the last one used, going down when the
+## start was on a floor's top. A room dug from the cutaway reaches down to the floor you're looking
+## at, so it lines up with the room beside it.
+func _default_height() -> int:
+	var height: int = _last_height.get(tool, 10)
+	if volume.extent.y > 0:
+		return height
+	if tool == Tool.ROOM and builder and camera.is_cutting():
+		var floor_layer: int = lab.world.world_to_voxel(camera.pivot + Vector3.UP * 0.05).y
+		var depth := volume.start.y + 1 - floor_layer
+		if depth >= 1 and depth <= 200:
+			return -depth
+	return -height
+
+
+func _build_volume() -> void:
+	volume.apply_typed()
+	var box := volume.box()
 	match tool:
 		Tool.BOX:
-			lab.edits.voxel_op({type = "box", from = box[0], to = box[1], material = VoxelMaterials.AIR if _corner_carve else material})
+			lab.edits.voxel_op({type = "box", from = box[0], to = box[1], material = VoxelMaterials.AIR if _volume_carve else material})
 		Tool.ROOM:
 			lab.edits.voxel_op({type = "room", from = box[0], to = box[1], floor = room_floor, wall = room_wall,
 					ceiling = room_ceiling, thickness = room_thickness, solid_only = lab.level.settings.get("fill", "rock") == "rock"})
 		Tool.REPLACE:
 			if _replace_source != 0:
 				lab.edits.voxel_op({type = "replace", from = box[0], to = box[1], material = material, source = _replace_source})
-	_corner = null
+	_last_height[tool] = absi(volume.extent.y)
+	volume.cancel()
+	changed.emit()
+
+
+## Keys while sizing a volume: digits, "." and "v" type a size; Backspace erases or steps back;
+## Enter keeps the typed size, or clicks when there's none. Tab (from the HUD) is next_size.
+func _volume_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	if event.ctrl_pressed or event.alt_pressed:
+		return false
+	var character := ""
+	if code >= KEY_0 and code <= KEY_9:
+		character = str(code - KEY_0)
+	elif code >= KEY_KP_0 and code <= KEY_KP_9:
+		character = str(code - KEY_KP_0)
+	elif code in [KEY_PERIOD, KEY_KP_PERIOD, KEY_COMMA]:
+		character = "."
+	elif code == KEY_V and volume.typed != "":
+		character = "v"
+	if character != "":
+		volume.type_char(character)
+	elif code == KEY_BACKSPACE:
+		if volume.typed != "":
+			volume.erase_char()
+		else:
+			volume.back()
+	elif code in [KEY_ENTER, KEY_KP_ENTER]:
+		if volume.typed != "":
+			volume.apply_typed()
+		else:
+			_volume_click(_volume_carve)
+	else:
+		return false
+	changed.emit()
+	return true
+
+
+## Tab while sizing: the next dimension.
+func next_size() -> void:
+	volume.cycle_axis()
+	changed.emit()
+
+
+## The sized volume for the HUD's readout, as BBCode ("" when not sizing): name, the three sizes in
+## meters (the active one highlighted, with what's being typed) and in voxels.
+func volume_readout() -> String:
+	if not volume.is_active():
+		return ""
+	var size := volume.size()
+	var meters: Array[String] = []
+	for a in [Vector3.AXIS_X, Vector3.AXIS_Z, Vector3.AXIS_Y]:
+		var text := "%.1f" % (size[a] * lab.world.voxel_size)
+		if a == Vector3.AXIS_Y and volume.step == VolumeSteps.Step.FLOOR:
+			text = "?"
+		if a == volume.axis:
+			text = "[color=#%s][b][u]%s[/u][/b][/color]" % [PaperPalette.ACCENT.to_html(false), (volume.typed + "_") if volume.typed != "" else text]
+		meters.append(text)
+	var title: String = TOOL_NAMES[tool] + (" (carve)" if _volume_carve else "")
+	var voxels := "%d × %d × %d voxels" % [size.x, size.z, size.y] if volume.step == VolumeSteps.Step.HEIGHT else "%d × %d voxels" % [size.x, size.z]
+	return "[b]%s[/b]   %s m   [color=#%s](%s)[/color]" % [title, " × ".join(meters), PaperPalette.INK_MUTED.to_html(false), voxels]
 
 
 func _begin_stroke(kind: int) -> void:
@@ -608,6 +764,31 @@ func _marker_position() -> Vector3:
 	return Vector3(snapped.x + s * 0.5, cell.y, snapped.z + s * 0.5) if s > 1 else Vector3(cell) + Vector3(0.5, 0.0, 0.5)
 
 
+## Width / height / length on the edges of the box (world space) nearest the camera.
+func _place_size_labels(box: AABB) -> void:
+	var eye := get_viewport().get_camera_3d().global_position if get_viewport().get_camera_3d() else box.get_center()
+	var near_x := box.end.x if eye.x > box.get_center().x else box.position.x
+	var near_z := box.end.z if eye.z > box.get_center().z else box.position.z
+	var bottom := box.position.y
+	var spots := [
+		Vector3(box.get_center().x, bottom, near_z),
+		Vector3(near_x, box.get_center().y, near_z),
+		Vector3(near_x, bottom, box.get_center().z),
+	]
+	for a in 3:
+		var label := _size_labels[a]
+		if a == Vector3.AXIS_Y and volume.step == VolumeSteps.Step.FLOOR:
+			continue
+		label.text = "%.1f m" % box.size[a]
+		if a == volume.axis and volume.typed != "":
+			label.text = volume.typed + "_"
+		var active := a == volume.axis
+		label.modulate = LABEL_ACTIVE_COLOR if active else LABEL_COLOR
+		label.font_size = 32 if active else 24
+		label.position = spots[a]
+		label.visible = true
+
+
 ## The view direction as a marker yaw, to 45 degrees.
 func _view_yaw() -> float:
 	return snappedf(wrapf(camera.yaw if builder else rad_to_deg(player.rotation.y), -180.0, 180.0), 45.0)
@@ -616,22 +797,23 @@ func _view_yaw() -> float:
 # --- Previews ------------------------------------------------------------------------------------
 
 func _update_previews() -> void:
-	_cursor_lines.visible = has_cursor and tool in [Tool.BOX, Tool.ROOM, Tool.BRUSH, Tool.REPLACE]
+	_cursor_lines.visible = has_cursor and not volume.is_active() and tool in [Tool.BOX, Tool.ROOM, Tool.BRUSH, Tool.REPLACE]
 	_volume.visible = false
 	_ghost.visible = false
+	for label in _size_labels:
+		label.visible = false
 	if _cursor_lines.visible:
-		var target := _corner_cell(_corner_carve if _corner != null else false)
 		var box: AABB
 		if tool == Tool.BRUSH:
 			box = AABB(Vector3(cell) - Vector3.ONE * (brush_size - 1), Vector3.ONE * (brush_size * 2 - 1))
 		else:
-			var s := snapped_cell(target)
-			box = AABB(Vector3(s), Vector3.ONE * snap())
+			# Where the first click would start: a grid cell's footprint on the surface.
+			box = AABB(Vector3(_start_cell(false)), Vector3(snap(), 1, snap()))
 		lab.view.draw_box(_cursor_lines.mesh, box)
-	if _corner != null and has_cursor:
-		var box := box_between(_corner, _corner_cell(_corner_carve))
+	if volume.is_active():
+		var box := volume.box()
 		var color := Color(0.3, 1.0, 0.4)
-		if _corner_carve:
+		if _volume_carve:
 			color = Color(1.0, 0.3, 0.3)
 		elif tool == Tool.ROOM:
 			color = Color(0.3, 0.6, 1.0)
@@ -642,6 +824,7 @@ func _update_previews() -> void:
 		_volume.scale = size
 		_volume.position = lab.view.to_world(Vector3(box[0])) + size * 0.5
 		_volume.visible = true
+		_place_size_labels(AABB(lab.view.to_world(Vector3(box[0])), size))
 	# Ghost of the prop being placed or moved, or of a moved marker's box.
 	var ghost := {}
 	if not _grab.is_empty():

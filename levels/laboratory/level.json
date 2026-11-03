@@ -1,0 +1,41 @@
+{
+	"format": 1,
+	"name": "laboratory",
+	"next_id": 3,
+	"objects": {
+		"light_2": {
+			"angle": 40.0,
+			"color": "#ffe6bfff",
+			"energy": 1.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [256.5, 72.0, 256.5],
+			"power": "facility",
+			"range": 16.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"spawn_1": {
+			"index": 1,
+			"kind": "marker",
+			"position": [256.5, 40.0, 266.5],
+			"type": "spawn",
+			"yaw": 180.0
+		}
+	},
+	"settings": {
+		"ambient_color": "#80808fff",
+		"ambient_energy": 0.25,
+		"fill": "empty",
+		"fog_color": "#040405ff",
+		"fog_density": 0.02,
+		"room_ceiling": 3,
+		"room_floor": 3,
+		"room_thickness": 3,
+		"room_wall": 14,
+		"size_in_chunks": [16, 10, 16]
+	}
+}

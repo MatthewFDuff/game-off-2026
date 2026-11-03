@@ -7,27 +7,27 @@ extends Node3D
 ## EnemyManager and only draws it (a translucent sphere, drifting particles and a tinted light),
 ## freeing it on its own timer.
 ##
-## Types (TYPES): fire (a burning pool that also burns SHROOM_* voxels away through WorldSync),
-## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once),
+## Types (TYPES): fire (a burning pool that sets flammable voxels alight through Fire),
+## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once,
+## and it puts out fire),
 ## spore (a thick grey-white cloud that blinds players inside, from spore shrooms).
 ##
 ## Spawn one from any peer with Cloud.spawn(type, at, radius, seconds); it goes through the host.
 
 ## Host: seconds between status applications.
 const TICK := 0.25
-## Host: seconds between fire burning shroom voxels a little further out.
+## Host: seconds between fire setting voxels alight a little further out.
 const BURN_STEP := 0.5
-const SHROOM_MATERIALS := [32, 33, 34, 35, 36] # VoxelMaterials.SHROOM_CAP .. SHROOM_EYE
 ## type -> settings. status / status_seconds go to enemies inside; player_status / player_seconds
 ## to players inside ("" for none). instant types apply once at spawn and only show for seconds.
 const TYPES := {
 	fire = {color = Color(1.0, 0.45, 0.12), radius = 2.5, seconds = 6.0, status = "burning", status_seconds = 3.0,
-			player_status = "burning", player_seconds = 3.0, burns_shrooms = true, sound = "flame"},
+			player_status = "burning", player_seconds = 3.0, ignites = true, sound = "flame"},
 	poison = {color = Color(0.45, 1.0, 0.3), radius = 3.0, seconds = 8.0, status = "poisoned", status_seconds = 3.0,
 			player_status = "poisoned", player_seconds = 3.0},
 	rage = {color = Color(1.0, 0.2, 0.25), radius = 3.0, seconds = 4.0, status = "raging", status_seconds = 5.0},
 	freeze = {color = Color(0.55, 0.85, 1.0), radius = 3.0, seconds = 0.5, status = "frozen", status_seconds = 5.0,
-			instant = true},
+			instant = true, douses = true},
 	# Spore shrooms: no damage, players inside are blinded (Player fogs their screen). particles /
 	# puff make it a dense, thick cloud.
 	spore = {color = Color(0.82, 0.82, 0.78), radius = 4.0, seconds = 8.0, status = "",
@@ -89,6 +89,8 @@ func _ready() -> void:
 		Sfx.play_at(defs.sound, global_position, -2.0, 0.1, 0.6)
 	if authoritative:
 		_apply()
+		if defs.get("douses", false):
+			Fire.douse_at(global_position, radius)
 
 
 func _physics_process(delta: float) -> void:
@@ -104,11 +106,11 @@ func _physics_process(delta: float) -> void:
 	if _tick <= 0.0:
 		_tick += TICK
 		_apply()
-	if settings(type).get("burns_shrooms", false):
+	if settings(type).get("ignites", false):
 		_burn_timer -= delta
 		if _burn_timer <= 0.0:
 			_burn_timer = BURN_STEP
-			_burn_shrooms()
+			_ignite()
 
 
 ## Host: the status to everything inside.
@@ -126,13 +128,12 @@ func _apply() -> void:
 				manager.status_player(player, defs.player_status, defs.player_seconds)
 
 
-## Host, fire: burns away shroom voxels in a sphere that grows to the full radius over the first
-## few seconds, so the burn spreads instead of popping all at once.
-func _burn_shrooms() -> void:
-	if manager.world_sync == null:
-		return
+## Host, fire: sets everything flammable (Fire) in a sphere alight, the sphere growing to the full
+## radius over the first few seconds so the burn spreads instead of popping all at once. The pool
+## engulfs what it touches, inside and out; the fire it starts carries on after the pool is gone.
+func _ignite() -> void:
 	_burned_radius = minf(radius, _burned_radius + radius * BURN_STEP / minf(seconds * 0.6, 4.0))
-	manager.world_sync.replace_sphere(global_position, _burned_radius, 0, PackedByteArray(SHROOM_MATERIALS))
+	Fire.ignite_at(global_position, _burned_radius, Fire.MAX_IGNITE, false)
 
 
 # --- Looks (every peer) --------------------------------------------------------------------------

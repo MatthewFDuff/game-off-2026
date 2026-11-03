@@ -51,6 +51,10 @@ const SHROOM_STEM := 33
 const SHROOM_SPOT := 34
 const SHROOM_GILL := 35
 const SHROOM_EYE := 36
+# Fire (Fire): voxels on fire, and what's left when they go out
+const EMBER := 38
+const EMBER_DEEP := 45
+const CHAR := 39
 # Patterned
 const BLOCK_WALL := 40
 const LARGE_TILE := 41
@@ -67,6 +71,10 @@ const POWERED := 1
 const EMERGENCY_ONLY := 2
 
 ## Hardness 255 can never be carved. Shrooms dig through hardness 2 and below.
+##
+## Fire (Fire): `burn` is the seconds a voxel of it burns, `catch` how readily it catches from a
+## burning neighbour (chance per second, before Fire.SPREAD's direction weights), `ash` the chance it
+## leaves CHAR instead of air. `reacts` names the Cloud a sample boils into when fire touches it.
 const DEFS := {
 	ROCK: {name = "Rock", color = Color(0.42, 0.40, 0.38), hardness = 4},
 	DIRT: {name = "Dirt", color = Color(0.36, 0.26, 0.18), hardness = 2},
@@ -78,7 +86,7 @@ const DEFS := {
 
 	CONCRETE: {name = "Concrete", color = Color(0.58, 0.58, 0.56), hardness = 5},
 	METAL: {name = "Sheet metal", color = Color(0.45, 0.50, 0.55), hardness = 8},
-	PLANK: {name = "Plank", color = Color(0.60, 0.44, 0.26), hardness = 1},
+	PLANK: {name = "Plank", color = Color(0.60, 0.44, 0.26), hardness = 1, burn = 5.0, catch = 0.6, ash = 0.3},
 	HATCH: {name = "Hatch", color = Color(0.32, 0.33, 0.30), hardness = 255},
 	TILE_LIGHT: {name = "Tile", color = Color(0.82, 0.83, 0.80), hardness = 3},
 	TILE_DARK: {name = "Tile", color = Color(0.52, 0.56, 0.56), hardness = 3},
@@ -88,28 +96,32 @@ const DEFS := {
 	LADDER: {name = "Ladder", color = Color(0.85, 0.68, 0.15), hardness = 6},
 	PIPE: {name = "Pipe", color = Color(0.68, 0.42, 0.24), hardness = 3},
 
-	WOOD: {name = "Wood", color = Color(0.50, 0.33, 0.19), hardness = 1},
+	WOOD: {name = "Wood", color = Color(0.50, 0.33, 0.19), hardness = 1, burn = 7.0, catch = 0.5, ash = 0.35},
 	STEEL: {name = "Steel", color = Color(0.56, 0.58, 0.61), hardness = 3},
-	PLASTIC: {name = "Plastic", color = Color(0.88, 0.88, 0.85), hardness = 1},
+	PLASTIC: {name = "Plastic", color = Color(0.88, 0.88, 0.85), hardness = 1, burn = 3.0, catch = 0.3, ash = 0.15},
 	GLASS: {name = "Glass", color = Color(0.68, 0.84, 0.88), hardness = 1},
-	CLOTH: {name = "Cloth", color = Color(0.22, 0.30, 0.48), hardness = 1},
-	RUBBER: {name = "Rubber", color = Color(0.11, 0.11, 0.12), hardness = 1},
+	CLOTH: {name = "Cloth", color = Color(0.22, 0.30, 0.48), hardness = 1, burn = 2.0, catch = 1.5},
+	RUBBER: {name = "Rubber", color = Color(0.11, 0.11, 0.12), hardness = 1, burn = 6.0, catch = 0.25, ash = 0.25},
 	WATER: {name = "Water", color = Color(0.33, 0.55, 0.85), hardness = 1, emission = 0.15},
-	LIQUID_GREEN: {name = "Sample", color = Color(0.30, 0.90, 0.40), hardness = 1, emission = 0.6},
-	LIQUID_BLUE: {name = "Sample", color = Color(0.30, 0.60, 1.00), hardness = 1, emission = 0.6},
-	LIQUID_PINK: {name = "Sample", color = Color(0.95, 0.40, 0.70), hardness = 1, emission = 0.6},
-	SUBSTRATE: {name = "Substrate", color = Color(0.24, 0.16, 0.11), hardness = 2},
+	LIQUID_GREEN: {name = "Sample", color = Color(0.30, 0.90, 0.40), hardness = 1, emission = 0.6, reacts = "poison"},
+	LIQUID_BLUE: {name = "Sample", color = Color(0.30, 0.60, 1.00), hardness = 1, emission = 0.6, reacts = "freeze"},
+	LIQUID_PINK: {name = "Sample", color = Color(0.95, 0.40, 0.70), hardness = 1, emission = 0.6, reacts = "rage"},
+	SUBSTRATE: {name = "Substrate", color = Color(0.24, 0.16, 0.11), hardness = 2, burn = 8.0, catch = 0.2, ash = 0.5},
 
 	GLOW: {name = "Glow", color = Color(0.35, 0.95, 0.75), hardness = 1, emission = 1.0},
 	LAMP: {name = "Lamp", color = Color(1.00, 0.94, 0.78), hardness = 1, emission = 1.0, group = POWERED},
 	SCREEN: {name = "Screen", color = Color(0.30, 0.65, 0.95), hardness = 1, emission = 0.8, group = POWERED},
 	EMERGENCY: {name = "Emergency light", color = Color(1.00, 0.15, 0.10), hardness = 1, emission = 1.0, group = EMERGENCY_ONLY},
 
-	SHROOM_CAP: {name = "Cap", color = Color(0.45, 0.22, 0.55), hardness = 1, emission = 0.3},
-	SHROOM_STEM: {name = "Stem", color = Color(0.85, 0.82, 0.74), hardness = 1, emission = 0.05},
-	SHROOM_SPOT: {name = "Spot", color = Color(0.35, 1.00, 0.80), hardness = 1, emission = 1.0},
-	SHROOM_GILL: {name = "Gills", color = Color(0.30, 0.14, 0.34), hardness = 1, emission = 0.25},
-	SHROOM_EYE: {name = "Eye", color = Color(0.90, 1.00, 0.60), hardness = 1, emission = 1.5},
+	SHROOM_CAP: {name = "Cap", color = Color(0.45, 0.22, 0.55), hardness = 1, emission = 0.3, burn = 1.5, catch = 1.2},
+	SHROOM_STEM: {name = "Stem", color = Color(0.85, 0.82, 0.74), hardness = 1, emission = 0.05, burn = 1.5, catch = 1.2},
+	SHROOM_SPOT: {name = "Spot", color = Color(0.35, 1.00, 0.80), hardness = 1, emission = 1.0, burn = 1.5, catch = 1.2},
+	SHROOM_GILL: {name = "Gills", color = Color(0.30, 0.14, 0.34), hardness = 1, emission = 0.25, burn = 1.5, catch = 1.2},
+	SHROOM_EYE: {name = "Eye", color = Color(0.90, 1.00, 0.60), hardness = 1, emission = 1.5, burn = 1.5, catch = 1.2},
+
+	EMBER: {name = "Burning", color = Color(1.00, 0.52, 0.12), hardness = 1, emission = 1.4},
+	EMBER_DEEP: {name = "Burning", color = Color(0.90, 0.22, 0.05), hardness = 1, emission = 1.0},
+	CHAR: {name = "Char", color = Color(0.09, 0.08, 0.07), hardness = 1},
 
 	BLOCK_WALL: {name = "Block wall", color = Color(0.62, 0.36, 0.28), hardness = 5, pattern = "block_wall"},
 	LARGE_TILE: {name = "Large tile", color = Color(0.80, 0.82, 0.80), hardness = 3, pattern = "large_tile"},

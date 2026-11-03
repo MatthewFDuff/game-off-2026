@@ -49,6 +49,9 @@ var _room_target := "wall"
 var _hint: PanelContainer
 var _hint_label := Label.new()
 var _toast: PanelContainer
+## Sizes of the volume being built (Room / Box / Replace), top center.
+var _readout: PanelContainer
+var _readout_label := RichTextLabel.new()
 var _toast_label := Label.new()
 var _toast_time := 0.0
 var _help: Control
@@ -79,6 +82,7 @@ func _ready() -> void:
 	_build_drawer()
 	_build_hint()
 	_build_toast()
+	_build_readout()
 	_help = _build_help()
 	_menu = _build_menu()
 
@@ -126,6 +130,11 @@ func _process(delta: float) -> void:
 	for i in _cut_buttons.size():
 		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
 	_hint_label.text = _hint_text()
+	var readout := tool.volume_readout()
+	_readout.visible = readout != ""
+	if readout != _readout_label.text:
+		_readout_label.text = readout
+	_toast.offset_top = BAR_HEIGHT + MARGIN + (48 if _readout.visible else 0)
 	_toast_time -= delta
 	_toast.visible = _toast_time > 0.0
 	_toast.modulate.a = clampf(_toast_time * 2.0, 0.0, 1.0)
@@ -135,6 +144,10 @@ func _process(delta: float) -> void:
 
 func _hint_text() -> String:
 	var view := InputSetup.describe("editor_view")
+	if tool.volume.is_active():
+		if tool.volume.step == VolumeSteps.Step.FLOOR:
+			return "Click the far corner of the floor  ·  wheel: size, Shift+wheel: the other side  ·  type a size (2.5 m, 25v)  ·  Tab: next size  ·  RMB / Backspace: back"
+		return "Click to build  ·  move the mouse or wheel: height  ·  type a size  ·  Tab: next size  ·  RMB / Backspace: back to the floor  ·  Esc: cancel"
 	if tool.builder:
 		var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap()]
 		var camera := tool.camera
@@ -161,6 +174,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.keycode == KEY_TAB:
 		get_viewport().set_input_as_handled() # No focus hopping between controls.
+		# Sizing a volume: Tab moves to the next size.
+		if event.pressed and not event.echo and tool != null and tool.volume.is_active() and not EditorInput.blocks_keyboard():
+			tool.next_size()
 		return
 	if InputSetup.pressed(event, "editor_help") and not EditorInput.text_focused():
 		_set_modal(_help, not _help.visible)
@@ -438,6 +454,27 @@ func _build_hint() -> void:
 	_root.add_child(_hint)
 
 
+func _build_readout() -> void:
+	_readout = _surface("PaperPill")
+	_readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_readout.anchor_left = 0.5
+	_readout.anchor_right = 0.5
+	_readout.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_readout.offset_top = BAR_HEIGHT + MARGIN
+	_readout_label.bbcode_enabled = true
+	_readout_label.fit_content = true
+	_readout_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_readout_label.scroll_active = false
+	_readout_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_readout_label.add_theme_color_override("default_color", PaperPalette.INK)
+	_readout_label.add_theme_font_size_override("normal_font_size", 16)
+	_readout_label.add_theme_font_size_override("bold_font_size", 16)
+	_readout_label.add_theme_font_override("bold_font", preload("res://assets/ui/fonts/Lato-Black.ttf"))
+	_readout.add_child(_readout_label)
+	_readout.visible = false
+	_root.add_child(_readout)
+
+
 func _build_toast() -> void:
 	_toast = _surface("PaperPill")
 	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -538,6 +575,8 @@ func _build_help() -> Control:
 			["Whole level", "editor_frame_all"], ["Cut height", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
 			["Brush carve", "Shift+LMB"]]],
 		["Walk view", [["Move", "WASD, Space / Ctrl"], ["Fly on / off", "editor_fly"], ["Fly speed", "Wheel, Shift fast"]]],
+		["Room, Box, Replace", [["Corner, floor, height", "LMB ×3"], ["Size", "Wheel"], ["Other floor side", "Shift+Wheel"],
+			["Type a size", "2.5 (m), 25v"], ["Next size", "Tab"], ["Keep typed size", "Enter"], ["Step back", "RMB / Backspace"]]],
 	]
 	for section: Array in sections:
 		var grid := GridContainer.new()
@@ -591,7 +630,7 @@ func _refresh() -> void:
 	match tool.tool:
 		EditorTool.Tool.BOX, EditorTool.Tool.REPLACE:
 			_material_row("Material", tool.material)
-			_note("Pick one in the catalog, or Alt+click a voxel." + (" Click the material to replace, then the far corner." if tool.tool == EditorTool.Tool.REPLACE else ""))
+			_note("Pick one in the catalog, or Alt+click a voxel. " + ("Click the material to replace, then the floor, then the height." if tool.tool == EditorTool.Tool.REPLACE else "Click a corner, the floor, then the height (RMB first to carve). While sizing, the wheel or typing (2.5, 25v) sets a size."))
 		EditorTool.Tool.BRUSH:
 			_number_row("Size", tool.brush_size, 1, 20, 1, func(v: float) -> void: tool.brush_size = int(v))
 			_check_row("Cube", tool.brush_cube, func(on: bool) -> void: tool.brush_cube = on)
@@ -602,7 +641,7 @@ func _refresh() -> void:
 				var row := _material_row(ROOM_TARGETS[target], tool.get("room_" + target))
 				row.modulate.a = 1.0 if target == _room_target else 0.7
 			_number_row("Thickness", tool.room_thickness, 1, 10, 1, func(v: float) -> void: tool.room_thickness = int(v))
-			_note("Corners mark the inside of the room. In rock levels the lining only recolors rock, so it joins rooms it touches.")
+			_note("Click a corner, the far corner of the floor, then the height; the box is the inside of the room. Start on cut rock (the cutaway's cross section) to dig down to the floor you're looking at. In rock levels the lining only recolors rock, so it joins rooms it touches.")
 		EditorTool.Tool.PROP:
 			_heading(tool.prop_name.replace("_", " ").capitalize())
 			_note("Facing %s (%s or RMB rotates). Alt+click a placed prop to pick its type." % [LevelSchema.FACINGS[tool.facing], InputSetup.describe("editor_rotate")])

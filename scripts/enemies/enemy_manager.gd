@@ -457,6 +457,23 @@ func cloud_ended(cloud: Cloud) -> void:
 		clouds.erase(cloud.id)
 
 
+## Host: ends a cloud early on every peer (a spore cloud going up in flames, see Fire).
+func end_cloud(id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	_cloud_removed(id)
+	for peer_id in _peers():
+		_cloud_removed.rpc_id(peer_id, id)
+
+
+@rpc("authority", "reliable")
+func _cloud_removed(id: int) -> void:
+	var cloud: Cloud = clouds.get(id)
+	if cloud:
+		clouds.erase(id)
+		cloud.queue_free()
+
+
 ## Host: an enemy attacked (hit or miss), for its sound and lunge everywhere.
 func enemy_attacked(enemy: Enemy) -> void:
 	enemy.play_attack()

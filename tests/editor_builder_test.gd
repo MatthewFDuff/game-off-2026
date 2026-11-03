@@ -54,11 +54,12 @@ func _run() -> void:
 	_check("cursor on the floor under the mouse", tool.has_cursor and tool.solid_cell.y == 39 and Vector2(tool.solid_cell.x, tool.solid_cell.z).distance_to(Vector2(230, 230)) < 3,
 			"%s" % tool.solid_cell)
 
-	# Two clicks with the Box tool fill a grid box on the floor.
+	# Three clicks with the Box tool fill a grid box on the floor.
 	tool.set_tool(2) # Box
 	tool.material = VoxelMaterials.METAL
 	await _frames(2)
-	var target: Vector3i = tool.snapped_cell(tool.cell)
+	var target: Vector3i = tool._start_cell(false)
+	await _click(center, MOUSE_BUTTON_LEFT)
 	await _click(center, MOUSE_BUTTON_LEFT)
 	await _click(center, MOUSE_BUTTON_LEFT)
 	_check("box placed by mouse clicks", world.get_voxel(target) == VoxelMaterials.METAL, "%s is %d" % [target, world.get_voxel(target)])
@@ -75,7 +76,7 @@ func _run() -> void:
 	_check("...and doesn't click", not tool.has_step())
 	await _move_mouse(center)
 	await _click(center, MOUSE_BUTTON_RIGHT)
-	_check("right click starts a carve corner", tool.has_step() and tool._corner_carve)
+	_check("right click starts a carve corner", tool.has_step() and tool._volume_carve)
 	await _key(KEY_ESCAPE)
 	_check("Esc drops it", not tool.has_step())
 

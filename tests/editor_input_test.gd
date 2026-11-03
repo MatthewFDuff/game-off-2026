@@ -104,7 +104,7 @@ func _run() -> void:
 	# Esc backs out one step at a time.
 	tool.set_tool(2) # Box
 	await _frames(1)
-	tool._corner = Vector3i(200, 40, 200)
+	tool.volume.begin(Vector3i(200, 40, 200), 4.0, 5, 1)
 	await _key(KEY_ESCAPE)
 	_check("Esc drops a pending corner first", not tool.has_step())
 

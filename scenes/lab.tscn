@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/lab.gd" id="1_lab"]
 [ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://scripts/enemies/enemy_manager.gd" id="10_enemies"]
 [ext_resource type="Script" path="res://scripts/enemies/horde_director.gd" id="11_director"]
 [ext_resource type="Script" path="res://scripts/items/item_manager.gd" id="12_items"]
+[ext_resource type="Script" path="res://scripts/world/fire.gd" id="20_fire"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
 resource_local_to_scene = true
@@ -34,7 +35,7 @@ fog_density = 0.02
 fog_height = 9.5
 fog_height_density = -0.25
 
-[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "players_root", "debris", "edits", "view", "play", "environment", "enemies", "director", "items")]
+[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "players_root", "debris", "edits", "view", "play", "environment", "enemies", "director", "items", "fire")]
 script = ExtResource("1_lab")
 world = NodePath("VoxelWorld")
 world_sync = NodePath("WorldSync")
@@ -47,6 +48,7 @@ environment = NodePath("WorldEnvironment")
 enemies = NodePath("Enemies")
 director = NodePath("Director")
 items = NodePath("Items")
+fire = NodePath("Fire")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_lab")
@@ -83,6 +85,13 @@ lab = NodePath("..")
 world = NodePath("../VoxelWorld")
 world_sync = NodePath("../WorldSync")
 debris = NodePath("../Debris")
+
+[node name="Fire" type="Node3D" parent="." node_paths=PackedStringArray("lab", "world", "world_sync", "enemies")]
+script = ExtResource("20_fire")
+lab = NodePath("..")
+world = NodePath("../VoxelWorld")
+world_sync = NodePath("../WorldSync")
+enemies = NodePath("../Enemies")
 
 [node name="Director" type="Node" parent="." node_paths=PackedStringArray("lab", "enemies")]
 script = ExtResource("11_director")

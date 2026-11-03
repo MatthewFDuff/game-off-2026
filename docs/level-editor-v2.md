@@ -21,6 +21,16 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   carves with Shift+LMB in the builder view; the free cursor moved from V to N (walk view only);
   Auto keeps its last height while the pivot is over solid rock, so panning across walls doesn't
   flash the roof back. Tested headless (`editor_builder_test`) and in screenshots.
+- **Step 3 done (2026-11-03)**: `VolumeSteps` (`scripts/editor/tools/volume_steps.gd`) drives Room,
+  Box and Replace: corner, floor (on the start surface's plane), height (a vertical line through
+  the floor's center, relative to where the aim was so the default holds until the mouse moves);
+  wheel / Shift+wheel, typed meters or `v` voxels, Tab, Enter, RMB / Backspace back; edge labels and
+  a readout card. Choices made while building it: the start snaps only x / z to the grid (y stays on
+  the surface, so a floor at 39 isn't dropped to 35); a room started on a wall stands on the floor
+  below; starting on a floor's top or on the cut defaults the height downward, and a room dug from
+  the cut reaches the floor under the camera's pivot so it lines up with the room beside it; looking
+  almost straight down, the mouse doesn't set the height (wheel and typing do). Tested headless
+  (`editor_volume_test`, `editor_tool_test`) and in screenshots.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast

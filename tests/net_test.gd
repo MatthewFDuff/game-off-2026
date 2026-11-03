@@ -28,6 +28,10 @@ extends SceneTree
 ## and freezes the last enemy (the client must tint it); both hash the shown statuses once the
 ## cloud has burned out.
 ##
+## Fire: the host builds a wooden crate where the flask landed; the fire spreads through it in
+## WorldSync.set_voxels batches, the client must see it burning, and the world hashes are taken
+## once it has burned out on both.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -137,9 +141,12 @@ func _host(net: Node) -> void:
 	# that's left; the client must see the cloud and the tint. The cloud must burn out before the
 	# worlds are hashed (it burns shroom voxels through WorldSync while it lasts).
 	await _throw_fire_flask(lab, host_player, spawn)
+	_crate_under_fire(lab)
 	lab.enemies.request_status(first_id, "frozen", 30.0)
 	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
 	_check("the host's fire cloud burns out", burned_out)
+	var fire_out := await _wait_until(func() -> bool: return lab.fire.burning.is_empty(), 60.0)
+	_check("the host's fire burns out", fire_out, "%d burning" % lab.fire.burning.size())
 
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
@@ -216,7 +223,10 @@ func _client(net: Node) -> void:
 	_check("the host's power cut reaches the client", cut, lab.play.power)
 
 	# Statuses and clouds: the host's fire flask shows up here as a fire cloud (drawn, not run), and
-	# the enemy it freezes is tinted blue here too.
+	# the enemy it freezes is tinted blue here too. Its fire spreads here in the host's batches.
+	var most_burning := [0]
+	lab.world_sync.voxels_set.connect(func(_points, _materials, _removed) -> void:
+		most_burning[0] = maxi(most_burning[0], lab.fire.burning.size()))
 	var fire_clouds := []
 	for cloud in lab.enemies.clouds.values():
 		fire_clouds.append(cloud)
@@ -231,6 +241,9 @@ func _client(net: Node) -> void:
 	_check("the frozen enemy is tinted on the client", tinted)
 	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
 	_check("the fire cloud ends on the client", burned_out)
+	var fire_out := await _wait_until(func() -> bool: return most_burning[0] > 0 and lab.fire.burning.is_empty(), 60.0)
+	_check("the client sees the host's fire spread and burn out", fire_out and most_burning[0] > 20,
+			"%d at most, %d left" % [most_burning[0], lab.fire.burning.size()])
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
 	print("HASH ", _enemy_hash(lab))
@@ -305,6 +318,20 @@ func _fire_explosive(lab, me) -> void:
 				return true
 		return false, 10.0)
 	_check("the client's explosive carves the wall through the host", blasted, "%d impacts, %d carves" % [impacts.size(), blasts.size()])
+
+
+## Host: a wooden crate (through WorldSync, so the client gets it too) on the floor where the fire
+## cloud landed, for it to set alight.
+func _crate_under_fire(lab) -> void:
+	var cloud = null
+	for each in lab.enemies.clouds.values():
+		if each.type == "fire":
+			cloud = each
+	if cloud == null:
+		return
+	var floor_hit: Dictionary = lab.world.raycast(cloud.global_position + Vector3.UP * 0.3, Vector3.DOWN, 3.0)
+	var base: Vector3i = lab.world.world_to_voxel(floor_hit.position + Vector3.UP * 0.05) if floor_hit.hit else lab.world.world_to_voxel(cloud.global_position)
+	lab.world_sync.apply_op({type = "box", from = base + Vector3i(-6, 0, -6), to = base + Vector3i(6, 8, 6), material = 16}) # VoxelMaterials.WOOD
 
 
 ## Host: throws a fire flask at the floor in the direction with the most room that leads away

@@ -104,6 +104,8 @@ func explode(full: bool) -> void:
 	var amount := blast_damage if full else dud_damage
 	if manager.world_sync:
 		manager.world_sync.carve_sphere(at, radius, blast_power, Vector3.UP)
+	if full:
+		Fire.ignite_at(at, radius + 1.0, 40)
 	for victim in Combat.sphere_hit(at, reach):
 		if victim != self:
 			manager.damage(victim.id, amount, at, "blast")
