@@ -12,6 +12,9 @@ const RES_DIR := "res://levels/"
 const USER_DIR := "user://levels/"
 const FORMAT := 1
 
+## Settings: size_in_chunks, fill, ambient / fog, room-tool defaults, and start_power (the power
+## state play begins in: "facility" or "backup"; see LevelPlay.power). Missing keys take defaults.
+
 ## Keys whose values are vectors / colors; JSON stores them as arrays / hex strings.
 const VECTOR3I_KEYS := ["origin", "size", "door_offset", "size_in_chunks"]
 const VECTOR3_KEYS := ["position"]
@@ -40,6 +43,7 @@ static func default_settings(size_in_chunks: Vector3i, fill: String) -> Dictiona
 		room_wall = VoxelMaterials.WALL_PAINT,
 		room_ceiling = VoxelMaterials.CONCRETE,
 		room_thickness = 3,
+		start_power = "facility",
 	}
 
 
@@ -168,6 +172,7 @@ static func from_json(text: String) -> LevelData:
 	for id: String in data.get("objects", {}):
 		var object := _decode(data.objects[id])
 		object.id = id
+		LevelSchema.fill_defaults(object)
 		level.objects[id] = object
 	return level
 

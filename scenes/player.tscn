@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon.gd" id="2_weapon"]
+[ext_resource type="Script" path="res://scripts/player/inventory.gd" id="3_inventory"]
 
 [node name="Player" type="Node3D"]
 script = ExtResource("1_player")
@@ -30,3 +32,9 @@ light_energy = 2.5
 shadow_enabled = false
 omni_range = 3.5
 omni_attenuation = 1.5
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("3_inventory")
+
+[node name="Weapon" type="Node" parent="."]
+script = ExtResource("2_weapon")

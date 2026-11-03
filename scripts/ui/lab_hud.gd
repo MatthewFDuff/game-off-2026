@@ -24,6 +24,7 @@ static func _settings(size: int, color := Color.WHITE, outline := 5) -> LabelSet
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_crosshair.text = "+"
 	_crosshair.label_settings = _settings(22)
 	_crosshair.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -51,7 +52,11 @@ func _ready() -> void:
 		_toast.text = text
 		_toast_time = 4.0)
 
+	add_child(CombatHud.create(lab))
+	add_child(InteractPrompt.create(lab))
 	_build_pause()
+	if lab.mode != "edit":
+		add_child(ControlsOverlay.new())
 	Net.players_changed.connect(_update_roster)
 	lab.player_spawned.connect(func(_p: Player) -> void: _update_roster())
 	lab.player_despawned.connect(func(_id: int) -> void: _update_roster())
@@ -67,6 +72,9 @@ func _process(delta: float) -> void:
 	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
 	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit"
 	_crosshair.visible = playing
+	# Solo play pauses with the mouse released; co-op and the editor keep running.
+	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	get_tree().paused = solo and lab.mode != "edit" and not playing and not _waiting.visible
 	if _waiting.visible and lab.local_player() != null:
 		_waiting.visible = false
 

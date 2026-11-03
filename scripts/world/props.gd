@@ -388,6 +388,115 @@ func wall_board(origin: Vector3i, facing: int, w := 14, h := 8, whiteboard := tr
 		box(Vector3i(2, 2, 0), Vector3i(w - 2, 3, 1), M.RUBBER)
 
 
+# --- Interactables (phase 5) -----------------------------------------------------------------
+
+## Vent grate: a 1 x 1.2 m grille of soft plastic slats (enemies dig through it, a few shots break
+## it), sized to sit in a vent_duct's mouth.
+func vent_grate(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 10, 1, facing)
+	box(Vector3i(0, 0, 0), Vector3i(10, 12, 1), M.RUBBER)
+	box(Vector3i(1, 1, 0), Vector3i(9, 11, 1), M.AIR)
+	for y in range(2, 11, 2):
+		box(Vector3i(1, y, 0), Vector3i(9, y + 1, 1), M.PLASTIC)
+
+
+## Vent duct: a 2 m section, open at both ends, sheet metal walls around a 1 m wide, 1.2 m tall
+## crawl space (a crouching player fits).
+func vent_duct(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 12, 20, facing)
+	box(Vector3i(0, 0, 0), Vector3i(12, 14, 20), M.METAL)
+	box(Vector3i(1, 1, 0), Vector3i(11, 13, 20), M.AIR)
+	for z in [0, 19]:
+		box(Vector3i(0, 0, z), Vector3i(1, 14, z + 1), M.STEEL)
+		box(Vector3i(11, 0, z), Vector3i(12, 14, z + 1), M.STEEL)
+		box(Vector3i(0, 13, z), Vector3i(12, 14, z + 1), M.STEEL)
+
+
+## Terminal: a steel desk with a tower and a big monitor whose screen faces the front.
+func terminal(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 12, 7, facing)
+	box(Vector3i(0, 7, 0), Vector3i(12, 8, 7), M.STEEL)
+	_legs(12, 7, 7)
+	box(Vector3i(9, 0, 2), Vector3i(11, 6, 6), M.RUBBER) # Tower.
+	box(Vector3i(10, 4, 1), Vector3i(11, 5, 2), M.GLOW)
+	box(Vector3i(3, 8, 1), Vector3i(9, 9, 3), M.RUBBER) # Keyboard.
+	box(Vector3i(5, 8, 5), Vector3i(7, 10, 6), M.STEEL) # Stand.
+	box(Vector3i(2, 10, 4), Vector3i(10, 16, 6), M.RUBBER) # Monitor.
+	box(Vector3i(3, 11, 4), Vector3i(9, 15, 5), M.SCREEN)
+
+
+## Cabinet: tall metal storage with two doors.
+func cabinet(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 8, 4, facing)
+	box(Vector3i(0, 0, 0), Vector3i(8, 20, 4), M.METAL)
+	box(Vector3i(4, 1, 0), Vector3i(5, 19, 1), M.RUBBER) # Gap between the doors.
+	box(Vector3i(3, 9, 0), Vector3i(4, 12, 1), M.STEEL)
+	box(Vector3i(5, 9, 0), Vector3i(6, 12, 1), M.STEEL)
+	box(Vector3i(0, 0, 0), Vector3i(8, 1, 1), M.RUBBER)
+
+
+## Desk with a stack of drawers on each side.
+func drawer_desk(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 16, 8, facing)
+	box(Vector3i(0, 7, 0), Vector3i(16, 8, 8), M.WOOD)
+	for x0 in [0, 11]:
+		box(Vector3i(x0, 0, 0), Vector3i(x0 + 5, 7, 8), M.WOOD)
+		for y in [1, 3, 5]:
+			box(Vector3i(x0, y, 0), Vector3i(x0 + 5, y + 2, 1), M.PLASTIC)
+			box(Vector3i(x0 + 2, y + 1, 0), Vector3i(x0 + 3, y + 2, 1), M.STEEL)
+
+
+## Medkit station: a white wall box with a red cross, hung 1 m up.
+func medkit_station(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 6, 2, facing)
+	box(Vector3i(0, 10, 0), Vector3i(6, 16, 2), M.PLASTIC)
+	box(Vector3i(2, 11, 0), Vector3i(4, 15, 1), M.EMERGENCY)
+	box(Vector3i(1, 12, 0), Vector3i(5, 14, 1), M.EMERGENCY)
+	box(Vector3i(0, 10, 1), Vector3i(6, 11, 2), M.STEEL)
+
+
+## Ammo bench: a heavy workbench with ammo cans, a vise and a lamp.
+func ammo_bench(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 14, 7, facing)
+	box(Vector3i(0, 7, 0), Vector3i(14, 8, 7), M.DIAMOND_PLATE)
+	_legs(14, 7, 7)
+	box(Vector3i(1, 2, 1), Vector3i(13, 3, 6), M.STEEL) # Lower shelf.
+	for i in 3:
+		box(Vector3i(1 + i * 3, 8, 3), Vector3i(3 + i * 3, 10, 6), M.WARNING if i % 2 == 0 else M.METAL)
+	box(Vector3i(2, 3, 2), Vector3i(5, 5, 5), M.WARNING)
+	box(Vector3i(10, 8, 1), Vector3i(12, 10, 3), M.STEEL) # Vise.
+	box(Vector3i(10, 10, 1), Vector3i(11, 11, 3), M.RUBBER)
+	box(Vector3i(12, 8, 6), Vector3i(13, 14, 7), M.STEEL) # Lamp arm.
+	box(Vector3i(11, 13, 4), Vector3i(13, 14, 6), M.LAMP)
+
+
+## Generator: a big machine on a striped plinth, a lever on its front, an exhaust pipe and a light.
+func generator(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 20, 12, facing)
+	box(Vector3i(0, 0, 0), Vector3i(20, 2, 12), M.HAZARD_STRIPES)
+	box(Vector3i(1, 2, 2), Vector3i(19, 14, 12), M.METAL)
+	box(Vector3i(1, 2, 1), Vector3i(19, 3, 2), M.WARNING)
+	for x in range(3, 13, 3):
+		box(Vector3i(x, 5, 1), Vector3i(x + 1, 12, 2), M.STEEL) # Cooling fins.
+	box(Vector3i(14, 6, 1), Vector3i(18, 12, 2), M.RUBBER) # Control panel.
+	box(Vector3i(15, 10, 0), Vector3i(16, 11, 1), M.EMERGENCY)
+	box(Vector3i(17, 10, 0), Vector3i(18, 11, 1), M.LAMP)
+	box(Vector3i(16, 7, 0), Vector3i(17, 8, 1), M.STEEL) # Lever pivot.
+	box(Vector3i(16, 8, 0), Vector3i(17, 11, 1), M.WARNING) # Lever.
+	box(Vector3i(15, 11, 0), Vector3i(18, 12, 1), M.RUBBER) # Grip.
+	box(Vector3i(3, 14, 6), Vector3i(5, 19, 8), M.PIPE) # Exhaust.
+	box(Vector3i(1, 14, 2), Vector3i(19, 15, 12), M.DIAMOND_PLATE)
+
+
+## Emergency glass case: a wall case, 1 m up, with a glass front over a hollow inside.
+func glass_case(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 8, 3, facing)
+	box(Vector3i(0, 9, 0), Vector3i(8, 19, 3), M.WARNING)
+	box(Vector3i(1, 10, 0), Vector3i(7, 18, 2), M.AIR)
+	box(Vector3i(1, 10, 0), Vector3i(7, 18, 1), M.GLASS)
+	box(Vector3i(2, 13, 2), Vector3i(6, 14, 3), M.RUBBER) # Mount on the back wall.
+
+
 # --- Parts placed in the current prop's frame ---------------------------------------------------
 
 func _legs(w: int, d: int, h: int) -> void:

@@ -71,8 +71,8 @@ private:
 	std::vector<int16_t> nav_span_height; // [column * NAV_MAX_SPANS + k]
 	std::vector<uint8_t> nav_span_breach;
 	std::vector<uint8_t> nav_span_count;
-	std::vector<uint32_t> nav_flow; // Path cost to the flow target per span, UINT32_MAX if unreached.
-	int nav_flow_target = -1;
+	std::vector<uint32_t> nav_flow; // Path cost to the nearest flow target per span, UINT32_MAX if unreached.
+	int nav_flow_target = -1; // A span under one of the targets, or -1 when the field is empty.
 	double last_flow_usec = 0.0;
 	int last_flow_reached = 0;
 
@@ -153,6 +153,8 @@ private:
 	// Movement cost from span (cu, ku) to the adjacent span (cv, kv), or 0 if the move isn't possible.
 	uint32_t nav_move_cost(int cu, int ku, int cv, int kv, int dx, int dz) const;
 	Vector3 nav_span_world(int column, int k) const;
+	// The span node under a world position (looking a couple of columns out if it is mid-air), or -1.
+	int nav_target_node(const Vector3 &target) const;
 
 	Vector3 to_voxel_space(const Vector3 &world_position) const;
 	bool box_hits_solid(int axis, int layer, int b0, int b1, int c0, int c1) const;
@@ -259,11 +261,13 @@ public:
 	int get_nav_breach_cost() const { return nav_breach_cost; }
 
 	// Rebuilds the path costs from every walkable floor within max_distance (meters of walking) to
-	// the floor under target. Cheap enough to call a few times a second.
-	void update_flow_field(const Vector3 &target, float max_distance);
+	// the floor under the nearest target. targets is one Vector3, or an Array / PackedVector3Array
+	// of them (multi-source Dijkstra: one field leads every agent to whichever target is closest).
+	// Cheap enough to call a few times a second.
+	void update_flow_field(const Variant &targets, float max_distance);
 	// Next step for an agent standing at feet. Returns {valid, next: Vector3 (world feet position of
 	// the next floor cell), distance: float (meters to target), breach: bool (next cell is through a
-	// barricade), at_target: bool}. valid is false when the agent isn't on a floor reached by the field.
+	// barricade), at_target: bool (standing on a target's floor)}. valid is false when the agent isn't on a floor reached by the field.
 	Dictionary get_flow(const Vector3 &feet) const;
 
 	void remesh_all_now();

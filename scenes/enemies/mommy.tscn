@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/mommy_shroom.gd" id="1_mommy"]
+
+[node name="MommyShroom" type="Node3D"]
+script = ExtResource("1_mommy")
+
+[node name="Visual" type="Node3D" parent="."]

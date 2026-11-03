@@ -12,6 +12,22 @@ extends SceneTree
 ## solid lamp once the client is in, and both sides must see the lamp fridge (the client only
 ## through the host's edits). Then the host saves a broken file, which must change nothing.
 ##
+## Enemies: the host spawns one before the client joins (it must reach the client with the roster)
+## and two after. They're frozen in place so both sides can hash their ids and positions. The
+## client shoots one by request_hit, the host kills another itself, and both must end with the
+## same single enemy.
+##
+## Weapons and pickups: the client fires an explosive at a wall away from the enemies (the host's
+## copy of its player must show the ammo it loaded, and the blast must reach both worlds, which
+## the world hashes check), and the host walks into a pickup, which must disappear on the client.
+##
+## Interactables: the client opens the break room fridge (a container the host filled), both must
+## see it opened and its pickups, then the host switches to backup power, which the client follows.
+##
+## Statuses and clouds: the host throws a fire flask (the client must see a fire cloud, drawn only)
+## and freezes the last enemy (the client must tint it); both hash the shown statuses once the
+## cloud has burned out.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -59,6 +75,13 @@ func _host(net: Node) -> void:
 		return
 	var spawn: Vector3 = lab.spawn_point(0)
 	lab.world_sync.carve_sphere(spawn + Vector3(3.0, 0.0, 0.0), 1.0, 254)
+	var first = _spawn_frozen(lab, spawn + Vector3(1.5, 0.0, 4.0))
+	_check("host spawns an enemy", first != null)
+	var first_id: int = first.id if first else -1
+	var fridge_id := _fridge_id(lab)
+	_check("the break room fridge is a container", lab.level.objects.get(fridge_id, {}).get("use") == "container")
+	if fridge_id != "":
+		lab.level.objects[fridge_id].contents = "flask_fire,ammo_homing" # The client opens it.
 	print("READY") # The driver starts the client now.
 
 	# Generous: a cold Godot start alone can take half a minute on Windows.
@@ -74,6 +97,8 @@ func _host(net: Node) -> void:
 	var follows := await _wait_until(func() -> bool: return avatar.global_position.distance_to(spawn + CLIENT_SPOT) < 0.5, 10.0)
 	_check("client avatar follows the client", follows, str(avatar.global_position))
 	_check("client confirmed entry", client_id in lab.peers_in_level)
+	var second_id: int = _spawn_frozen(lab, spawn + Vector3(-1.5, 0.0, 4.0)).id
+	var third_id: int = _spawn_frozen(lab, spawn + Vector3(0.0, 0.0, 5.5)).id # The client shoots this one.
 
 	_write_lamp_fridge()
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 5.0)
@@ -82,9 +107,56 @@ func _host(net: Node) -> void:
 	await _wait_seconds(1.5)
 	_check("a broken save keeps the old prop", _count(lab.world, LAMP) > 500)
 
+	var shot := await _wait_until(func() -> bool: return not lab.enemies.enemies.has(third_id), 20.0)
+	_check("the client's hit kills on the host", shot)
+	var second = lab.enemies.get_enemy(second_id)
+	if second:
+		lab.enemies.request_hit(second_id, 1000.0, second.get_center(), "rifle")
+	_check("host kills one itself", lab.enemies.enemies.keys() == [first_id], str(lab.enemies.enemies.keys()))
+	_check("the client's loaded ammo shows on its avatar", await _wait_until(func() -> bool: return avatar.weapon.current == "explosive", 10.0),
+			avatar.weapon.current)
+
+	# A pickup a little way off, then the host walks into it.
+	var pickup = lab.items.spawn("ammo_shotgun", spawn + Vector3(0.0, 0.35, -1.2))
+	_check("host spawns a pickup", pickup != null)
 	await _wait_seconds(1.0)
+	var host_player = lab.local_player()
+	host_player.teleport(spawn + Vector3(0.0, 0.0, -1.2))
+	var pickup_id: int = pickup.id if pickup else -1
+	var taken := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id), 5.0)
+	_check("host takes the pickup", taken and host_player.inventory.count("shotgun") == 12, str(host_player.inventory.ammo))
+
+	# Interactables: the client opens the fridge; then the host cuts the power.
+	var opened := await _wait_until(func() -> bool: return lab.play.state_of(fridge_id).used, 30.0)
+	_check("the client's use opens the container on the host", opened)
+	_check("the host drops its contents", _items_named(lab, ["flask_fire", "ammo_homing"]) == 2)
+	lab.play.set_power("backup")
+	_check("host sets backup power", lab.play.power == "backup")
+
+	# Statuses and clouds: the host throws a fire flask away from everyone and freezes the enemy
+	# that's left; the client must see the cloud and the tint. The cloud must burn out before the
+	# worlds are hashed (it burns shroom voxels through WorldSync while it lasts).
+	await _throw_fire_flask(lab, host_player, spawn)
+	lab.enemies.request_status(first_id, "frozen", 30.0)
+	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
+	_check("the host's fire cloud burns out", burned_out)
+
+	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
-	await _wait_seconds(5.0) # Stay up until the client has hashed too.
+	print("HASH ", _enemy_hash(lab))
+	print("HASH ", _item_hash(lab))
+	print("HASH ", _interact_hash(lab))
+	print("HASH ", _status_hash(lab))
+	await _wait_seconds(3.0) # Stay up until the client has hashed too.
+
+	# Finale: a short one; the client counts it down too (after the hashes: it changes power).
+	var survived := [false]
+	lab.director.finale_survived.connect(func() -> void: survived[0] = true)
+	lab.director.finale(3.0)
+	_check("host starts the finale", lab.director.finale_active and lab.play.power == "restored")
+	var ended := await _wait_until(func() -> bool: return survived[0], 10.0)
+	_check("host finale ends in survival", ended and not lab.director.finale_active)
+	await _wait_seconds(4.0)
 
 
 func _client(net: Node) -> void:
@@ -97,16 +169,83 @@ func _client(net: Node) -> void:
 		_check("local player spawned", false)
 		return
 	var me = lab.local_player()
+	var finale_events := []
+	var finale_samples := []
+	lab.director.finale_event.connect(func(kind: String) -> void:
+		finale_events.append(kind)
+		finale_samples.append(lab.director.finale_left))
 	_check("local player is local", me.is_local)
 	_check("host avatar spawned", lab.players.has(1) and not lab.players[1].is_local)
 	var streaming := await _wait_until(func() -> bool: return me.net_peers == [1], 10.0)
 	_check("sends state to the host", streaming, str(me.net_peers))
 	me.teleport(lab.spawn_point(0) + CLIENT_SPOT)
 	lab.world_sync.carve_sphere(lab.spawn_point(0) + Vector3(0.0, 0.0, -3.0), 1.0, 254)
+	await _fire_explosive(lab, me)
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
 	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
-	await _wait_seconds(3.5)
+
+	var enemies = lab.enemies
+	var seen := await _wait_until(func() -> bool: return enemies.enemies.size() == 3, 20.0)
+	_check("client sees the host's enemies, including one from before it joined", seen and enemies.enemies.keys().has(1), str(enemies.enemies.keys()))
+	if seen:
+		var target = enemies.enemies[enemies.enemies.keys().max()]
+		_check("client enemies are drawn, not simulated", not enemies.simulating and target._mesh != null)
+		enemies.request_hit(target.id, 1000.0, target.get_center(), "rifle")
+	var down_to_one := await _wait_until(func() -> bool: return enemies.enemies.size() == 1, 20.0)
+	_check("deaths reach the client", down_to_one, str(enemies.enemies.keys()))
+	var pickup_id := [-1]
+	var appeared := await _wait_until(func() -> bool:
+		for pickup in lab.items.pickups.values():
+			if pickup.item == "ammo_shotgun":
+				pickup_id[0] = pickup.id
+				return true
+		return false, 20.0)
+	_check("the host's pickup appears on the client", appeared)
+	var gone := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id[0]), 10.0)
+	_check("a pickup taken on the host disappears on the client", appeared and gone)
+	_check("the client didn't get the host's pickup", me.inventory.count("shotgun") == 0)
+
+	# Interactables: open the fridge by request; the host's power cut must reach us.
+	var fridge_id := _fridge_id(lab)
+	lab.play.request_use(fridge_id)
+	var opened := await _wait_until(func() -> bool: return lab.play.state_of(fridge_id).used, 10.0)
+	_check("the client sees the container opened", opened)
+	var dropped := await _wait_until(func() -> bool: return _items_named(lab, ["flask_fire", "ammo_homing"]) == 2, 10.0)
+	_check("the client sees its contents", dropped)
+	var cut := await _wait_until(func() -> bool: return lab.play.power == "backup", 20.0)
+	_check("the host's power cut reaches the client", cut, lab.play.power)
+
+	# Statuses and clouds: the host's fire flask shows up here as a fire cloud (drawn, not run), and
+	# the enemy it freezes is tinted blue here too.
+	var fire_clouds := []
+	for cloud in lab.enemies.clouds.values():
+		fire_clouds.append(cloud)
+	lab.enemies.cloud_spawned.connect(func(cloud) -> void: fire_clouds.append(cloud))
+	var cloud_seen := await _wait_until(func() -> bool:
+		return fire_clouds.any(func(cloud) -> bool: return is_instance_valid(cloud) and cloud.type == "fire" and not cloud.authoritative), 20.0)
+	_check("the client sees the host's fire cloud", cloud_seen, str(fire_clouds))
+	var tinted := await _wait_until(func() -> bool:
+		var survivor = enemies.get_enemy(1)
+		return survivor != null and "frozen" in survivor.shown_statuses and survivor.tint_material() != null \
+				and survivor._mesh.material_overlay == survivor.tint_material(), 20.0)
+	_check("the frozen enemy is tinted on the client", tinted)
+	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
+	_check("the fire cloud ends on the client", burned_out)
+	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
+	print("HASH ", _enemy_hash(lab))
+	print("HASH ", _item_hash(lab))
+	print("HASH ", _interact_hash(lab))
+	print("HASH ", _status_hash(lab))
+	# Finale: the host's countdown shows up here and ends in the same outcome.
+	var counting := await _wait_until(func() -> bool:
+		if lab.director.finale_active:
+			finale_samples.append(lab.director.finale_left)
+		return "survived" in finale_events, 30.0)
+	_check("the client sees the finale start and survive", counting and finale_events == ["started", "survived"], str(finale_events))
+	_check("the client's countdown starts near the host's 3 s", finale_samples.size() > 1 and absf(finale_samples[0] - 3.0) < 0.5, str(finale_samples))
+	_check("the client's countdown runs down", finale_samples.any(func(left: float) -> bool: return left < 2.0 and left > 0.0), str(finale_samples))
+	_check("the client finale is over", not lab.director.finale_active)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))
@@ -121,6 +260,126 @@ func _screenshot(lab, me, path: String) -> void:
 	await _wait_seconds(0.5)
 	root.get_texture().get_image().save_png(path)
 	print("saved ", path)
+
+
+## Host: an enemy standing on the floor under at that never moves or attacks, so both sides can
+## compare where it is.
+func _spawn_frozen(lab, at: Vector3):
+	var down: Dictionary = lab.world.raycast(at + Vector3.UP, Vector3.DOWN, 4.0)
+	var enemy = lab.enemies.spawn("basic", down.position if down.hit else at)
+	if enemy:
+		enemy.speed = 0.0
+		enemy.attack_range = 0.0
+		enemy.damage = 0.0
+	return enemy
+
+
+## Client: fires an explosive at the nearest wall that's well away from the enemies (they stand on
+## the +Z side of the spawn) and waits for its blast to come back through the host.
+func _fire_explosive(lab, me) -> void:
+	var eye: Vector3 = me.camera.global_position
+	var enemies_at: Vector3 = lab.spawn_point(0) + Vector3(0.0, 0.0, 4.5)
+	var best := Vector3.ZERO
+	var best_distance := INF
+	for i in 16:
+		var direction := Vector3.FORWARD.rotated(Vector3.UP, i * TAU / 16.0)
+		var wall: Dictionary = lab.world.raycast(eye, direction, 15.0)
+		if wall.hit and wall.distance > 2.5 and wall.position.distance_to(enemies_at) > 6.0 and wall.distance < best_distance:
+			best = direction
+			best_distance = wall.distance
+	_check("found a wall to shoot", best != Vector3.ZERO)
+	if best == Vector3.ZERO:
+		return
+	var impacts := []
+	me.weapon.projectile_spawned.connect(func(shot) -> void:
+		shot.impacted.connect(func(_shot, at: Vector3, _normal: Vector3, _enemy) -> void: impacts.append(at)))
+	var blasts := []
+	lab.world_sync.carved.connect(func(at: Vector3, _normal: Vector3, removed: Dictionary) -> void: blasts.append([at, removed]))
+	me.inventory.add("ammo_explosive")
+	_check("client loads explosive", me.weapon.select("explosive"))
+	me.weapon._cooldown = 0.0
+	_check("client fires an explosive", me.weapon.fire(best))
+	var blasted := await _wait_until(func() -> bool:
+		for blast: Array in blasts:
+			if not impacts.is_empty() and blast[0].distance_to(impacts[0]) < 0.5:
+				return true
+		return false, 10.0)
+	_check("the client's explosive carves the wall through the host", blasted, "%d impacts, %d carves" % [impacts.size(), blasts.size()])
+
+
+## Host: throws a fire flask at the floor in the direction with the most room that leads away
+## from the enemies and the client (they stand on the +Z side of the spawn).
+func _throw_fire_flask(lab, me, spawn: Vector3) -> void:
+	var eye: Vector3 = me.camera.global_position
+	var others: Vector3 = spawn + Vector3(0.0, 0.0, 3.5)
+	var best := Vector3.ZERO
+	var best_score := -INF
+	for i in 16:
+		var direction := Vector3.FORWARD.rotated(Vector3.UP, i * TAU / 16.0)
+		var wall: Dictionary = lab.world.raycast(eye, direction, 12.0)
+		var reach: float = wall.distance if wall.hit else 12.0
+		var landing: Vector3 = eye + direction * minf(reach, 8.0)
+		if reach < 5.0 or landing.distance_to(others) < 7.0:
+			continue
+		var score: float = landing.distance_to(others)
+		if score > best_score:
+			best = direction
+			best_score = score
+	_check("found room to throw a flask", best != Vector3.ZERO)
+	if best == Vector3.ZERO:
+		return
+	me.inventory.add("flask_fire")
+	me.weapon._flask_cooldown = 0.0
+	_check("host has a fire flask selected", me.weapon.flask == "fire", me.weapon.flask)
+	_check("host throws a fire flask", me.weapon.throw_flask(best + Vector3.DOWN * 0.2))
+	var landed := await _wait_until(func() -> bool:
+		return lab.enemies.clouds.values().any(func(cloud) -> bool: return cloud.type == "fire"), 5.0)
+	_check("the flask shatters into a fire cloud on the host", landed)
+
+
+## Enemy ids and their shown statuses (the tints), sorted.
+func _status_hash(lab) -> String:
+	var ids: Array = lab.enemies.enemies.keys()
+	ids.sort()
+	return "statuses " + " ".join(ids.map(func(id: int) -> String: return "%d:%s" % [id, ",".join(lab.enemies.enemies[id].shown_statuses)]))
+
+
+## The power state and the used props, sorted.
+func _interact_hash(lab) -> String:
+	var used: Array = lab.play.prop_state.keys().filter(func(id: String) -> bool: return lab.play.prop_state[id].used)
+	used.sort()
+	return "interact %s %s" % [lab.play.power, " ".join(used)]
+
+
+## The break room fridge (the first fridge prop).
+func _fridge_id(lab) -> String:
+	var ids: Array = lab.level.objects.keys().filter(func(id: String) -> bool:
+		return lab.level.objects[id].kind == "prop" and lab.level.objects[id].name == "fridge")
+	ids.sort()
+	return ids[0] if not ids.is_empty() else ""
+
+
+## How many pickups there are of these items.
+func _items_named(lab, items: Array) -> int:
+	return lab.items.pickups.values().filter(func(p) -> bool: return p.item in items).size()
+
+
+## Pickup ids and items, sorted.
+func _item_hash(lab) -> String:
+	var ids: Array = lab.items.pickups.keys()
+	ids.sort()
+	return "items " + " ".join(ids.map(func(id: int) -> String: return "%d:%s" % [id, lab.items.pickups[id].item]))
+
+
+## Enemy ids and positions, sorted, as text (so the driver compares them like the world hashes).
+func _enemy_hash(lab) -> String:
+	var ids: Array = lab.enemies.enemies.keys()
+	ids.sort()
+	var parts: Array[String] = []
+	for id: int in ids:
+		var feet: Vector3 = lab.enemies.enemies[id].global_position
+		parts.append("%d@%.2f,%.2f,%.2f" % [id, feet.x, feet.y, feet.z])
+	return "enemies " + " ".join(parts)
 
 
 func _copy_props() -> void:

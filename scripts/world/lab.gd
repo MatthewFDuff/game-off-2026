@@ -9,7 +9,9 @@ extends Node3D
 ## Modes. Edit: everyone flies, the world holds the level's base voxels and props are meshes
 ## (LevelView), so they stay editable. Play: the host stamps the props into the world and LevelPlay
 ## runs doors, triggers and assets. Switching from play back to edit restores the world exactly as
-## it was, so nothing done while play-testing reaches the level.
+## it was, so nothing done while play-testing reaches the level. Enemies (EnemyManager, spawned by
+## the HordeDirector) and pickups (ItemManager) only exist in play and are cleared on the way back
+## to edit.
 ##
 ## Players are named after their peer id under Players, so RPC paths match on every peer, and each
 ## is the multiplayer authority of its own player.
@@ -20,6 +22,9 @@ signal player_despawned(peer_id: int)
 signal notice(text: String)
 ## The mode changed on this peer ("edit" or "play").
 signal mode_changed(mode: String)
+## Host: a joining peer has the level, its world and the players, and is now in peers_in_level
+## (EnemyManager sends it the enemies here).
+signal peer_entered(peer_id: int)
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 ## Seconds dead before respawning (at the clone vat, or a spawn).
@@ -33,6 +38,9 @@ const RESPAWN_DELAY := 3.0
 @export var view: LevelView
 @export var play: LevelPlay
 @export var environment: WorldEnvironment
+@export var enemies: EnemyManager
+@export var director: HordeDirector
+@export var items: ItemManager
 
 var level: LevelData
 var mode := "play"
@@ -158,6 +166,9 @@ func _set_mode_locally(new_mode: String) -> void:
 	view.set_mode(mode)
 	if mode == "play":
 		play.start()
+	for player: Player in players.values():
+		if not player.is_local:
+			player.editing = mode == "edit" # Hides their gun while editing.
 	var me := local_player()
 	if me:
 		me.set_editing(mode == "edit")
@@ -248,10 +259,9 @@ func _spawn_player(peer_id: int, feet: Vector3, yaw: float) -> void:
 	var player: Player = PLAYER_SCENE.instantiate()
 	player.name = str(peer_id)
 	player.world = world
-	var rifle := Rifle.new()
-	rifle.name = "Rifle"
-	rifle.world_sync = world_sync
-	player.add_child(rifle)
+	var weapon: Weapon = player.get_node("Weapon")
+	weapon.world_sync = world_sync
+	weapon.enemies = enemies
 	if peer_id == multiplayer.get_unique_id():
 		var tool := EditorTool.new()
 		tool.name = "EditorTool"
@@ -262,6 +272,7 @@ func _spawn_player(peer_id: int, feet: Vector3, yaw: float) -> void:
 	player.teleport(feet)
 	player.rotation.y = yaw
 	player.set_display(Net.players.get(peer_id, {}).get("name", "Expendable"), Net.player_color(peer_id))
+	player.editing = mode == "edit"
 	if player.is_local:
 		player.set_editing(mode == "edit")
 		player.died.connect(_on_local_died)
@@ -320,17 +331,25 @@ func _on_local_died() -> void:
 	me.revive()
 
 
+## E in play: closes an open note, else uses the door or prop in view (LevelPlay.request_use; the
+## host decides). Refusals this peer can see coming ("Locked: needs red keycard") are shown here.
 func _on_local_interact() -> void:
 	if mode != "play":
 		return
-	var me := local_player()
-	var door := play.door_in_view(me.camera)
-	if door == "":
+	if play.reading != "":
+		play.close_reading()
 		return
-	if play.is_door_locked(door):
-		notify("It's locked.", false)
+	var me := local_player()
+	if me == null or me.is_dead:
+		return
+	var target := play.interactables.in_view(me.camera)
+	if target == "":
+		return
+	var refusal := play.interactables.local_refusal(target, me)
+	if refusal != "":
+		notify(refusal, false)
 	else:
-		play.request_toggle(door)
+		play.request_use(target)
 
 
 # --- Entering ------------------------------------------------------------------------------------
@@ -388,6 +407,7 @@ func _confirm_entry() -> void:
 	if multiplayer.is_server() and players.has(newcomer) and newcomer not in peers_in_level:
 		peers_in_level.append(newcomer)
 		_broadcast_in_level()
+		peer_entered.emit(newcomer)
 
 
 func _broadcast_in_level() -> void:

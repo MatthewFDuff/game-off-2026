@@ -74,6 +74,22 @@ func set_box(from: Vector3i, to: Vector3i, voxels: PackedByteArray) -> void:
 	_sliced(from, to - from, voxels, 2)
 
 
+## Host: turns every voxel of the sources materials inside a sphere (world space, meters) into
+## material, everywhere (fire clouds burning shroom voxels away to air).
+func replace_sphere(center: Vector3, radius: float, material: int, sources: PackedByteArray) -> void:
+	if not multiplayer.is_server():
+		push_error("only the host replaces voxels")
+		return
+	_apply_replace_sphere(center, radius, material, sources)
+	for peer_id in _synced:
+		_apply_replace_sphere.rpc_id(peer_id, center, radius, material, sources)
+
+
+@rpc("authority", "reliable")
+func _apply_replace_sphere(center: Vector3, radius: float, material: int, sources: PackedByteArray) -> void:
+	world.replace_in_sphere(center, minf(radius, MAX_CARVE_RADIUS), material, sources)
+
+
 ## Host: applies an editor operation (see _apply_op) everywhere.
 func apply_op(op: Dictionary) -> void:
 	if not multiplayer.is_server():

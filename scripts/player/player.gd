@@ -21,8 +21,7 @@ signal interacted
 @export var regen_rate := 8.0
 
 @export_group("Movement")
-@export var walk_speed := 4.5
-@export var sprint_speed := 7.5
+@export var walk_speed := 5.5
 @export var crouch_speed := 2.2
 @export var ground_acceleration := 60.0
 @export var air_acceleration := 10.0
@@ -62,6 +61,9 @@ var flying := false
 var on_ladder := false
 var health := max_health
 var is_dead := false
+## Status effects on this player (local player only): name -> seconds left. Clouds give them
+## through EnemyManager.status_player; cleared on revive. See STATUS_DPS.
+var statuses := {}
 
 var _since_damage := 0.0
 var _ladder_cooldown := 0.0
@@ -72,6 +74,29 @@ var _previous_position := Vector3.ZERO
 var _trauma := 0.0
 var _recoil := 0.0
 var _shake_noise := FastNoiseLite.new()
+
+## Damage per second of each player status. blinded (spore clouds) does no damage: it fogs this
+## player's screen (BLIND_*).
+const STATUS_DPS := {poisoned = 2.0, burning = 6.0, blinded = 0.0}
+## Blinded: the fog overlay's color and how opaque it gets; fades in / out at BLIND_FADE per second.
+const BLIND_COLOR := Color(0.78, 0.78, 0.74)
+const BLIND_MAX := 0.93
+const BLIND_FADE := 2.5
+## Held by a tentacle (set_held): pulled toward the anchor at HELD_PULL m/s until within HELD_CLOSE.
+const HELD_PULL := 2.0
+const HELD_CLOSE := 0.9
+
+## The id (as a String) of the tentacle holding this player, "" when free. Set through
+## EnemyManager.hold_player on the player's own peer (and the host's copy, for bookkeeping).
+var held_by := ""
+## Where the holding tentacle is (feet), what the pull heads for.
+var held_anchor := Vector3.ZERO
+## 0..1, how fogged this (local) player's screen is from being blinded.
+var blind_amount := 0.0
+var _blind_overlay: ColorRect
+## Status damage lands in steps this many seconds apart.
+const STATUS_TICK := 0.5
+var _status_tick := 0.0
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
@@ -99,6 +124,10 @@ var _name_tag: Label3D
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var flashlight: SpotLight3D = $Head/Camera3D/Flashlight
 @onready var muzzle_flash: OmniLight3D = $Head/Camera3D/MuzzleFlash
+## The Weapon and Inventory children. Untyped on purpose: naming Weapon here would compile the
+## enemy and level scripts (and the autoloads they use) wherever Player is named.
+@onready var weapon = $Weapon
+@onready var inventory = $Inventory
 
 
 func _ready() -> void:
@@ -171,6 +200,7 @@ func _physics_process(delta: float) -> void:
 	_since_damage += delta
 	if not is_dead and _since_damage > regen_delay:
 		health = minf(max_health, health + regen_rate * delta)
+	_tick_statuses(delta)
 	if is_dead:
 		velocity = Vector3.ZERO
 	elif flying:
@@ -199,6 +229,7 @@ func _process(delta: float) -> void:
 	var smoothed := _previous_position.lerp(global_position, Engine.get_physics_interpolation_fraction())
 	head.position = Vector3(0.0, _eye_height + _step_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
 	_apply_shake(delta)
+	_update_blind(delta)
 
 
 ## Adds camera trauma (0..1). Small values for gunfire, ~0.35 for a hit, ~0.6 for a blast.
@@ -231,17 +262,88 @@ func _apply_shake(delta: float) -> void:
 func take_damage(amount: float, from: Vector3) -> void:
 	if is_dead:
 		return
-	health -= amount
-	_since_damage = 0.0
 	var push := global_position - from
 	push.y = 0.0
 	velocity += push.normalized() * 4.0 + Vector3.UP * 2.0
 	add_shake(hurt_shake)
+	_lose_health(amount, from)
+
+
+func _lose_health(amount: float, from: Vector3) -> void:
+	health -= amount
+	_since_damage = 0.0
 	damaged.emit(amount, from)
 	if health <= 0.0:
 		health = 0.0
 		is_dead = true
 		died.emit()
+
+
+## A status ("poisoned", "burning", "blinded": STATUS_DPS) for seconds; a longer time replaces
+## what's left.
+func apply_status(status: String, seconds: float) -> void:
+	if STATUS_DPS.has(status) and not is_dead:
+		statuses[status] = maxf(float(statuses.get(status, 0.0)), seconds)
+
+
+## Local player, every frame: fades the blinded fog overlay (a fullscreen layer on this peer's own
+## screen, made the first time it's needed) in while blinded and out after.
+func _update_blind(delta: float) -> void:
+	var goal := BLIND_MAX if statuses.has("blinded") else 0.0
+	blind_amount = move_toward(blind_amount, goal, BLIND_FADE * delta)
+	if blind_amount <= 0.0 and _blind_overlay == null:
+		return
+	if _blind_overlay == null:
+		var layer := CanvasLayer.new()
+		layer.name = "BlindLayer"
+		layer.layer = 5
+		add_child(layer)
+		_blind_overlay = ColorRect.new()
+		_blind_overlay.name = "BlindOverlay"
+		_blind_overlay.color = BLIND_COLOR
+		_blind_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_blind_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		layer.add_child(_blind_overlay)
+	# A slow churn so it reads as drifting spores, not a flat wall.
+	var churn := 1.0 - 0.06 * (0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.003))
+	_blind_overlay.modulate.a = blind_amount * churn
+	_blind_overlay.visible = blind_amount > 0.0
+
+
+## Grabbed by a tentacle (holder: its enemy id as a String) or let go (""). While held, _walk
+## ignores movement input and pulls toward anchor; shooting, melee and throwing still work.
+func set_held(holder: String, anchor: Vector3) -> void:
+	held_by = holder
+	held_anchor = anchor
+
+
+func is_held() -> bool:
+	return held_by != ""
+
+
+## Local: the holder is gone on this peer (died, despawned, play stopped) though no release came.
+func _holder_gone() -> bool:
+	var manager = get_tree().get_first_node_in_group("enemy_manager") if is_inside_tree() else null
+	return manager == null or not manager.enemies.has(int(held_by))
+
+
+func _tick_statuses(delta: float) -> void:
+	if statuses.is_empty() or is_dead:
+		_status_tick = 0.0
+		return
+	var amount := 0.0
+	_status_tick += delta
+	var ticked := _status_tick >= STATUS_TICK
+	if ticked:
+		_status_tick -= STATUS_TICK
+	for status: String in statuses.keys():
+		if ticked:
+			amount += float(STATUS_DPS.get(status, 0.0)) * STATUS_TICK
+		statuses[status] = float(statuses[status]) - delta
+		if statuses[status] <= 0.0:
+			statuses.erase(status)
+	if amount > 0.0:
+		_lose_health(amount, global_position) # No knockback or shake: the HUD vignette shows it.
 
 
 ## Level editor on / off: editing flies through everything.
@@ -256,6 +358,8 @@ func revive() -> void:
 	health = max_health
 	is_dead = false
 	velocity = Vector3.ZERO
+	statuses.clear()
+	held_by = ""
 
 
 ## Moves the player without the camera smoothing across the gap.
@@ -299,15 +403,23 @@ func _walk(delta: float) -> void:
 	_update_crouch()
 
 	var input := _vector("move_left", "move_right", "move_forward", "move_back")
+	if held_by != "" and _holder_gone():
+		held_by = ""
+	var held := held_by != ""
+	if held:
+		input = Vector2.ZERO
 	var wish := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 	var speed := walk_speed
 	if crouching:
 		speed = crouch_speed
-	elif _held("sprint"):
-		speed = sprint_speed
+	if held:
+		# Dragged toward the tentacle, then held there.
+		var to_anchor := Vector3(held_anchor.x - global_position.x, 0.0, held_anchor.z - global_position.z)
+		wish = to_anchor.normalized() if to_anchor.length() > HELD_CLOSE else Vector3.ZERO
+		speed = HELD_PULL
 
 	_ladder_cooldown -= delta
-	var ladder := _ladder_direction() if _ladder_cooldown <= 0.0 else Vector3.ZERO
+	var ladder := _ladder_direction() if _ladder_cooldown <= 0.0 and not held else Vector3.ZERO
 	on_ladder = ladder != Vector3.ZERO and not crouching
 
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
@@ -328,7 +440,7 @@ func _walk(delta: float) -> void:
 			on_ladder = false
 	else:
 		velocity.y -= gravity * delta
-		if on_floor and _just("jump"):
+		if on_floor and not held and _just("jump"):
 			velocity.y = jump_velocity
 
 	var start := global_position
@@ -362,7 +474,7 @@ func _fly(delta: float) -> void:
 	var input := _vector("move_left", "move_right", "move_forward", "move_back")
 	var up := float(_held("jump")) - float(_held("crouch"))
 	var wish := head.global_basis * Vector3(input.x, 0.0, input.y) + Vector3.UP * up
-	var speed := fly_speed * (3.0 if _held("sprint") else 1.0)
+	var speed := fly_speed * (3.0 if _input_live() and Input.is_physical_key_pressed(KEY_SHIFT) else 1.0)
 	global_position += wish.normalized() * speed * delta
 	on_floor = false
 
@@ -395,11 +507,11 @@ func _send_state(delta: float) -> void:
 		return
 	_send_timer += 1.0 / NET_SEND_RATE
 	for peer_id in net_peers:
-		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible)
+		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible, is_dead)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool) -> void:
+func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if _remote_states.is_empty():
 		global_position = feet # First state: appear there instead of sliding in from the spawn.
@@ -412,6 +524,7 @@ func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, lig
 			_body.scale.y = crouching_height / standing_height if crouching else 1.0
 		head.position.y = (crouching_height if crouching else standing_height) - eye_offset
 	flashlight.visible = light_on
+	is_dead = dead # So the host's enemies stop chasing a dead remote player.
 
 
 func _interpolate_remote() -> void:

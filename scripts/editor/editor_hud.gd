@@ -664,6 +664,13 @@ func _field(object: Dictionary, field: Dictionary) -> void:
 			edit.text_submitted.connect(func(_text: String) -> void: edit.release_focus())
 			edit.focus_exited.connect(func() -> void: commit.call(edit.text.strip_edges()))
 			_row(label, edit)
+		"text":
+			var area := TextEdit.new()
+			area.text = str(value)
+			area.custom_minimum_size = Vector2(0, 90)
+			area.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+			area.focus_exited.connect(func() -> void: commit.call(area.text))
+			_row(label, area)
 		"int", "float":
 			var is_int: bool = field.type == "int"
 			_number_row(label, value, field.get("min", -1000000), field.get("max", 1000000), 1.0 if is_int else 0.1,

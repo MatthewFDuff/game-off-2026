@@ -16,6 +16,10 @@ screenshots; not yet play-tested by hand. Where it differs from the plan below:
   edits inside that box.
 - Doors aren't counted as assets (they move).
 - Added: pattern materials (`assets/patterns/`, see the README).
+- Added (2026-11-03, mechanics phase 5): prop fields for using props in play (`use`, `contents`,
+  `text`, `on_use`, `needs_power`, `charges`, `station_ammo_type`, `finale_seconds`), door
+  `door_key` / `door_power`, a multi-line `text` field type in the inspector, and the `start_power`
+  level setting (no panel yet). See the README's "Interactables and power".
 
 ## Spec
 

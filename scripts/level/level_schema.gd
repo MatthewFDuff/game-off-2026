@@ -6,22 +6,53 @@ class_name LevelSchema
 ## `kind` ("prop" or "marker"). Props have `name`, `origin` (Vector3i, voxel min corner) and
 ## `facing`; markers have `type`, `position` (Vector3, voxel units) and `yaw` (degrees).
 ##
-## Field types: "string", "int", "float", "bool", "color", "vector3i", "enum" (with `options`).
+## Field types: "string", "text" (multi-line string), "int", "float", "bool", "color", "vector3i",
+## "enum" (with `options`).
 
 const P := preload("res://scripts/world/props.gd")
 
 const FACINGS := ["north", "east", "south", "west"]
 
-## Prop fields shown in the inspector. Door fields only matter when `door` is on.
+## What E does with a prop in play (the `use` field). See LevelPlay.
+##   container       opens once and drops its `contents` in front of it
+##   terminal        shows `text`, fires the `on_use` trigger the first time; `needs_power` refuses
+##                   it on backup power
+##   note            shows `text`
+##   station_medkit  heals the user to full, `charges` times
+##   station_ammo    20 rounds of `station_ammo_type` (empty: the user's loaded type), `charges` times
+##   generator       on backup power: restores power, fires `on_use`, starts the director's finale
+##                   for `finale_seconds`
+##   glass_case      breaking any of its GLASS voxels (or E, which smashes it) drops its `contents`
+const USES := ["none", "container", "terminal", "note", "station_medkit", "station_ammo", "generator", "glass_case"]
+
+## Prop fields shown in the inspector, with their defaults (props saved before a field existed get
+## these). Door fields only matter when `door` is on; `use` fields only for that use.
 const PROP_FIELDS := [
 	{key = "id", type = "string"},
 	{key = "facing", type = "enum", options = FACINGS},
 	{key = "value", type = "int", min = 0, max = 1000000, label = "Asset value ($, 0 = not an asset)"},
-	{key = "door", type = "bool", label = "Is a door"},
-	{key = "door_offset", type = "vector3i", label = "Door opens by (voxels)"},
-	{key = "door_speed", type = "float", min = 0.1, max = 20.0, label = "Door speed (m/s)"},
-	{key = "door_locked", type = "bool", label = "Door locked"},
+	{key = "door", type = "bool", default = false, label = "Is a door"},
+	{key = "door_offset", type = "vector3i", default = Vector3i(0, 0, 0), label = "Door opens by (voxels)"},
+	{key = "door_speed", type = "float", min = 0.1, max = 20.0, default = 2.0, label = "Door speed (m/s)"},
+	{key = "door_locked", type = "bool", default = false, label = "Door locked"},
+	{key = "door_key", type = "string", default = "", label = "Door keycard (red, blue, ...; empty = none)"},
+	{key = "door_power", type = "bool", default = false, label = "Door needs power (not on backup)"},
+	{key = "use", type = "enum", options = USES, default = "none", label = "Use (E)"},
+	{key = "contents", type = "string", default = "", label = "Contents (pickups, comma-separated)"},
+	{key = "text", type = "text", default = "", label = "Text (terminal / note)"},
+	{key = "on_use", type = "string", default = "", label = "On use fires trigger"},
+	{key = "needs_power", type = "bool", default = false, label = "Needs power (terminal)"},
+	{key = "charges", type = "int", min = 0, max = 99, default = 3, label = "Charges (station)"},
+	{key = "station_ammo_type", type = "string", default = "", label = "Ammo type (empty = loaded)"},
+	{key = "finale_seconds", type = "float", min = 1.0, max = 1800.0, default = 120.0, label = "Finale (s, generator)"},
 ]
+
+## Default `use` by prop name prefix (the longest matching prefix wins).
+const DEFAULT_USES := {
+	"cabinet": "container", "drawer_desk": "container", "fridge": "container", "water_cooler": "container",
+	"locker": "container", "terminal": "terminal", "generator": "generator", "glass_case": "glass_case",
+	"medkit_station": "station_medkit", "ammo_bench": "station_ammo",
+}
 
 const MARKERS := {
 	spawn = {label = "Player spawn", color = Color(0.3, 0.9, 0.4), fields = [
@@ -31,6 +62,7 @@ const MARKERS := {
 		{key = "size", type = "vector3i", default = Vector3i(20, 20, 20), label = "Size (voxels)"},
 		{key = "repeat", type = "bool", default = false, label = "Fires every time"},
 		{key = "who", type = "enum", options = ["any", "all"], default = "any", label = "Players needed"},
+		{key = "activates", type = "string", default = "", label = "Activates (spawner ids, or horde)"},
 	]},
 	speaker = {label = "Intercom speaker", color = Color(0.4, 0.75, 1.0), fields = []},
 	light = {label = "Light", color = Color(1.0, 0.95, 0.7), fields = [
@@ -44,13 +76,20 @@ const MARKERS := {
 		{key = "flicker", type = "enum", options = ["none", "subtle", "broken"], default = "none"},
 		{key = "power", type = "enum", options = ["facility", "emergency"], default = "facility", label = "Powered by"},
 	]},
-	horde = {label = "Horde spawner", color = Color(0.9, 0.3, 0.3), fields = []},
+	horde = {label = "Horde spawner", color = Color(0.9, 0.3, 0.3), fields = [
+		{key = "kinds", type = "string", default = "basic", label = "Enemy kinds (comma-separated)"},
+		{key = "rate", type = "float", min = 0.0, max = 120.0, default = 6.0, label = "Spawns per minute"},
+		{key = "max_alive", type = "int", min = 0, max = 50, default = 4, label = "Most alive at once"},
+		{key = "active", type = "bool", default = true, label = "Active from the start"},
+		{key = "radius", type = "float", min = 0.0, max = 10.0, default = 1.5, label = "Spawn radius (m)"},
+		{key = "on_ceiling", type = "bool", default = false, label = "Spawns on the ceiling (ceiling_cloud)"},
+	]},
 	clone_vat = {label = "Clone vat", color = Color(0.4, 1.0, 0.8), fields = []},
 	kill_zone = {label = "Kill zone", color = Color(1.0, 0.2, 0.6), fields = [
 		{key = "size", type = "vector3i", default = Vector3i(20, 30, 20), label = "Size (voxels)"},
 	]},
 	item = {label = "Item spot", color = Color(0.85, 0.6, 1.0), fields = [
-		{key = "item", type = "string", default = "medkit"},
+		{key = "item", type = "string", default = "medkit", label = "Item (medkit, ammo_<type>, flask_<type>, keycard_<color>)"},
 	]},
 }
 
@@ -61,20 +100,31 @@ const ASSET_VALUES := {
 	"fridge": 900, "desk": 600, "counter": 1100, "water_cooler": 200, "whiteboard": 150, "corkboard": 40,
 	"couch": 500, "locker": 250, "table": 300, "chair": 50, "stool": 40, "bench": 120, "shelf_storage": 300,
 	"crate": 30, "barrel": 60, "trash_can": 20, "grow_bed": 800, "plank_stack": 25, "sandbags": 30,
+	"terminal": 2000, "cabinet": 300, "drawer_desk": 600, "medkit_station": 400, "ammo_bench": 800,
+	"generator": 20000, "glass_case": 150, "vent_grate": 20, "vent_duct": 80,
 }
 
 
 static func default_value(prop_name: String) -> int:
+	return _by_prefix(ASSET_VALUES, prop_name, 100)
+
+
+static func default_use(prop_name: String) -> String:
+	return _by_prefix(DEFAULT_USES, prop_name, "none")
+
+
+static func _by_prefix(table: Dictionary, prop_name: String, fallback: Variant) -> Variant:
 	var best := ""
-	for prefix: String in ASSET_VALUES:
+	for prefix: String in table:
 		if prop_name.begins_with(prefix) and prefix.length() > best.length():
 			best = prefix
-	return ASSET_VALUES.get(best, 100)
+	return table.get(best, fallback)
 
 
 static func new_prop(prop_name: String, origin: Vector3i, facing: int) -> Dictionary:
-	return {kind = "prop", name = prop_name, origin = origin, facing = facing, value = default_value(prop_name),
-			door = false, door_offset = Vector3i(0, 0, 0), door_speed = 2.0, door_locked = false}
+	var prop := {kind = "prop", name = prop_name, origin = origin, facing = facing, value = default_value(prop_name)}
+	fill_defaults(prop)
+	return prop
 
 
 static func new_marker(type: String, position: Vector3, yaw := 0.0) -> Dictionary:
@@ -82,6 +132,24 @@ static func new_marker(type: String, position: Vector3, yaw := 0.0) -> Dictionar
 	for field: Dictionary in MARKERS[type].fields:
 		marker[field.key] = field.default
 	return marker
+
+
+## Fills in fields an object is missing (level files saved before the field existed) with defaults.
+static func fill_defaults(object: Dictionary) -> void:
+	var fields: Array
+	if object.get("kind") == "prop":
+		fields = PROP_FIELDS
+		if not object.has("use"):
+			object.use = default_use(str(object.get("name", "")))
+	elif object.get("kind") == "marker" and MARKERS.has(object.get("type")):
+		fields = MARKERS[object.type].fields
+	for field: Dictionary in fields:
+		if not field.has("default"):
+			continue
+		if not object.has(field.key):
+			object[field.key] = field.default
+		elif field.type == "int" and object[field.key] is float:
+			object[field.key] = int(object[field.key]) # JSON numbers come back as floats.
 
 
 ## Inspector fields for an object.

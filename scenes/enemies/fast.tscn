@@ -1,0 +1,7 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/enemy.tscn" id="1_enemy"]
+[ext_resource type="Script" path="res://scripts/enemies/fast_shroom.gd" id="2_fast"]
+
+[node name="FastShroom" instance=ExtResource("1_enemy")]
+script = ExtResource("2_fast")
