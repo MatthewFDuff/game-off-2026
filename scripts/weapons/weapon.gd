@@ -410,9 +410,7 @@ func _on_impacted(shot: Projectile, at: Vector3, normal: Vector3, enemy: Enemy) 
 		"blast":
 			if world_sync:
 				world_sync.carve_sphere(at, type.blast_radius, type.blast_power, normal if normal != Vector3.ZERO else Vector3.UP)
-			if enemies:
-				for victim in Combat.sphere_hit(at, type.splash_radius):
-					enemies.request_hit(victim.id, type.blast_damage, victim.get_center(), type.kind)
+			splash(type, at, normal)
 			if type.ignite_radius > 0.0:
 				Fire.ignite_at(at, type.ignite_radius, type.ignite_count)
 		"cloud":
@@ -423,6 +421,19 @@ func _on_impacted(shot: Projectile, at: Vector3, normal: Vector3, enemy: Enemy) 
 	_impact_fx(type, at)
 	for peer_id in player.net_peers:
 		_projectile_ended.rpc_id(peer_id, shot.id, type.name, at)
+
+
+## Shooter: a "blast" impact's damage (explosive rounds, blast flasks). Every enemy within the
+## type's splash_radius of at that the blast can see (Combat.can_see from just off the surface it
+## hit, along normal, to the enemy's middle) takes blast_damage, so it doesn't reach through a wall
+## or a slab. The carve is separate (_on_impacted).
+func splash(type: AmmoType, at: Vector3, normal := Vector3.ZERO) -> void:
+	if enemies == null or type.splash_radius <= 0.0:
+		return
+	var center := at + normal * 0.1
+	for victim in Combat.sphere_hit(at, type.splash_radius):
+		if Combat.can_see(player.world, center, victim.get_center()):
+			enemies.request_hit(victim.id, type.blast_damage, victim.get_center(), type.kind)
 
 
 ## Shooter: a "cloud" impact (poison ammo, flasks): the host spawns the type's Cloud there, which
@@ -535,8 +546,9 @@ func melee_box() -> AABB:
 	return box
 
 
-## Owner: the swing connects. Every enemy in the box takes the hit; the voxel the camera looks at
-## within reach (if nothing nearer) is chipped.
+## Owner: the swing connects. Every enemy in the box the camera can see the middle of
+## (Combat.can_see, so not through a thin wall or a door) takes the hit; the voxel the camera looks
+## at within reach (if nothing nearer) is chipped.
 func _melee_strike() -> void:
 	if player == null or player.world == null or player.is_dead:
 		return
@@ -548,6 +560,8 @@ func _melee_strike() -> void:
 		var to := enemy.get_center() - eye
 		if Vector3(to.x, 0.0, to.z).dot(Vector3(aim.x, 0.0, aim.z)) <= 0.0:
 			continue # Behind the camera (the box starts at it).
+		if not Combat.can_see(player.world, eye, enemy.get_center()):
+			continue
 		hits += 1
 		if enemies:
 			enemies.request_hit(enemy.id, MELEE_DAMAGE, enemy.get_center() - to.normalized() * 0.3, "melee")

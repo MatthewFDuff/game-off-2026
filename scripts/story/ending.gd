@@ -3,7 +3,8 @@ extends Control
 ## The payroll statement: fade to black, then the night's accounts one line at a time with a cash
 ## register tick (wages, every broken asset by name, clones grown, the total owed in red), Guy
 ## Fung's note, and a button back to the menu. The host builds the lines (begin) and sends them to
-## every peer; each peer plays the screen.
+## every peer; each peer plays the screen. It covers the whole viewport (LabHud hides the HUD under
+## it), and a mode change (the editor's F5 replay) resets it so the next play can end again.
 
 const FADE_SECONDS := 2.0
 const LINE_GAP := 0.45
@@ -18,16 +19,20 @@ var _panel := PanelContainer.new()
 var _column := VBoxContainer.new()
 var _scroll := ScrollContainer.new()
 var _button := Button.new()
+var _tween: Tween
+## Bumped by reset, so a statement still rolling stops adding lines.
+var _run := 0
 
 
 func _ready() -> void:
 	name = "Ending"
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# The offsets too: inside the tree, set_anchors_preset alone keeps the old 0 x 0 rect.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 	_black.color = Color(0, 0, 0, 0)
-	_black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_black.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_black)
 	var style := StyleBoxFlat.new()
@@ -50,6 +55,24 @@ func _ready() -> void:
 	_button.visible = false
 	_button.pressed.connect(func() -> void: Net.leave())
 	outer.add_child(_button)
+	if lab:
+		lab.mode_changed.connect(func(_mode: String) -> void: reset())
+
+
+## Clears the statement (a mode change: the editor's replay ends the night afresh).
+func reset() -> void:
+	_run += 1
+	if _tween:
+		_tween.kill()
+	shown = false
+	total = 0
+	_lines.clear()
+	visible = false
+	_black.color = Color(0, 0, 0, 0)
+	_panel.visible = false
+	_button.visible = false
+	for row in _column.get_children():
+		row.queue_free()
 
 
 ## Host: works the statement out and shows it everywhere. clones is how many respawns the night took.
@@ -92,17 +115,21 @@ func _show(lines: Array, net: int) -> void:
 	_lines.assign(lines)
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	var tween := create_tween()
-	tween.tween_property(_black, "color", Color(0, 0, 0, 1), FADE_SECONDS)
-	tween.tween_callback(_roll)
+	_tween = create_tween()
+	_tween.tween_property(_black, "color", Color(0, 0, 0, 1), FADE_SECONDS)
+	_tween.tween_callback(_roll)
 
 
 func _roll() -> void:
+	var run := _run
 	_panel.visible = true
 	_fit()
 	_add(str(Lines.ENDING.title), "", Color(0.55, 1.0, 0.8), 18)
 	await get_tree().create_timer(LINE_GAP).timeout
-	for line in _lines:
+	var lines: Array[String] = _lines.duplicate()
+	for line in lines:
+		if run != _run:
+			return
 		var parts := line.split("|")
 		var is_total := line.begins_with("TOTAL") or line.begins_with("NET PAY")
 		var color := Color(1.0, 0.35, 0.3) if line.begins_with("TOTAL") else (Color(0.6, 1.0, 0.6) if line.begins_with("NET PAY") else Color(0.85, 0.95, 0.9))
@@ -110,6 +137,8 @@ func _roll() -> void:
 		Sfx.play("register_tick", -8.0, 0.02)
 		await get_tree().create_timer(LINE_GAP).timeout
 	await get_tree().create_timer(LINE_GAP).timeout
+	if run != _run:
+		return
 	_add(str(Lines.ENDING.note), "", Color(0.85, 0.85, 0.75), 15)
 	_button.visible = true
 	_fit()

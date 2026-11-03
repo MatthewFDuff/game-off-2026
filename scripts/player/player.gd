@@ -332,6 +332,9 @@ func _update_blind(delta: float) -> void:
 		_blind_overlay = ColorRect.new()
 		_blind_overlay.name = "BlindOverlay"
 		_blind_overlay.color = BLIND_COLOR
+		# A flat tint with a ragged border of solid pixel blocks (VoxelFx.overlay below 0), no dither.
+		_blind_overlay.material = VoxelFx.overlay(-1.0, 6.0)
+		_blind_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		_blind_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_blind_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		layer.add_child(_blind_overlay)
@@ -671,8 +674,11 @@ func _build_remote_body() -> void:
 	_name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_name_tag.fixed_size = true
 	_name_tag.pixel_size = 0.0012
-	_name_tag.font_size = 24
-	_name_tag.outline_size = 8
+	# The pixel font at three blocks a glyph pixel, hard-edged (bitmap glyphs carry no outline).
+	_name_tag.font = PixelFont.font()
+	_name_tag.font_size = PixelFont.SIZE * 3
+	_name_tag.outline_size = 0
+	_name_tag.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	_name_tag.no_depth_test = true
 	_name_tag.position = Vector3(0.0, standing_height + 0.35, 0.0)
 	_name_tag.text = display_name

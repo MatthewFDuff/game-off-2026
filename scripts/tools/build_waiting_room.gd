@@ -2,8 +2,9 @@ extends SceneTree
 ## Builds res://levels/waiting_room/: Fung AI Site 3 reception, where co-op players wait after the
 ## cubicle intro until everyone has signed in (docs/story.md, "The waiting room"; the play-time
 ## logic is scripts/story/waiting_room.gd). One room, a staff closet behind a locked door, and the
-## admittance corridor behind the blast door `d_admit`. Refuses to overwrite an existing level
-## unless --force is given.
+## admittance corridor behind the blast door `d_admit`. The room's id is `reception_room`: the
+## sign-in terminal is `reception` (WaitingRoom.TERMINAL), and ids must not collide. Refuses to
+## overwrite an existing level unless --force is given.
 ##   godot --headless --path . --script res://scripts/tools/build_waiting_room.gd [-- --force]
 ## tests/waiting_room_test.gd calls build() into a scratch folder.
 
@@ -60,9 +61,10 @@ static func build(parent: Node) -> Dictionary:
 	level.settings.room_thickness = T
 	level.settings.start_power = "facility"
 	level.settings.ambient_energy = 0.3
+	level.settings.start_unarmed = true # Nobody brings a gun to reception (docs/story.md).
 
 	var rooms := {
-		reception = _room(level, "reception", "Reception", ROOM[0], ROOM[1], M.TILE_LIGHT, M.WALL_PAINT, 0),
+		reception = _room(level, "reception_room", "Reception", ROOM[0], ROOM[1], M.TILE_LIGHT, M.WALL_PAINT, 0),
 		closet = _room(level, "closet", "Staff only", CLOSET[0], CLOSET[1], M.CONCRETE, M.CONCRETE_PANEL, 1),
 		corridor = _room(level, "admittance", "Admittance", CORRIDOR[0], CORRIDOR[1], M.CONCRETE, M.CONCRETE_PANEL, 2),
 	}
@@ -125,6 +127,8 @@ static func build(parent: Node) -> Dictionary:
 
 static func _add(level: LevelData, id: String, object: Dictionary) -> void:
 	object.id = id if id != "" else level.new_id(object.get("type", object.get("kind", "o")))
+	if level.objects.has(object.id):
+		push_error("build_waiting_room: two objects with the id %s" % object.id)
 	level.objects[object.id] = object
 
 

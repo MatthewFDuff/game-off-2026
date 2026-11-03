@@ -22,7 +22,7 @@ func _ready() -> void:
 	var column := VBoxContainer.new()
 	margin.add_child(column)
 	var title := Label.new()
-	title.text = "Controls (F1 to close)"
+	title.text = "Controls (F1)"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 	var grid := GridContainer.new()

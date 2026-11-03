@@ -10,8 +10,10 @@ extends Node
 ##
 ## Usable props keep their state in prop_state (id -> {used, charges}); the host changes it and
 ## sends it to everyone, late joiners included. Keycards are party-wide: one player picking a
-## keycard up opens its doors for everyone. Power is "facility" (normal), "backup" (emergency lights
-## only; terminals that need power and powered doors refuse) or "restored" (the generator ran).
+## keycard up opens its doors for everyone. So is the spore shooter in `start_unarmed` levels: the
+## first pickup (or the "armed" trigger) arms every player, late joiners and respawns included.
+## Power is "facility" (normal), "backup" (emergency lights only; terminals that need power and
+## powered doors refuse) or "restored" (the generator ran).
 ##
 ## Trigger actions: a trigger marker's `actions` field runs whenever its id fires (its volume, a
 ## terminal's or the generator's `on_use`, the director's "finale_survived" / "finale_failed", a
@@ -25,6 +27,8 @@ extends Node
 ## Host: a trigger fired. peer_id is the player who set it off (for "all", the last one in). Also
 ## fired by terminals and the generator with their `on_use` id.
 signal triggered(id: String, peer_id: int)
+## Every peer: the party got the spore shooter (arm_party); everyone here is armed now.
+signal party_armed
 ## Host: an asset lost dollars worth of voxels. total is all asset damage so far.
 signal asset_damaged(id: String, dollars: int, total: int)
 ## Host: a player walked into a kill zone.
@@ -49,6 +53,8 @@ const CHECKPOINT_REACH := 3.0
 const POWER_STATES := ["facility", "backup", "restored"]
 ## Rounds an ammo bench gives per use.
 const STATION_AMMO := 20
+## Meters from a damaged asset within which a player sees its "-$" toast (everyone is billed).
+const DAMAGE_NOTE_RANGE := 15.0
 
 @export var lab: Lab
 
@@ -61,6 +67,9 @@ var total_damage := 0
 var power := "facility"
 ## Every peer (the host decides): keycard colors the party holds ("red", ...).
 var keycards: Array[String] = []
+## Every peer (the host decides): the party has the spore shooter (see is_armed_here). Only matters
+## in `start_unarmed` levels; set by the first spore_shooter pickup or the "armed" trigger.
+var armed := false
 ## Every peer (the host decides): usable prop id -> {used: bool, charges: int}. Props not in here
 ## are untouched (see state_of).
 var prop_state := {}
@@ -82,7 +91,8 @@ var _glass := {}
 ## Trigger ids that already fired (one-shot ones) and peers inside each (for edge detection).
 var _fired := {}
 var _inside := {}
-## Damage not yet announced: id -> dollars. Announced in batches so a burst of fire is one line.
+## Host: damage not yet announced: id -> dollars. Announced in batches so a burst of fire is one
+## line, and only to players within DAMAGE_NOTE_RANGE of the asset.
 var _pending_notes := {}
 var _note_timer := 0.0
 
@@ -90,6 +100,13 @@ var _note_timer := 0.0
 func _ready() -> void:
 	lab.peer_entered.connect(_send_state)
 	triggered.connect(_run_actions)
+	triggered.connect(func(id: String, _peer_id: int) -> void:
+		if id == "armed":
+			arm_party(_peer_id))
+	# The host's own player spawns after play starts; joiners' players may too.
+	lab.player_spawned.connect(func(player: Player) -> void:
+		if player.is_local and active:
+			player.set_armed(is_armed_here()))
 	if lab.items:
 		lab.items.picked.connect(_on_picked)
 
@@ -107,11 +124,11 @@ func start() -> void:
 	_inside.clear()
 	prop_state.clear()
 	keycards.clear()
+	armed = false
+	_pending_notes.clear()
 	checkpoint = ""
 	close_reading()
-	var me := lab.local_player()
-	if me:
-		me.set_armed(not bool(lab.level.settings.get("start_unarmed", false)))
+	_apply_armed()
 	var start_power := str(lab.level.settings.get("start_power", "facility"))
 	power = start_power if start_power in POWER_STATES else "facility"
 	power_changed.emit(power)
@@ -643,11 +660,50 @@ func _break_glass(id: String) -> void:
 
 # --- Keycards and power ----------------------------------------------------------------------------
 
-## Host: someone picked up an item; keycards go to the whole party.
+## Host: someone picked up an item; keycards and the spore shooter go to the whole party.
 func _on_picked(item: String, _peer_id: int) -> void:
-	if not active or not item.begins_with("keycard_"):
+	if not active:
 		return
-	add_keycard(item.trim_prefix("keycard_"))
+	if item == "spore_shooter":
+		arm_party(_peer_id)
+	elif item.begins_with("keycard_"):
+		add_keycard(item.trim_prefix("keycard_"))
+
+
+## Host (story scripts too): the party has the spore shooter; every player is armed from now on,
+## late joiners (_full_state) and respawns included, and the "armed" trigger fires once (its
+## intercom line, its actions: the grow room spawner). peer_id is who picked it up. Repeats do
+## nothing.
+func arm_party(peer_id := 1) -> void:
+	if not multiplayer.is_server() or not active or armed:
+		return
+	armed = true
+	_apply_armed()
+	party_armed.emit()
+	triggered.emit("armed", peer_id)
+	for peer in _peers():
+		_armed_changed.rpc_id(peer, true)
+
+
+@rpc("authority", "reliable")
+func _armed_changed(on: bool) -> void:
+	armed = on
+	_apply_armed()
+	if on:
+		party_armed.emit()
+
+
+## Every peer: whether a player here carries the gun now (the level doesn't start unarmed, or the
+## party has picked it up). Story applies it to spawned players.
+func is_armed_here() -> bool:
+	return armed or lab.level == null or not bool(lab.level.settings.get("start_unarmed", false))
+
+
+## This peer: arms or disarms the local player as is_armed_here says.
+func _apply_armed() -> void:
+	var me := lab.local_player()
+	if me:
+		me.set_armed(is_armed_here())
 
 
 ## Host (story scripts too): the party has a keycard ("red" or "keycard_red").
@@ -745,21 +801,23 @@ func _run_actions(id: String, _peer_id: int) -> void:
 				push_warning("trigger %s: unknown action '%s'" % [id, item])
 
 
-## Host: a late joiner gets the power, keycards, prop states, door locks, where doors are, and
-## the checkpoint.
+## Host: a late joiner gets the power, keycards, whether the party is armed, prop states, door
+## locks, where doors are, and the checkpoint.
 func _send_state(peer_id: int) -> void:
 	if not multiplayer.is_server() or not active:
 		return
 	var doors := {}
 	for id: String in _doors:
 		doors[id] = [_doors[id].origin, _doors[id].open, _doors[id].object.door_locked]
-	_full_state.rpc_id(peer_id, power, keycards, prop_state, doors, checkpoint)
+	_full_state.rpc_id(peer_id, power, keycards, armed, prop_state, doors, checkpoint)
 
 
 @rpc("authority", "reliable")
-func _full_state(state: String, cards: Array, props: Dictionary, doors: Dictionary, vat: String) -> void:
+func _full_state(state: String, cards: Array, party_armed: bool, props: Dictionary, doors: Dictionary, vat: String) -> void:
 	_apply_power(state, true)
 	keycards.assign(cards)
+	armed = party_armed
+	_apply_armed()
 	checkpoint = vat
 	prop_state = props.duplicate(true)
 	for id: String in doors:
@@ -850,8 +908,24 @@ func _process(delta: float) -> void:
 	if _note_timer > 0.0:
 		return
 	_note_timer = 0.6
-	var lines: Array[String] = []
-	for id: String in _pending_notes:
-		lines.append("-$%d  %s" % [_pending_notes[id], _assets[id].name.replace("_", " ") if _assets.has(id) else id])
-	_pending_notes.clear()
-	lab.notify("\n".join(lines))
+	var notes := _pending_notes
+	_pending_notes = {}
+	if not multiplayer.is_server() or not active:
+		return
+	for peer_id in lab.peers_in_level:
+		var player: Player = lab.players.get(peer_id)
+		if player == null:
+			continue
+		var lines: Array[String] = []
+		for id: String in notes:
+			if _assets.has(id) and _asset_distance(id, player.global_position) <= DAMAGE_NOTE_RANGE:
+				lines.append("-$%d  %s" % [notes[id], _assets[id].name.replace("_", " ")])
+		if not lines.is_empty():
+			lab.notify_peer(peer_id, "\n".join(lines))
+
+
+## Host: how far a point is from an asset's box (0 inside it), in meters.
+func _asset_distance(id: String, at: Vector3) -> float:
+	var asset: Dictionary = _assets[id]
+	var box := AABB(lab.view.to_world(Vector3(asset.origin)), Vector3(asset.size) * lab.world.voxel_size)
+	return at.clamp(box.position, box.end).distance_to(at)

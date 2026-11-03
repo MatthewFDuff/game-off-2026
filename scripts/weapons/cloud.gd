@@ -6,8 +6,8 @@ extends Node3D
 ## runs the damage, through EnemyManager.status_player). Effects only reach bodies in sight of the
 ## center and within its squat vertical extent (reaches), never through a floor, wall or ceiling.
 ## Every other peer gets a spawn message from
-## EnemyManager and only draws it (a dithered volume of blocks, drifting cube particles and a tinted light: VoxelFx),
-## freeing it on its own timer.
+## EnemyManager and only draws it (an opaque voxel stain on the floor, cubes rising from it in a
+## motion per type, and a tinted light: VoxelFx; nothing dithered), freeing it on its own timer.
 ##
 ## Types (TYPES): fire (a burning pool that sets flammable voxels alight through Fire),
 ## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once,
@@ -54,10 +54,17 @@ var authoritative := false
 var _tick := 0.0
 var _burn_timer := 0.0
 var _burned_radius := 0.0
-var _sphere: MeshInstance3D
-var _material: ShaderMaterial
+var _stain: MeshInstance3D
+var _stain_material: ShaderMaterial
+## Index into STAIN_STEPS the stain shows, -1 hidden.
+var _stain_step := -1
 var _light: OmniLight3D
 var _particles: CPUParticles3D
+## Rage: the rising cubes' own material, so their pulse doesn't recolor every effect.
+var _cube_material: ShaderMaterial
+## Spore: a few big translucent cubes (true alpha blending) drifting through the swarm.
+var _fog: CPUParticles3D
+var _handed_off := false
 
 
 ## Any peer: asks the host for a cloud of type centered at a world point; radius and seconds below
@@ -158,69 +165,238 @@ func _ignite() -> void:
 
 
 # --- Looks (every peer) --------------------------------------------------------------------------
+# A stain of opaque 0.1 m tiles on the floor under the center, grown out in STAIN_STEPS and shrunk
+# back at the end, and opaque cubes rising off it in a motion per type:
+#   fire    rise fast, flickering white / orange / red, and vanish
+#   poison  drift up slowly, the swarm swaying from side to side
+#   spore   rise and spread outward in a slow spiral, a few big truly translucent fog cubes among them
+#   freeze  float up slowly and hang (the looks outlive the instant cloud by LINGER)
+#   rage    jitter in place and pulse red
+# Nothing is dithered.
+
+## The stain's size steps (fractions of the radius), one every STAIN_STEP seconds.
+const STAIN_STEPS := [0.4, 0.7, 1.0]
+const STAIN_STEP := 0.15
+## The stain sits this far over the floor, so it never fights the floor's faces.
+const STAIN_LIFT := 0.01
+## Instant clouds (freeze): their stain and cubes stay this long after the cloud itself is gone.
+const LINGER := 1.6
+
 
 func _build() -> void:
 	var defs := settings(type)
 	var color: Color = defs.get("color", Color.WHITE)
 	var instant: bool = defs.get("instant", false)
-	# The volume: a blocky ellipsoid of cubes (a flat pool for fire), its alpha a pixel dither.
-	_material = VoxelFx.material(1.0, false, Color(color, 0.0))
-	_material.set_shader_parameter("dither_px", 3.0)
-	_sphere = MeshInstance3D.new()
-	_sphere.name = "Sphere"
-	_sphere.mesh = VoxelFx.volume(5, 0.35 if type == "fire" else 0.8)
-	_sphere.material_override = _material
-	_sphere.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_sphere.scale = Vector3.ONE * radius * (0.3 if instant else 0.6)
-	add_child(_sphere)
+	var floor_offset := _find_floor() - global_position.y
+
+	_stain_material = VoxelFx.material(1.0, false, _stain_color())
+	_stain = MeshInstance3D.new()
+	_stain.name = "Stain"
+	_stain.material_override = _stain_material
+	_stain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_stain.position = Vector3(0.0, floor_offset + STAIN_LIFT, 0.0)
+	_stain.visible = false
+	add_child(_stain)
+	_set_stain_step(0)
 
 	_light = OmniLight3D.new()
 	_light.light_color = color
 	_light.light_energy = 0.0
 	_light.omni_range = radius * 2.0
 	_light.shadow_enabled = false
+	_light.position = Vector3(0.0, floor_offset + 0.6, 0.0)
 	add_child(_light)
 
-	# Cube puffs on the effect grid (0.1 m flames, 0.2 m gas, spore puffs bigger), stepping
-	# light -> color -> dark and thinning out by dither.
-	var puff_size := 0.1 if type == "fire" else snappedf(float(defs.get("puff", 0.18)), 0.1)
-	var steps := [Color(color.lightened(0.35), 0.9), Color(color, 0.75), Color(color.darkened(0.3), 0.45)]
-	if type == "fire":
-		steps = [Color(1.0, 0.95, 0.55), Color(1.0, 0.65, 0.15), color.darkened(0.2), Color(0.2, 0.15, 0.12, 0.5)]
-	_particles = VoxelFx.particles(puff_size, steps, 0.6)
+	_particles = _rising_cubes(color, instant)
 	_particles.name = "Particles"
-	_particles.amount = 24 if instant else int(defs.get("particles", 40))
-	_particles.lifetime = 0.5 if instant else 1.6
-	_particles.explosiveness = 1.0 if instant else 0.0
-	_particles.one_shot = instant
-	_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
-	_particles.emission_sphere_radius = radius * (0.2 if instant else 0.8)
+	_particles.position = Vector3(0.0, floor_offset + 0.08, 0.0)
+	_particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	_particles.emission_ring_axis = Vector3.UP
+	_particles.emission_ring_height = 0.1
+	_particles.emission_ring_radius = radius * 0.85
+	_particles.emission_ring_inner_radius = 0.0
 	_particles.direction = Vector3.UP
-	_particles.spread = 180.0 if instant else 25.0
-	_particles.initial_velocity_min = radius * 2.0 if instant else 0.2
-	_particles.initial_velocity_max = radius * 3.0 if instant else 0.8
-	_particles.gravity = Vector3(0.0, 1.5 if type == "fire" else 0.1, 0.0)
-	_particles.damping_min = 2.0
-	_particles.damping_max = 4.0
 	add_child(_particles)
 	_particles.emitting = true
 
+	if type == "spore":
+		_fog = VoxelFx.alpha_particles(1.0, [Color(color, 0.22), Color(color.lightened(0.1), 0.3), Color(color, 0.22)], 0.7)
+		_fog.name = "Fog"
+		_fog.position = _particles.position + Vector3(0.0, 0.4, 0.0)
+		_fog.amount = 12
+		_fog.lifetime = 4.0
+		_fog.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+		_fog.emission_ring_axis = Vector3.UP
+		_fog.emission_ring_height = 0.6
+		_fog.emission_ring_radius = radius * 0.7
+		_fog.emission_ring_inner_radius = 0.0
+		_fog.direction = Vector3.UP
+		_fog.spread = 30.0
+		_fog.initial_velocity_min = 0.05
+		_fog.initial_velocity_max = 0.2
+		_fog.gravity = Vector3(0.0, 0.05, 0.0)
+		_fog.tangential_accel_min = 0.1
+		_fog.tangential_accel_max = 0.2
+		add_child(_fog)
+		_fog.emitting = true
+
+
+## The rising cubes of this type (not yet placed or emitting).
+func _rising_cubes(color: Color, instant: bool) -> CPUParticles3D:
+	var defs := settings(type)
+	var p: CPUParticles3D
+	match type:
+		"fire":
+			# Hot cubes flickering through white, orange and red as they shoot up, shrinking out.
+			p = VoxelFx.particles(0.1, [Color(1.0, 0.95, 0.7), Color(1.0, 0.6, 0.12), Color(1.0, 0.95, 0.7),
+					Color(0.9, 0.25, 0.06), Color(1.0, 0.6, 0.12), Color(0.8, 0.18, 0.05)], 0.55)
+			p.lifetime = 0.7
+			p.spread = 6.0
+			p.initial_velocity_min = 1.8
+			p.initial_velocity_max = 3.2
+			p.gravity = Vector3(0.0, 1.5, 0.0)
+			p.damping_min = 0.5
+			p.damping_max = 1.0
+		"spore":
+			# A dense swarm rising and spiralling outward (tangential and radial pull about the center).
+			p = VoxelFx.particles(0.2, [color.lightened(0.15), color, color.darkened(0.12), color.darkened(0.25)], 0.6)
+			p.lifetime = 3.2
+			p.spread = 20.0
+			p.initial_velocity_min = 0.25
+			p.initial_velocity_max = 0.5
+			p.gravity = Vector3(0.0, 0.12, 0.0)
+			p.tangential_accel_min = 0.5
+			p.tangential_accel_max = 0.9
+			p.radial_accel_min = 0.2
+			p.radial_accel_max = 0.4
+			p.damping_min = 0.1
+			p.damping_max = 0.2
+		"freeze":
+			# A puff of frost that floats up, slows to a stop and hangs, then shrinks away.
+			p = VoxelFx.particles(0.1, [Color.WHITE, Color(0.8, 0.93, 1.0), color, color.darkened(0.15)], 0.75)
+			p.lifetime = LINGER
+			p.explosiveness = 0.85
+			p.spread = 15.0
+			p.initial_velocity_min = 0.8
+			p.initial_velocity_max = 1.5
+			p.gravity = Vector3.ZERO
+			p.damping_min = 1.2
+			p.damping_max = 2.0
+		"rage":
+			# Cubes that barely rise and jitter (_process shakes their pull), pulsing red.
+			p = VoxelFx.particles(0.1, [Color(1.0, 0.35, 0.35), color, color.darkened(0.3)], 0.6)
+			_cube_material = VoxelFx.material(0.1)
+			p.material_override = _cube_material
+			p.lifetime = 1.4
+			p.spread = 10.0
+			p.initial_velocity_min = 0.9
+			p.initial_velocity_max = 1.5
+			p.damping_min = 2.5
+			p.damping_max = 3.5
+		_:
+			# Poison (and anything else): slow gas cubes drifting up, swayed by _process.
+			p = VoxelFx.particles(0.2, [color.lightened(0.25), color, color.darkened(0.2), color.darkened(0.4)], 0.6)
+			p.lifetime = 3.0
+			p.spread = 10.0
+			p.initial_velocity_min = 0.2
+			p.initial_velocity_max = 0.45
+			p.gravity = Vector3(0.0, 0.08, 0.0)
+			p.damping_min = 0.2
+			p.damping_max = 0.4
+	p.amount = 24 if instant else int(defs.get("particles", 40))
+	p.one_shot = instant
+	return p
+
+
+## The floor under the center: the first solid voxel straight down (within the cloud's reach),
+## else the center's own height.
+func _find_floor() -> float:
+	var world := manager.world if manager else null
+	if world == null:
+		return global_position.y
+	for lift: float in [0.3, 0.05]:
+		var hit: Dictionary = world.raycast(global_position + Vector3.UP * lift, Vector3.DOWN, REACH_BELOW + lift + 0.5)
+		if hit.get("hit", false) and float(hit.distance) > 0.0:
+			return (hit.position as Vector3).y
+	return global_position.y
+
+
+## The stain's color now: fire flickers, rage pulses, the rest hold.
+func _stain_color() -> Color:
+	var color: Color = settings(type).get("color", Color.WHITE)
+	match type:
+		"fire":
+			return color.darkened(0.1) if int(age * 12.0) % 3 == 0 else color.darkened(0.4)
+		"rage":
+			return color.darkened(0.25 if int(age * 4.0) % 2 == 0 else 0.6)
+		"freeze":
+			return color.lightened(0.35)
+		"spore":
+			return color.darkened(0.1)
+	return color.darkened(0.3)
+
+
+## Shows stain size step (STAIN_STEPS index; -1 hides it).
+func _set_stain_step(step: int) -> void:
+	if step == _stain_step or _stain == null:
+		return
+	_stain_step = step
+	_stain.visible = step >= 0
+	if step >= 0:
+		_stain.mesh = VoxelFx.stain(radius * float(STAIN_STEPS[step]), 0.1, id % 3)
+
 
 func _process(_delta: float) -> void:
-	if _sphere == null:
+	if _stain == null or _handed_off:
 		return
 	var instant: bool = settings(type).get("instant", false)
-	var t := clampf(age / maxf(seconds, 0.01), 0.0, 1.0)
-	# Swell in over the first half second, hold, fade over the last second.
-	var grow := 1.0 - pow(1.0 - clampf(age / (seconds if instant else 0.5), 0.0, 1.0), 3.0)
+	var count := STAIN_STEPS.size()
+	var grown := int(age / STAIN_STEP) + 1
+	var left := count if instant else int(maxf(seconds - age, 0.0) / STAIN_STEP) + 1
+	_set_stain_step(mini(mini(grown, left), count) - 1)
+	_stain_material.set_shader_parameter("tint", _stain_color())
 	var fade := clampf((seconds - age) / minf(1.0, seconds), 0.0, 1.0)
-	# In whole steps, so the blocks pop out a layer at a time instead of scaling smoothly.
-	grow = ceilf(grow * 4.0) / 4.0
-	_sphere.scale = Vector3.ONE * radius * lerpf(0.3 if instant else 0.6, 1.0, grow)
 	var flicker := 1.0 + (sin(age * 23.0) * 0.15 if type == "fire" else 0.0)
-	var color: Color = settings(type).get("color", Color.WHITE)
-	var alpha := (0.5 * (1.0 - t) if instant else float(settings(type).get("alpha", 0.28))) * fade
-	_material.set_shader_parameter("tint", Color(color, ceilf(alpha * 8.0) / 8.0))
 	_light.light_energy = 2.0 * fade * flicker
+	match type:
+		"poison":
+			_particles.gravity = Vector3(sin(age * 1.6) * 0.9, 0.08, cos(age * 1.1) * 0.6)
+		"rage":
+			_particles.gravity = Vector3(randf_range(-12.0, 12.0), 0.6, randf_range(-12.0, 12.0))
+			_cube_material.set_shader_parameter("tint", Color.WHITE if int(age * 4.0) % 2 == 0 else Color(0.55, 0.45, 0.45))
 	if not instant and age > seconds - 0.8:
 		_particles.emitting = false
+		if _fog:
+			_fog.emitting = false
+	if instant and age >= seconds - 0.15:
+		_hand_off()
+
+
+## Instant clouds: the stain and the hanging cubes move to a node of their own that outlives the
+## cloud by LINGER, shrinks the stain away in steps and frees itself.
+func _hand_off() -> void:
+	var parent := get_parent()
+	if parent == null:
+		return
+	_handed_off = true
+	var looks := Node3D.new()
+	looks.name = "CloudLooks%d" % id
+	parent.add_child(looks)
+	looks.top_level = true
+	looks.global_transform = global_transform
+	var stain := _stain
+	var stain_radius := radius
+	var variant := id % 3
+	_particles.reparent(looks)
+	stain.reparent(looks)
+	var tween := looks.create_tween()
+	tween.tween_interval(maxf(LINGER - STAIN_STEP * STAIN_STEPS.size(), 0.1))
+	for i in range(STAIN_STEPS.size() - 2, -2, -1):
+		var step := i
+		tween.tween_callback(func() -> void:
+			stain.visible = step >= 0
+			if step >= 0:
+				stain.mesh = VoxelFx.stain(stain_radius * float(STAIN_STEPS[step]), 0.1, variant))
+		tween.tween_interval(STAIN_STEP)
+	tween.tween_callback(looks.queue_free)
+	_stain = null

@@ -86,6 +86,18 @@ const PLAY_CONTROLS := [
 	["Controls", "show_controls"],
 	["Pause", "ui_cancel"],
 ]
+## Rows whose keys read better as words than as the bound keys' names.
+const CONTROL_TEXT := {Look = "Mouse / arrows"}
+## Actions bound only when the game is launched with the dev flag (DEV_FLAG); otherwise they exist
+## with no keys, so checking them is harmless and never true.
+const DEV_ACTIONS := ["toggle_fly"]
+## The launch flag for developer keys (F flies): `godot -- --dev`.
+const DEV_FLAG := "--dev"
+
+
+## True when the game was launched with the dev flag after `--` (OS.get_cmdline_user_args).
+static func is_dev() -> bool:
+	return DEV_FLAG in OS.get_cmdline_user_args()
 
 
 ## True when gameplay input should be live: the mouse is captured, or there is no display to
@@ -100,6 +112,9 @@ static func describe_play_controls() -> Array[Dictionary]:
 	ensure_actions()
 	var rows: Array[Dictionary] = []
 	for row: Array in PLAY_CONTROLS:
+		if CONTROL_TEXT.has(row[0]):
+			rows.append({label = row[0], keys = CONTROL_TEXT[row[0]]})
+			continue
 		var keys: Array[String] = []
 		for i in range(1, row.size()):
 			var action: String = row[i]
@@ -131,6 +146,8 @@ static func ensure_actions() -> void:
 		if InputMap.has_action(action):
 			continue
 		InputMap.add_action(action)
+		if action in DEV_ACTIONS and not is_dev():
+			continue
 		for keycode in KEYS[action]:
 			var event := InputEventKey.new()
 			event.physical_keycode = keycode

@@ -8,7 +8,10 @@ extends SceneTree
 ## shroom doesn't bite through a thin wall; a spawner the player is looking at (or within 6 m of)
 ## defers and keeps its budget, one behind the player spawns, and the deferred one spawns once the
 ## player turns away; a spawned enemy emerges out of the floor (unhittable, no attack) before its
-## first bite, and a ceiling one drops in from above.
+## first bite, and a ceiling one drops in from above. Spawner scope: a spawner on the floor below
+## (10 m in a straight line, no path) doesn't trickle while the player is upstairs and does once
+## they're on its floor, and turning it off sinks its enemy (no death). Player attacks: an
+## explosive blast and a melee swing don't reach an enemy through a wall, and do without it.
 ##
 ## Game types are left unnamed (see editor_test.gd).
 
@@ -26,6 +29,9 @@ const PLAYER_SPOT := Vector3(128.0, FLOOR, 160.0)
 const FRONT_SPOT := Vector3(128.0, FLOOR, 40.0)
 const BACK_SPOT := Vector3(128.0, FLOOR, 240.0)
 const CLOSE_SPOT := Vector3(100.0, FLOOR, 200.0)
+## A spawner on the ground floor about 10 m behind the player, and the spot above the player's.
+const BELOW_SPOT := Vector3(60.0, FLOOR, 230.0)
+const UPSTAIRS_SPOT := Vector3(128.0, SLAB_TOP, 160.0)
 
 var _failures := 0
 var lab
@@ -60,6 +66,9 @@ func _run() -> void:
 	await _bite_wall()
 	await _fair_spawns()
 	await _emergence()
+	await _wake_by_path()
+	await _blast_wall()
+	await _melee_wall()
 
 	print("combat los test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -218,6 +227,91 @@ func _emergence() -> void:
 	await _frames(2)
 
 
+## Wake range by walking: a spawner on the floor below, well within wake_range in a straight line
+## but with no path up, stays quiet; on its floor it trickles; off sinks its enemy without a death.
+func _wake_by_path() -> void:
+	_reset_player()
+	me.teleport(lab.view.to_world(UPSTAIRS_SPOT))
+	await _wait_seconds(0.5)
+	var spot: Vector3 = lab.view.to_world(BELOW_SPOT)
+	var straight: float = enemies.nearest_player_distance(spot)
+	_check("the spawner below is within wake range in a straight line", straight < director.wake_range, "%.1f m" % straight)
+	_check("but the flow field doesn't reach it", enemies.flow_reached > 0 and director.walk_distance(director.spawners.below.object) > director.wake_range,
+			"%d reached, %.1f m" % [enemies.flow_reached, director.walk_distance(director.spawners.below.object)])
+	director.set_spawner_active("below", true)
+	await _wait_seconds(1.5)
+	_check("a spawner a floor below by the slab doesn't trickle", director.spawners.below.alive.is_empty(), str(director.spawners.below.alive))
+	_reset_player()
+	var woke := await _wait_until(func() -> bool: return not director.spawners.below.alive.is_empty(), 3.0)
+	_check("on its floor it does", woke)
+	if not woke:
+		director.set_spawner_active("below", false)
+		return
+	var shroom = enemies.get_enemy(director.spawners.below.alive[0])
+	var deaths := [0]
+	var on_died := func(_enemy) -> void: deaths[0] += 1
+	enemies.enemy_died.connect(on_died)
+	director.set_spawner_active("below", false)
+	_check("off= takes its enemy out of play at once", not enemies.enemies.has(shroom.id) and not combat.enemies().has(shroom)
+			and director.spawners.below.alive.is_empty())
+	var top: float = shroom.global_position.y
+	await _wait_seconds(0.25)
+	_check("it sinks into the floor", is_instance_valid(shroom) and shroom.global_position.y < top - 0.2)
+	await _wait_seconds(0.5)
+	_check("and is gone, without a death", not is_instance_valid(shroom) and deaths[0] == 0, str(deaths[0]))
+	enemies.enemy_died.disconnect(on_died)
+	_clear()
+	await _frames(2)
+
+
+## An explosive blast on a wall's near face doesn't hurt an enemy behind it; without the wall it
+## does. (Weapon.splash, the blast's damage; its carve is separate.)
+func _blast_wall() -> void:
+	_reset_player()
+	var shroom = enemies.spawn("basic", me.global_position + Vector3(0.0, 0.0, -3.0), 0.0)
+	shroom.speed = 0.0
+	var wall := _wall(-2.2, M.CONCRETE)
+	await _frames(3)
+	var type = load("res://scripts/weapons/ammo_type.gd").by_name("explosive")
+	var at: Vector3 = me.global_position + Vector3(0.0, 0.6, -2.1)
+	var health: float = shroom.health
+	_check("the enemy is within the blast's splash", combat.sphere_hit(at, type.splash_radius).has(shroom))
+	me.weapon.splash(type, at, Vector3.BACK)
+	await _frames(2)
+	_check("an explosive blast doesn't damage an enemy behind a wall", shroom.health == health, "%.1f -> %.1f" % [health, shroom.health])
+	_fill(wall, M.AIR)
+	me.weapon.splash(type, at, Vector3.BACK)
+	await _frames(2)
+	_check("without the wall it does", not is_instance_valid(shroom) or shroom.health < health)
+	_clear()
+	await _frames(2)
+
+
+## A melee swing at an enemy just the other side of a thin wall doesn't land; without it, it does.
+func _melee_wall() -> void:
+	_reset_player()
+	var shroom = enemies.spawn("basic", me.global_position + Vector3(0.0, 0.0, -1.3), 0.0)
+	shroom.speed = 0.0
+	shroom._attack_timer = 1000.0
+	var wall := _wall(-0.7, M.CONCRETE)
+	await _frames(3)
+	var health: float = shroom.health
+	_check("the enemy is in the swing's box", combat.box_hit(me.weapon.melee_box()).has(shroom))
+	var swings := []
+	var on_melee := func(hits: int) -> void: swings.append(hits)
+	me.weapon.meleed.connect(on_melee)
+	me.weapon._melee_strike()
+	await _frames(2)
+	_check("melee doesn't hit through a wall", shroom.health == health and swings == [0], "%s, %.1f" % [swings, shroom.health])
+	_fill(wall, M.AIR)
+	me.weapon._melee_strike()
+	await _frames(2)
+	_check("without the wall it does", swings.size() == 2 and swings[1] == 1 and (not is_instance_valid(shroom) or shroom.health < health), str(swings))
+	me.weapon.meleed.disconnect(on_melee)
+	_clear()
+	await _frames(2)
+
+
 # --- Helpers -------------------------------------------------------------------------------------
 
 ## A 0.2 m wall across the ground room at z_offset meters from the player, floor to slab. Returns
@@ -254,8 +348,8 @@ func _clear() -> void:
 	enemies.clouds.clear()
 
 
-## Two concrete storeys, the player spawn on the ground floor facing -Z, and three inactive
-## spawners (front, back, close).
+## Two concrete storeys, the player spawn on the ground floor facing -Z, and four inactive
+## spawners (front, back, close, below).
 func _make_level() -> void:
 	var level := LevelData.new()
 	level.name = LEVEL
@@ -273,7 +367,7 @@ func _make_level() -> void:
 	var spawn := LevelSchema.new_marker("spawn", PLAYER_SPOT, 0.0)
 	spawn.id = "spawn_1"
 	level.objects[spawn.id] = spawn
-	for entry in [["front", FRONT_SPOT], ["back", BACK_SPOT], ["close", CLOSE_SPOT]]:
+	for entry in [["front", FRONT_SPOT], ["back", BACK_SPOT], ["close", CLOSE_SPOT], ["below", BELOW_SPOT]]:
 		var spawner := LevelSchema.new_marker("horde", entry[1])
 		spawner.id = entry[0]
 		spawner.kinds = "basic"

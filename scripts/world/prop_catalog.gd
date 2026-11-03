@@ -11,7 +11,7 @@ const P := preload("res://scripts/world/props.gd")
 
 ## Editor catalog tabs, by prop name prefix. Props from new .vox files that match none go in Other.
 const CATEGORIES := {
-	"Lab": ["lab_bench", "lab_table", "fume_hood", "shelf_lab", "spore_tank", "grow_bed", "specimen", "vial_cabinet", "shroom_pot"],
+	"Lab": ["lab_bench", "lab_table", "fume_hood", "shelf_lab", "spore_tank", "grow_bed", "specimen", "vial_cabinet", "shroom_pot", "clone_vat"],
 	"Office": ["desk", "chair", "table", "couch", "whiteboard", "corkboard", "locker", "bench", "stool"],
 	"Kitchen": ["counter", "fridge", "water_cooler", "vending_machine", "trash_can"],
 	"Storage": ["shelf_storage", "crate", "barrel", "plank_stack", "sandbags"],
@@ -77,6 +77,7 @@ static func entries() -> Array[Dictionary]:
 	add.call("trash_can", func(p: Props, o: Vector3i) -> void: p.trash_can(o))
 	add.call("grow_bed", func(p: Props, o: Vector3i) -> void: p.grow_bed(o, P.NORTH, 30, 12))
 	add.call("spore_tank", func(p: Props, o: Vector3i) -> void: p.spore_tank(o))
+	add.call("clone_vat", func(p: Props, o: Vector3i) -> void: p.clone_vat(o))
 	add.call("plank_stack", func(p: Props, o: Vector3i) -> void: p.plank_stack(o, P.NORTH, 5))
 	add.call("sandbags", func(p: Props, o: Vector3i) -> void: p.sandbags(o, P.NORTH))
 	add.call("whiteboard", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 18, 9, true))

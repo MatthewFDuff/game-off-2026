@@ -1,7 +1,7 @@
 {
 	"format": 1,
 	"name": "laboratory",
-	"next_id": 742,
+	"next_id": 795,
 	"objects": {
 		"airlock": {
 			"ceiling": 3,
@@ -416,7 +416,7 @@
 			"door_ahead": 12,
 			"door_behind": 12,
 			"door_key": "",
-			"door_locked": false,
+			"door_locked": true,
 			"door_offset": [0, 0, 24],
 			"door_power": true,
 			"door_speed": 0.8,
@@ -563,6 +563,30 @@
 			"thickness": 5,
 			"to": [395, 165, 460],
 			"wall": 42
+		},
+		"desk_gatehouse": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 2,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "desk_empty",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [357, 290, 34],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 600
 		},
 		"dissection": {
 			"ceiling": 3,
@@ -2407,189 +2431,189 @@
 			"to": [330, 205, 265],
 			"wall": 4
 		},
-		"item_529": {
+		"item_530": {
 			"item": "keycard_blue",
 			"kind": "marker",
 			"position": [170.0, 250.0, 96.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_530": {
+		"item_532": {
 			"item": "flask_fire",
 			"kind": "marker",
 			"position": [170.0, 250.0, 304.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_531": {
+		"item_533": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [173.0, 250.0, 373.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_532": {
+		"item_534": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [179.0, 250.0, 373.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_535": {
+		"item_538": {
 			"item": "ammo_flame",
 			"kind": "marker",
 			"position": [34.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_536": {
+		"item_539": {
 			"item": "ammo_flame",
 			"kind": "marker",
 			"position": [46.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_537": {
+		"item_540": {
 			"item": "flask_poison",
 			"kind": "marker",
 			"position": [40.0, 210.0, 315.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_538": {
+		"item_541": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [58.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_539": {
+		"item_542": {
 			"item": "keycard_green",
 			"kind": "marker",
 			"position": [300.0, 210.0, 34.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_543": {
+		"item_547": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [365.0, 170.0, 40.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_544": {
+		"item_548": {
 			"item": "flask_rage",
 			"kind": "marker",
 			"position": [365.0, 170.0, 52.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_545": {
+		"item_549": {
 			"item": "ammo_explosive",
 			"kind": "marker",
 			"position": [181.25, 170.0, 298.75],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_546": {
+		"item_550": {
 			"item": "keycard_red",
 			"kind": "marker",
 			"position": [430.0, 170.0, 112.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_552": {
+		"item_557": {
 			"item": "keycard_black",
 			"kind": "marker",
 			"position": [365.0, 130.0, 105.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_555": {
+		"item_561": {
 			"item": "ammo_poison",
 			"kind": "marker",
 			"position": [182.0, 30.0, 93.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_556": {
+		"item_562": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [158.0, 30.0, 93.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_558": {
+		"item_564": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [72.5, 30.0, 430.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_560": {
+		"item_566": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [215.0, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_561": {
+		"item_567": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [220.0, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_562": {
+		"item_568": {
 			"item": "ammo_explosive",
 			"kind": "marker",
 			"position": [317.5, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_563": {
+		"item_569": {
 			"item": "flask_freeze",
 			"kind": "marker",
 			"position": [311.25, 30.0, 295.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_564": {
+		"item_570": {
 			"item": "flask_freeze",
 			"kind": "marker",
 			"position": [223.75, 30.0, 295.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_565": {
+		"item_571": {
 			"item": "flask_poison",
 			"kind": "marker",
 			"position": [267.5, 30.0, 288.75],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_566": {
+		"item_572": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [72.5, 38.0, 267.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_567": {
+		"item_573": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [78.75, 38.0, 267.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_568": {
+		"item_574": {
 			"item": "flask_fire",
 			"kind": "marker",
 			"position": [72.5, 38.0, 280.25],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_569": {
+		"item_575": {
 			"item": "flask_rage",
 			"kind": "marker",
 			"position": [66.25, 38.0, 267.5],
@@ -2666,7 +2690,7 @@
 			"to": [135, 285, 200],
 			"wall": 4
 		},
-		"light_572": {
+		"light_578": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2681,7 +2705,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_573": {
+		"light_579": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2696,7 +2720,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_574": {
+		"light_580": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2711,7 +2735,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_575": {
+		"light_581": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2726,22 +2750,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_576": {
+		"light_582": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 330.0, 72.5],
+			"position": [267.5, 330.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_577": {
+		"light_583": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 330.0, 97.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_584": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2756,7 +2795,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_578": {
+		"light_585": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2771,22 +2810,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_579": {
+		"light_586": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 321.0, 72.5],
+			"position": [365.0, 321.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_580": {
+		"light_587": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 321.0, 97.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_588": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2801,7 +2855,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_581": {
+		"light_589": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2816,22 +2870,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_582": {
+		"light_590": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 321.0, 72.5],
+			"position": [430.0, 321.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_583": {
+		"light_591": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 321.0, 97.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_592": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2846,22 +2915,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_584": {
+		"light_593": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 281.0, 105.0],
+			"position": [365.0, 281.0, 93.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_585": {
+		"light_594": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 281.0, 117.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_595": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2876,7 +2960,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_586": {
+		"light_596": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2891,7 +2975,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_587": {
+		"light_597": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2906,7 +2990,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_588": {
+		"light_598": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2921,22 +3005,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_589": {
+		"light_599": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 281.0, 137.5],
+			"position": [267.5, 281.0, 112.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_590": {
+		"light_600": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 281.0, 162.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_601": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2951,7 +3050,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_591": {
+		"light_602": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2966,22 +3065,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_592": {
+		"light_603": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 281.0, 170.0],
+			"position": [170.0, 281.0, 158.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_593": {
+		"light_604": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 281.0, 182.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_605": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2996,7 +3110,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_594": {
+		"light_606": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3011,22 +3125,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_595": {
+		"light_607": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [105.0, 281.0, 170.0],
+			"position": [105.0, 281.0, 158.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_596": {
+		"light_608": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [105.0, 281.0, 182.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_609": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3041,7 +3170,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_597": {
+		"light_610": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3056,7 +3185,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_598": {
+		"light_611": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3071,7 +3200,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_599": {
+		"light_612": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3086,7 +3215,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_600": {
+		"light_613": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3101,7 +3230,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_601": {
+		"light_614": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3116,7 +3245,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_602": {
+		"light_615": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3131,22 +3260,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_603": {
+		"light_616": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 281.0, 235.0],
+			"position": [242.5, 281.0, 235.0],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_604": {
+		"light_617": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 281.0, 235.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_618": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3161,7 +3305,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_605": {
+		"light_619": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3176,7 +3320,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_606": {
+		"light_620": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3191,22 +3335,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_607": {
+		"light_621": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 281.0, 300.0],
+			"position": [242.5, 281.0, 300.0],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_608": {
+		"light_622": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 281.0, 300.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_623": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3221,7 +3380,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_609": {
+		"light_624": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3236,22 +3395,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_610": {
+		"light_625": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 281.0, 365.0],
+			"position": [242.5, 281.0, 365.0],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_611": {
+		"light_626": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 281.0, 365.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_627": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3266,7 +3440,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_612": {
+		"light_628": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3281,7 +3455,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_613": {
+		"light_629": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3296,7 +3470,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_614": {
+		"light_630": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3311,22 +3485,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_615": {
+		"light_631": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [105.0, 241.0, 267.5],
+			"position": [105.0, 241.0, 242.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_616": {
+		"light_632": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [105.0, 241.0, 292.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_633": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3341,7 +3530,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_617": {
+		"light_634": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3356,7 +3545,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_618": {
+		"light_635": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3371,22 +3560,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_619": {
+		"light_636": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [137.5, 241.0, 365.0],
+			"position": [112.5, 241.0, 365.0],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_620": {
+		"light_637": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [162.5, 241.0, 365.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_638": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3401,7 +3605,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_621": {
+		"light_639": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3416,7 +3620,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_622": {
+		"light_640": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3431,7 +3635,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_623": {
+		"light_641": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3446,22 +3650,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_624": {
+		"light_642": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [202.5, 241.0, 235.0],
+			"position": [202.5, 241.0, 197.0],
 			"power": "emergency",
 			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_625": {
+		"light_643": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [202.5, 241.0, 273.0],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_644": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3476,7 +3695,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_626": {
+		"light_645": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3491,7 +3710,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_627": {
+		"light_646": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3506,7 +3725,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_628": {
+		"light_647": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3521,7 +3740,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_629": {
+		"light_648": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3536,22 +3755,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_630": {
+		"light_649": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [332.5, 241.0, 332.5],
+			"position": [332.5, 241.0, 307.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_631": {
+		"light_650": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [332.5, 241.0, 357.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_651": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3566,7 +3800,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_632": {
+		"light_652": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3581,7 +3815,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_633": {
+		"light_653": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3596,22 +3830,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_634": {
+		"light_654": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [332.5, 241.0, 202.5],
+			"position": [332.5, 241.0, 177.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_635": {
+		"light_655": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [332.5, 241.0, 227.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_656": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3626,7 +3875,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_636": {
+		"light_657": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3641,22 +3890,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_637": {
+		"light_658": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [300.0, 241.0, 105.0],
+			"position": [300.0, 241.0, 93.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_638": {
+		"light_659": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [300.0, 241.0, 117.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_660": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3671,7 +3935,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_639": {
+		"light_661": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3686,7 +3950,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_640": {
+		"light_662": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3701,7 +3965,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_641": {
+		"light_663": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3716,7 +3980,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_642": {
+		"light_664": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3731,22 +3995,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_643": {
+		"light_665": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [202.5, 241.0, 72.5],
+			"position": [202.5, 241.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_644": {
+		"light_666": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [202.5, 241.0, 97.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_667": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3761,7 +4040,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_645": {
+		"light_668": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3776,7 +4055,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_646": {
+		"light_669": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3791,7 +4070,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_647": {
+		"light_670": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3806,22 +4085,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_648": {
+		"light_671": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [105.0, 241.0, 40.0],
+			"position": [105.0, 241.0, 28.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_649": {
+		"light_672": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [105.0, 241.0, 52.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_673": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3836,7 +4130,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_650": {
+		"light_674": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3851,375 +4145,15 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_651": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [40.0, 241.0, 72.5],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_652": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 201.0, 105.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_653": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 201.0, 105.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_654": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [203.75, 201.0, 106.25],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_655": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [331.25, 201.0, 106.25],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_656": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [203.75, 201.0, 168.75],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_657": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [331.25, 201.0, 168.75],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_658": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 201.0, 137.5],
-			"power": "emergency",
-			"range": 12.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_659": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 178.0, 137.5],
-			"power": "emergency",
-			"range": 16.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_660": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [365.0, 178.0, 40.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_661": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [106.25, 201.0, 236.25],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_662": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [168.75, 201.0, 236.25],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_663": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [106.25, 201.0, 298.75],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_664": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [168.75, 201.0, 298.75],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_665": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [137.5, 201.0, 267.5],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_666": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [236.25, 201.0, 235.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_667": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [298.75, 201.0, 235.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_668": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 201.0, 235.0],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_669": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 178.0, 235.0],
-			"power": "emergency",
-			"range": 12.5,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_670": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [366.25, 201.0, 235.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_671": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [428.75, 201.0, 235.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_672": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [397.5, 201.0, 235.0],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_673": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [430.0, 201.0, 106.25],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_674": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [430.0, 201.0, 168.75],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
 		"light_675": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 201.0, 137.5],
+			"position": [40.0, 241.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
@@ -4229,12 +4163,12 @@
 		"light_676": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 201.0, 300.0],
+			"position": [40.0, 241.0, 97.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
@@ -4249,24 +4183,24 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [236.25, 201.0, 365.0],
+			"position": [105.0, 201.0, 105.0],
 			"power": "facility",
-			"range": 10.0,
+			"range": 8.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_678": {
 			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [298.75, 201.0, 365.0],
-			"power": "facility",
-			"range": 10.0,
+			"position": [105.0, 201.0, 93.0],
+			"power": "emergency",
+			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4274,14 +4208,14 @@
 		"light_679": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 201.0, 365.0],
+			"position": [105.0, 201.0, 117.0],
 			"power": "emergency",
-			"range": 8.75,
+			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4294,9 +4228,9 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 201.0, 365.0],
+			"position": [203.75, 201.0, 106.25],
 			"power": "facility",
-			"range": 8.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4309,24 +4243,24 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 201.0, 365.0],
+			"position": [331.25, 201.0, 106.25],
 			"power": "facility",
-			"range": 8.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_682": {
 			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 201.0, 365.0],
-			"power": "emergency",
-			"range": 6.0,
+			"position": [203.75, 201.0, 168.75],
+			"power": "facility",
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4339,24 +4273,24 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 201.0, 366.25],
+			"position": [331.25, 201.0, 168.75],
 			"power": "facility",
-			"range": 10.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_684": {
 			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 201.0, 428.75],
-			"power": "facility",
-			"range": 10.0,
+			"position": [216.5, 201.0, 137.5],
+			"power": "emergency",
+			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4364,42 +4298,42 @@
 		"light_685": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 201.0, 397.5],
+			"position": [318.5, 201.0, 137.5],
 			"power": "emergency",
-			"range": 8.75,
+			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_686": {
 			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 430.0],
-			"power": "facility",
-			"range": 8.0,
+			"position": [267.5, 178.0, 137.5],
+			"power": "emergency",
+			"range": 16.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_687": {
 			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 430.0],
+			"position": [365.0, 178.0, 40.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
@@ -4414,6 +4348,546 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
+			"position": [106.25, 201.0, 236.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_689": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [168.75, 201.0, 236.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_690": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [106.25, 201.0, 298.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_691": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [168.75, 201.0, 298.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_692": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [137.5, 201.0, 242.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_693": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [137.5, 201.0, 292.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_694": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [236.25, 201.0, 235.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_695": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [298.75, 201.0, 235.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_696": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [242.5, 201.0, 235.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_697": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 201.0, 235.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_698": {
+			"angle": 40.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 178.0, 235.0],
+			"power": "emergency",
+			"range": 12.5,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_699": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [366.25, 201.0, 235.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_700": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [428.75, 201.0, 235.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_701": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [372.5, 201.0, 235.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_702": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [422.5, 201.0, 235.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_703": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 106.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_704": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 168.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_705": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 112.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_706": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 162.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_707": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [242.5, 201.0, 300.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_708": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 201.0, 300.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_709": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [236.25, 201.0, 365.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_710": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [298.75, 201.0, 365.0],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_711": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [242.5, 201.0, 365.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_712": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 201.0, 365.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_713": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 201.0, 365.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_714": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 201.0, 365.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_715": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 201.0, 353.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_716": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 201.0, 377.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_717": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 366.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_718": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 428.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_719": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 372.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_720": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 201.0, 422.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_721": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 430.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_722": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 418.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_723": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 442.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_724": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
 			"position": [365.0, 161.0, 252.5],
 			"power": "facility",
 			"range": 15.2,
@@ -4421,7 +4895,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_689": {
+		"light_725": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4436,22 +4910,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_690": {
+		"light_726": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 300.0],
+			"position": [365.0, 161.0, 262.0],
 			"power": "emergency",
 			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_691": {
+		"light_727": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 338.0],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_728": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4466,7 +4955,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_692": {
+		"light_729": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4481,22 +4970,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_693": {
+		"light_730": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [300.0, 161.0, 300.0],
+			"position": [300.0, 161.0, 288.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_694": {
+		"light_731": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [300.0, 161.0, 312.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_732": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4511,7 +5015,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_695": {
+		"light_733": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4526,7 +5030,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_696": {
+		"light_734": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4541,22 +5045,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_697": {
+		"light_735": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [235.0, 161.0, 332.5],
+			"position": [235.0, 161.0, 307.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_698": {
+		"light_736": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [235.0, 161.0, 357.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_737": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4571,22 +5090,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_699": {
+		"light_738": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [235.0, 161.0, 235.0],
+			"position": [235.0, 161.0, 223.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_700": {
+		"light_739": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [235.0, 161.0, 247.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_740": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4601,7 +5135,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_701": {
+		"light_741": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4616,7 +5150,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_702": {
+		"light_742": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4631,7 +5165,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_703": {
+		"light_743": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4646,22 +5180,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_704": {
+		"light_744": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 161.0, 267.5],
+			"position": [170.0, 161.0, 216.5],
 			"power": "emergency",
 			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_705": {
+		"light_745": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 161.0, 318.5],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_746": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4676,7 +5225,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_706": {
+		"light_747": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4691,7 +5240,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_707": {
+		"light_748": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4706,7 +5255,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_708": {
+		"light_749": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4721,7 +5270,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_709": {
+		"light_750": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4736,7 +5285,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_710": {
+		"light_751": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4751,7 +5300,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_711": {
+		"light_752": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4766,7 +5315,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_712": {
+		"light_753": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4781,22 +5330,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_713": {
+		"light_754": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 161.0, 105.0],
+			"position": [170.0, 161.0, 93.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_714": {
+		"light_755": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 161.0, 117.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_756": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4811,7 +5375,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_715": {
+		"light_757": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4826,22 +5390,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_716": {
+		"light_758": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 161.0, 105.0],
+			"position": [242.5, 161.0, 105.0],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_717": {
+		"light_759": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [292.5, 161.0, 105.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_760": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4856,7 +5435,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_718": {
+		"light_761": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4871,22 +5450,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_719": {
+		"light_762": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 105.0],
+			"position": [365.0, 161.0, 93.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_720": {
+		"light_763": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 117.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_764": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4901,22 +5495,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_721": {
+		"light_765": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 40.0],
+			"position": [365.0, 161.0, 28.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_722": {
+		"light_766": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 52.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_767": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4931,7 +5540,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_723": {
+		"light_768": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4946,37 +5555,67 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_724": {
+		"light_769": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 161.0, 72.5],
+			"position": [430.0, 161.0, 47.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_725": {
+		"light_770": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [300.0, 52.0, 105.0],
+			"position": [430.0, 161.0, 97.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_771": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [262.0, 52.0, 105.0],
 			"power": "emergency",
 			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_726": {
+		"light_772": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [338.0, 52.0, 105.0],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_773": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4991,22 +5630,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_727": {
+		"light_774": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 105.0],
+			"position": [170.0, 61.0, 93.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_728": {
+		"light_775": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 117.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_776": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5021,7 +5675,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_729": {
+		"light_777": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5036,37 +5690,67 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_730": {
+		"light_778": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 170.0],
+			"position": [170.0, 61.0, 158.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_731": {
+		"light_779": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [72.5, 116.0, 267.5],
+			"position": [170.0, 61.0, 182.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_780": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [72.5, 116.0, 216.5],
 			"power": "emergency",
 			"range": 12.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_732": {
+		"light_781": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [72.5, 116.0, 318.5],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_782": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -5081,7 +5765,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_733": {
+		"light_783": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -5096,22 +5780,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_734": {
+		"light_784": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 52.0, 365.0],
+			"position": [158.0, 52.0, 365.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_735": {
+		"light_785": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [182.0, 52.0, 365.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_786": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5126,7 +5825,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_736": {
+		"light_787": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5141,7 +5840,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_737": {
+		"light_788": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5156,7 +5855,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_738": {
+		"light_789": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5171,22 +5870,37 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_739": {
+		"light_790": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [267.5, 76.0, 332.5],
+			"position": [267.5, 76.0, 307.5],
 			"power": "emergency",
 			"range": 8.75,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_740": {
+		"light_791": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 76.0, 357.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_792": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5201,15 +5915,30 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_741": {
+		"light_793": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"energy": 2.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 61.0, 365.0],
+			"position": [365.0, 61.0, 357.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_794": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 61.0, 373.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
@@ -5521,30 +6250,6 @@
 			"facing": 2,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "desk",
-			"needs_power": false,
-			"on_use": "",
-			"origin": [357, 290, 34],
-			"station_ammo_type": "",
-			"steps": "",
-			"text": "",
-			"use": "none",
-			"value": 600
-		},
-		"prop_186": {
-			"charges": 3,
-			"contents": "",
-			"door": false,
-			"door_ahead": 0,
-			"door_behind": 0,
-			"door_key": "",
-			"door_locked": false,
-			"door_offset": [0, 0, 0],
-			"door_power": false,
-			"door_speed": 2.0,
-			"facing": 2,
-			"finale_seconds": 120.0,
-			"kind": "prop",
 			"name": "chair",
 			"needs_power": false,
 			"on_use": "",
@@ -5555,7 +6260,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_187": {
+		"prop_186": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5572,14 +6277,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [385, 290, 54],
+			"origin": [385, 290, 47],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_188": {
+		"prop_187": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5603,7 +6308,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_189": {
+		"prop_188": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5627,7 +6332,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_190": {
+		"prop_189": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5651,7 +6356,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_191": {
+		"prop_190": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5675,7 +6380,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_192": {
+		"prop_191": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5699,7 +6404,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_193": {
+		"prop_192": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5723,7 +6428,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_194": {
+		"prop_193": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5747,7 +6452,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_195": {
+		"prop_194": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5771,7 +6476,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_196": {
+		"prop_195": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5795,7 +6500,7 @@
 			"use": "none",
 			"value": 500
 		},
-		"prop_197": {
+		"prop_196": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5819,7 +6524,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_198": {
+		"prop_197": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5843,7 +6548,7 @@
 			"use": "none",
 			"value": 1500
 		},
-		"prop_199": {
+		"prop_198": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -5867,7 +6572,7 @@
 			"use": "container",
 			"value": 200
 		},
-		"prop_200": {
+		"prop_199": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5891,7 +6596,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_201": {
+		"prop_200": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5915,7 +6620,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_202": {
+		"prop_201": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5939,7 +6644,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_203": {
+		"prop_202": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5963,7 +6668,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_204": {
+		"prop_203": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -5987,7 +6692,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_205": {
+		"prop_204": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6011,7 +6716,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_206": {
+		"prop_205": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6035,7 +6740,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_207": {
+		"prop_206": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6059,7 +6764,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_208": {
+		"prop_207": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6083,7 +6788,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_209": {
+		"prop_208": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6107,7 +6812,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_210": {
+		"prop_209": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6127,11 +6832,11 @@
 			"origin": [186, 264, 140],
 			"station_ammo_type": "",
 			"steps": "",
-			"text": "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).",
+			"text": "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).\n\nBlue cards are kept in the Security office, through the north door.",
 			"use": "note",
 			"value": 40
 		},
-		"prop_211": {
+		"prop_210": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6155,7 +6860,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_212": {
+		"prop_211": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6179,7 +6884,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_213": {
+		"prop_212": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6203,7 +6908,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_214": {
+		"prop_213": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6227,7 +6932,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_215": {
+		"prop_214": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6251,7 +6956,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_216": {
+		"prop_215": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6275,7 +6980,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_217": {
+		"prop_216": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -6299,7 +7004,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_218": {
+		"prop_217": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6323,7 +7028,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_219": {
+		"prop_218": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6347,7 +7052,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_220": {
+		"prop_219": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6371,7 +7076,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_221": {
+		"prop_220": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6395,7 +7100,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_222": {
+		"prop_221": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6419,7 +7124,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_223": {
+		"prop_222": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6443,7 +7148,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_224": {
+		"prop_223": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6467,7 +7172,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_225": {
+		"prop_224": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6491,7 +7196,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_226": {
+		"prop_225": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6515,7 +7220,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_227": {
+		"prop_226": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6539,7 +7244,7 @@
 			"use": "note",
 			"value": 150
 		},
-		"prop_228": {
+		"prop_227": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6563,7 +7268,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_229": {
+		"prop_228": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6587,7 +7292,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_230": {
+		"prop_229": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6611,7 +7316,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_231": {
+		"prop_230": {
 			"charges": 3,
 			"contents": "ammo_shotgun",
 			"door": false,
@@ -6635,7 +7340,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_232": {
+		"prop_231": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6659,7 +7364,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_233": {
+		"prop_232": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6683,7 +7388,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_234": {
+		"prop_233": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6707,7 +7412,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_235": {
+		"prop_234": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -6731,7 +7436,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_236": {
+		"prop_235": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6755,7 +7460,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_237": {
+		"prop_236": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6779,7 +7484,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_238": {
+		"prop_237": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6803,7 +7508,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_239": {
+		"prop_238": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6827,7 +7532,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_240": {
+		"prop_239": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6851,7 +7556,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_241": {
+		"prop_240": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6875,7 +7580,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_242": {
+		"prop_241": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6899,7 +7604,7 @@
 			"use": "container",
 			"value": 200
 		},
-		"prop_243": {
+		"prop_242": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6923,7 +7628,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_244": {
+		"prop_243": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6947,7 +7652,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_245": {
+		"prop_244": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6971,7 +7676,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_246": {
+		"prop_245": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -6995,7 +7700,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_247": {
+		"prop_246": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7019,7 +7724,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_248": {
+		"prop_247": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7043,7 +7748,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_249": {
+		"prop_248": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7067,7 +7772,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_250": {
+		"prop_249": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7091,7 +7796,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_251": {
+		"prop_250": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7115,7 +7820,7 @@
 			"use": "none",
 			"value": 150
 		},
-		"prop_252": {
+		"prop_251": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7139,7 +7844,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_253": {
+		"prop_252": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7163,7 +7868,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_254": {
+		"prop_253": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7187,7 +7892,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_255": {
+		"prop_254": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7211,7 +7916,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_256": {
+		"prop_255": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7235,7 +7940,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_257": {
+		"prop_256": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7259,7 +7964,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_258": {
+		"prop_257": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7283,7 +7988,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_259": {
+		"prop_258": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7307,7 +8012,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_260": {
+		"prop_259": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7331,7 +8036,7 @@
 			"use": "none",
 			"value": 3200
 		},
-		"prop_261": {
+		"prop_260": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7355,7 +8060,7 @@
 			"use": "none",
 			"value": 3200
 		},
-		"prop_262": {
+		"prop_261": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7379,7 +8084,7 @@
 			"use": "none",
 			"value": 1800
 		},
-		"prop_263": {
+		"prop_262": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7403,7 +8108,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_264": {
+		"prop_263": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7427,7 +8132,7 @@
 			"use": "none",
 			"value": 350
 		},
-		"prop_265": {
+		"prop_264": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7451,7 +8156,7 @@
 			"use": "none",
 			"value": 350
 		},
-		"prop_266": {
+		"prop_265": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7475,7 +8180,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_267": {
+		"prop_266": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7499,7 +8204,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_268": {
+		"prop_267": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7523,7 +8228,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_269": {
+		"prop_268": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7547,7 +8252,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_270": {
+		"prop_269": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7571,7 +8276,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_271": {
+		"prop_270": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7595,7 +8300,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_272": {
+		"prop_271": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7619,7 +8324,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_273": {
+		"prop_272": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7643,7 +8348,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_274": {
+		"prop_273": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7667,7 +8372,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_275": {
+		"prop_274": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7691,7 +8396,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_276": {
+		"prop_275": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7715,7 +8420,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_277": {
+		"prop_276": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7739,7 +8444,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_278": {
+		"prop_277": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7763,7 +8468,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_279": {
+		"prop_278": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7787,7 +8492,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_280": {
+		"prop_279": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7811,7 +8516,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_281": {
+		"prop_280": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7835,7 +8540,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_282": {
+		"prop_281": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7859,7 +8564,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_283": {
+		"prop_282": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7883,7 +8588,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_284": {
+		"prop_283": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7907,7 +8612,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_285": {
+		"prop_284": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7931,7 +8636,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_286": {
+		"prop_285": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7955,7 +8660,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_287": {
+		"prop_286": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7979,7 +8684,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_288": {
+		"prop_287": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8003,7 +8708,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_289": {
+		"prop_288": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8027,7 +8732,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_290": {
+		"prop_289": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8051,7 +8756,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_291": {
+		"prop_290": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8075,7 +8780,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_292": {
+		"prop_291": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8099,7 +8804,7 @@
 			"use": "none",
 			"value": 800
 		},
-		"prop_293": {
+		"prop_292": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8123,7 +8828,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_294": {
+		"prop_293": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8147,7 +8852,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_295": {
+		"prop_294": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8171,7 +8876,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_296": {
+		"prop_295": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8195,7 +8900,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_297": {
+		"prop_296": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8219,7 +8924,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_298": {
+		"prop_297": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8243,7 +8948,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_299": {
+		"prop_298": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8267,7 +8972,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_300": {
+		"prop_299": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8291,7 +8996,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_301": {
+		"prop_300": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8315,7 +9020,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_302": {
+		"prop_301": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8339,7 +9044,7 @@
 			"use": "none",
 			"value": 4000
 		},
-		"prop_303": {
+		"prop_302": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8363,7 +9068,7 @@
 			"use": "none",
 			"value": 4000
 		},
-		"prop_304": {
+		"prop_303": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8387,7 +9092,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_305": {
+		"prop_304": {
 			"charges": 3,
 			"contents": "ammo_shotgun",
 			"door": false,
@@ -8411,7 +9116,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_306": {
+		"prop_305": {
 			"charges": 3,
 			"contents": "ammo_shotgun,ammo_poison",
 			"door": false,
@@ -8435,7 +9140,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_307": {
+		"prop_306": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8459,7 +9164,7 @@
 			"use": "none",
 			"value": 1800
 		},
-		"prop_308": {
+		"prop_307": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8483,7 +9188,7 @@
 			"use": "none",
 			"value": 3200
 		},
-		"prop_309": {
+		"prop_308": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8507,7 +9212,7 @@
 			"use": "none",
 			"value": 350
 		},
-		"prop_310": {
+		"prop_309": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8531,7 +9236,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_311": {
+		"prop_310": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8555,7 +9260,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_312": {
+		"prop_311": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -8579,7 +9284,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_313": {
+		"prop_312": {
 			"charges": 3,
 			"contents": "flask_freeze",
 			"door": false,
@@ -8603,7 +9308,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_314": {
+		"prop_313": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8627,7 +9332,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_315": {
+		"prop_314": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8651,7 +9356,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_316": {
+		"prop_315": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8675,7 +9380,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_317": {
+		"prop_316": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8699,7 +9404,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_318": {
+		"prop_317": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8723,7 +9428,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_319": {
+		"prop_318": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8747,7 +9452,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_320": {
+		"prop_319": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8771,7 +9476,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_321": {
+		"prop_320": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8795,7 +9500,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_322": {
+		"prop_321": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8819,7 +9524,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_323": {
+		"prop_322": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8843,7 +9548,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_324": {
+		"prop_323": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8867,7 +9572,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_325": {
+		"prop_324": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8891,7 +9596,7 @@
 			"use": "none",
 			"value": 1800
 		},
-		"prop_326": {
+		"prop_325": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8915,7 +9620,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_327": {
+		"prop_326": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8939,7 +9644,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_328": {
+		"prop_327": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8963,7 +9668,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_329": {
+		"prop_328": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8987,7 +9692,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_330": {
+		"prop_329": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9011,7 +9716,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_331": {
+		"prop_330": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9035,7 +9740,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_332": {
+		"prop_331": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9059,7 +9764,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_333": {
+		"prop_332": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9083,7 +9788,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_334": {
+		"prop_333": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9107,7 +9812,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_335": {
+		"prop_334": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9131,7 +9836,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_336": {
+		"prop_335": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9155,7 +9860,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_337": {
+		"prop_336": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9179,7 +9884,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_338": {
+		"prop_337": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9203,7 +9908,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_339": {
+		"prop_338": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9227,7 +9932,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_340": {
+		"prop_339": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9251,7 +9956,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_341": {
+		"prop_340": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9275,7 +9980,7 @@
 			"use": "none",
 			"value": 1400
 		},
-		"prop_342": {
+		"prop_341": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9299,7 +10004,7 @@
 			"use": "none",
 			"value": 800
 		},
-		"prop_343": {
+		"prop_342": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9323,7 +10028,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_344": {
+		"prop_343": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9347,7 +10052,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_345": {
+		"prop_344": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9371,7 +10076,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_346": {
+		"prop_345": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9395,7 +10100,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_347": {
+		"prop_346": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9419,7 +10124,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_348": {
+		"prop_347": {
 			"charges": 2,
 			"contents": "",
 			"door": false,
@@ -9443,7 +10148,7 @@
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_349": {
+		"prop_348": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9466,6 +10171,30 @@
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
+		},
+		"prop_349": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 2,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "corkboard_small",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [89, 224, 10],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "SERVICE STAIRS: green clearance.\n\nGreen cards: the Mycology office, the far door of grow hall 2.",
+			"use": "note",
+			"value": 40
 		},
 		"prop_350": {
 			"charges": 3,
@@ -11341,6 +12070,30 @@
 		},
 		"prop_428": {
 			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "corkboard_small",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [273, 184, 394],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "DECON AIRLOCK: red clearance.\n\nRed cards: the Ops room, off the east end of the server hall.",
+			"use": "note",
+			"value": 40
+		},
+		"prop_429": {
+			"charges": 3,
 			"contents": "medkit",
 			"door": false,
 			"door_ahead": 0,
@@ -11363,7 +12116,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_429": {
+		"prop_430": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11387,7 +12140,7 @@
 			"use": "none",
 			"value": 1500
 		},
-		"prop_430": {
+		"prop_431": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11411,7 +12164,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_431": {
+		"prop_432": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11435,7 +12188,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_432": {
+		"prop_433": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11459,7 +12212,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_433": {
+		"prop_434": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11483,7 +12236,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_434": {
+		"prop_435": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -11507,7 +12260,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_435": {
+		"prop_436": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11531,7 +12284,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_436": {
+		"prop_437": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11555,7 +12308,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_437": {
+		"prop_438": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11579,7 +12332,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_438": {
+		"prop_439": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11603,7 +12356,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_439": {
+		"prop_440": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11627,7 +12380,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_440": {
+		"prop_441": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11651,7 +12404,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_441": {
+		"prop_442": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11675,7 +12428,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_442": {
+		"prop_443": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11699,7 +12452,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_443": {
+		"prop_444": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11723,7 +12476,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_444": {
+		"prop_445": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11747,7 +12500,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_445": {
+		"prop_446": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11771,7 +12524,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_446": {
+		"prop_447": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11795,7 +12548,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_447": {
+		"prop_448": {
 			"charges": 3,
 			"contents": "flask_rage",
 			"door": false,
@@ -11819,7 +12572,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_448": {
+		"prop_449": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11843,7 +12596,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_449": {
+		"prop_450": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11867,7 +12620,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_450": {
+		"prop_451": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11891,7 +12644,7 @@
 			"use": "none",
 			"value": 350
 		},
-		"prop_451": {
+		"prop_452": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11915,7 +12668,7 @@
 			"use": "none",
 			"value": 1800
 		},
-		"prop_452": {
+		"prop_453": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11939,7 +12692,7 @@
 			"use": "none",
 			"value": 3200
 		},
-		"prop_453": {
+		"prop_454": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11963,7 +12716,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_454": {
+		"prop_455": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11987,7 +12740,7 @@
 			"use": "none",
 			"value": 4000
 		},
-		"prop_455": {
+		"prop_456": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12011,7 +12764,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_456": {
+		"prop_457": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -12035,7 +12788,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_457": {
+		"prop_458": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12059,7 +12812,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_458": {
+		"prop_459": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12083,7 +12836,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_459": {
+		"prop_460": {
 			"charges": 3,
 			"contents": "ammo_explosive",
 			"door": false,
@@ -12107,7 +12860,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_460": {
+		"prop_461": {
 			"charges": 3,
 			"contents": "ammo_homing",
 			"door": false,
@@ -12131,7 +12884,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_461": {
+		"prop_462": {
 			"charges": 3,
 			"contents": "ammo_flame",
 			"door": false,
@@ -12155,7 +12908,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_462": {
+		"prop_463": {
 			"charges": 3,
 			"contents": "ammo_ricochet",
 			"door": false,
@@ -12179,7 +12932,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_463": {
+		"prop_464": {
 			"charges": 3,
 			"contents": "flask_fire",
 			"door": false,
@@ -12203,7 +12956,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_464": {
+		"prop_465": {
 			"charges": 3,
 			"contents": "flask_freeze",
 			"door": false,
@@ -12227,7 +12980,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_465": {
+		"prop_466": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12251,7 +13004,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_466": {
+		"prop_467": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12275,7 +13028,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_467": {
+		"prop_468": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12299,7 +13052,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_468": {
+		"prop_469": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12323,7 +13076,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_469": {
+		"prop_470": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12347,7 +13100,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_470": {
+		"prop_471": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12371,7 +13124,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_471": {
+		"prop_472": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12395,7 +13148,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_472": {
+		"prop_473": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12419,7 +13172,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_473": {
+		"prop_474": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12443,7 +13196,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_474": {
+		"prop_475": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12467,7 +13220,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_475": {
+		"prop_476": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12491,7 +13244,7 @@
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_476": {
+		"prop_477": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12515,7 +13268,7 @@
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_477": {
+		"prop_478": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12539,7 +13292,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_478": {
+		"prop_479": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12563,7 +13316,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_479": {
+		"prop_480": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12587,7 +13340,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_480": {
+		"prop_481": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12611,7 +13364,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_481": {
+		"prop_482": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12635,7 +13388,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_482": {
+		"prop_483": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12659,7 +13412,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_483": {
+		"prop_484": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12683,7 +13436,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_484": {
+		"prop_485": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12707,7 +13460,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_485": {
+		"prop_486": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12731,7 +13484,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_486": {
+		"prop_487": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12755,7 +13508,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_487": {
+		"prop_488": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12779,7 +13532,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_488": {
+		"prop_489": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12799,11 +13552,11 @@
 			"origin": [359, 144, 10],
 			"station_ammo_type": "",
 			"steps": "",
-			"text": "CAGE LIFT: black clearance. The cage is stuck at the bottom. Use the ladder. Mind the drop.",
+			"text": "CAGE LIFT: black clearance. The black card is kept in the chamber 3 control booth, next door.\n\nThe cage is stuck at the bottom. Use the ladder. Mind the drop.",
 			"use": "note",
 			"value": 40
 		},
-		"prop_489": {
+		"prop_490": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12827,7 +13580,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_490": {
+		"prop_491": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12851,7 +13604,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_491": {
+		"prop_492": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12875,7 +13628,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_492": {
+		"prop_493": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12899,7 +13652,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_493": {
+		"prop_494": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12923,7 +13676,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_494": {
+		"prop_495": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12947,7 +13700,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_495": {
+		"prop_496": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12971,7 +13724,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_496": {
+		"prop_497": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12995,7 +13748,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_497": {
+		"prop_498": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13019,7 +13772,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_498": {
+		"prop_499": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13043,7 +13796,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_499": {
+		"prop_500": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13067,7 +13820,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_500": {
+		"prop_501": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13091,7 +13844,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_501": {
+		"prop_502": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13115,7 +13868,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_502": {
+		"prop_503": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13139,7 +13892,7 @@
 			"use": "none",
 			"value": 350
 		},
-		"prop_503": {
+		"prop_504": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13163,7 +13916,7 @@
 			"use": "none",
 			"value": 1800
 		},
-		"prop_504": {
+		"prop_505": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13187,7 +13940,7 @@
 			"use": "none",
 			"value": 90
 		},
-		"prop_505": {
+		"prop_506": {
 			"charges": 3,
 			"contents": "ammo_flame,ammo_explosive",
 			"door": false,
@@ -13211,7 +13964,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_506": {
+		"prop_507": {
 			"charges": 3,
 			"contents": "ammo_flame,ammo_explosive",
 			"door": false,
@@ -13235,7 +13988,7 @@
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_507": {
+		"prop_508": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13259,7 +14012,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_508": {
+		"prop_509": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -13283,7 +14036,7 @@
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_509": {
+		"prop_510": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13307,7 +14060,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_510": {
+		"prop_511": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13331,7 +14084,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_511": {
+		"prop_512": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13355,7 +14108,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_512": {
+		"prop_513": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13379,7 +14132,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_513": {
+		"prop_514": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13403,7 +14156,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_514": {
+		"prop_515": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13427,7 +14180,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_515": {
+		"prop_516": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13451,7 +14204,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_516": {
+		"prop_517": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13475,7 +14228,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_517": {
+		"prop_518": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13499,7 +14252,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_518": {
+		"prop_519": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -13523,7 +14276,7 @@
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_519": {
+		"prop_520": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -13547,7 +14300,7 @@
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_520": {
+		"prop_521": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13571,7 +14324,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_521": {
+		"prop_522": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13595,7 +14348,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_522": {
+		"prop_523": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13619,7 +14372,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_523": {
+		"prop_524": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -13674,7 +14427,7 @@
 			"max_alive": 2,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [311.25, 250.0, 85.0],
+			"position": [307.5, 250.0, 78.75],
 			"radius": 1.5,
 			"rate": 4.0,
 			"type": "horde",
@@ -13700,7 +14453,7 @@
 			"max_alive": 2,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [306.0, 210.0, 123.0],
+			"position": [327.0, 210.0, 78.0],
 			"radius": 1.5,
 			"rate": 6.0,
 			"type": "horde",
@@ -13726,7 +14479,7 @@
 			"max_alive": 3,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [246.25, 210.0, 235.0],
+			"position": [246.25, 210.0, 147.6],
 			"radius": 2.0,
 			"rate": 5.0,
 			"type": "horde",
@@ -13739,7 +14492,7 @@
 			"max_alive": 4,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [177.5, 210.0, 72.5],
+			"position": [150.0, 210.0, 128.75],
 			"radius": 3.0,
 			"rate": 10.0,
 			"type": "horde",
@@ -13817,7 +14570,7 @@
 			"max_alive": 2,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [137.5, 170.0, 217.5],
+			"position": [82.5, 170.0, 273.75],
 			"radius": 2.0,
 			"rate": 5.0,
 			"type": "horde",
@@ -13882,7 +14635,7 @@
 			"max_alive": 3,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [178.25, 170.0, 85.0],
+			"position": [318.5, 170.0, 80.0],
 			"radius": 1.5,
 			"rate": 6.0,
 			"type": "horde",
@@ -13973,7 +14726,7 @@
 			"max_alive": 2,
 			"on_ceiling": false,
 			"on_dead": "",
-			"position": [217.5, 130.0, 105.0],
+			"position": [311.25, 130.0, 120.0],
 			"radius": 1.5,
 			"rate": 4.0,
 			"type": "horde",
@@ -14246,6 +14999,17 @@
 			"who": "any",
 			"yaw": 0.0
 		},
+		"say_flashlight": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [267.5, 250.0, 365.0],
+			"repeat": false,
+			"size": [125, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
 		"say_gate_m2": {
 			"actions": "",
 			"activates": "",
@@ -14275,6 +15039,17 @@
 			"position": [267.5, 250.0, 137.5],
 			"repeat": false,
 			"size": [125, 35, 125],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_signin": {
+			"actions": "unlock=d_g_blast",
+			"activates": "",
+			"kind": "marker",
+			"position": [347.0, 287.0, 110.0],
+			"repeat": false,
+			"size": [1, 1, 1],
 			"type": "trigger",
 			"who": "any",
 			"yaw": 0.0
@@ -14780,131 +15555,161 @@
 			"to": [278, 192, 268],
 			"type": "slot"
 		},
-		"spawn_524": {
+		"spawn_525": {
 			"index": 1,
 			"kind": "marker",
 			"position": [242.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_525": {
+		"spawn_526": {
 			"index": 2,
 			"kind": "marker",
 			"position": [257.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_526": {
+		"spawn_527": {
 			"index": 3,
 			"kind": "marker",
 			"position": [272.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_527": {
+		"spawn_528": {
 			"index": 4,
 			"kind": "marker",
 			"position": [287.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"speaker_528": {
+		"speaker_529": {
 			"kind": "marker",
 			"position": [365.0, 315.0, 72.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_533": {
+		"speaker_531": {
+			"kind": "marker",
+			"position": [242.5, 275.0, 235.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_535": {
 			"kind": "marker",
 			"position": [267.5, 275.0, 137.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_534": {
+		"speaker_536": {
 			"kind": "marker",
 			"position": [267.5, 275.0, 300.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_540": {
+		"speaker_537": {
+			"kind": "marker",
+			"position": [105.0, 235.0, 280.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_543": {
 			"kind": "marker",
 			"position": [105.0, 235.0, 55.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_541": {
+		"speaker_544": {
 			"kind": "marker",
 			"position": [202.5, 235.0, 235.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_542": {
+		"speaker_545": {
 			"kind": "marker",
 			"position": [202.5, 235.0, 72.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_547": {
+		"speaker_546": {
 			"kind": "marker",
-			"position": [311.25, 195.0, 371.0],
-			"type": "speaker",
-			"yaw": 0.0
-		},
-		"speaker_548": {
-			"kind": "marker",
-			"position": [267.5, 195.0, 137.5],
-			"type": "speaker",
-			"yaw": 0.0
-		},
-		"speaker_549": {
-			"kind": "marker",
-			"position": [365.0, 195.0, 365.0],
-			"type": "speaker",
-			"yaw": 0.0
-		},
-		"speaker_550": {
-			"kind": "marker",
-			"position": [300.0, 155.0, 158.0],
+			"position": [99.0, 195.0, 99.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
 		"speaker_551": {
 			"kind": "marker",
-			"position": [170.0, 155.0, 123.0],
+			"position": [298.75, 195.0, 371.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_552": {
+			"kind": "marker",
+			"position": [267.5, 195.0, 137.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
 		"speaker_553": {
 			"kind": "marker",
-			"position": [365.0, 155.0, 300.0],
+			"position": [365.0, 195.0, 365.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
 		"speaker_554": {
 			"kind": "marker",
-			"position": [170.0, 155.0, 267.5],
+			"position": [371.0, 155.0, 430.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_557": {
+		"speaker_555": {
 			"kind": "marker",
-			"position": [170.0, 55.0, 176.0],
+			"position": [300.0, 155.0, 158.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_556": {
+			"kind": "marker",
+			"position": [167.0, 155.0, 108.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_558": {
+			"kind": "marker",
+			"position": [365.0, 155.0, 300.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
 		"speaker_559": {
 			"kind": "marker",
-			"position": [47.5, 55.0, 430.0],
+			"position": [170.0, 155.0, 267.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_570": {
+		"speaker_560": {
+			"kind": "marker",
+			"position": [430.0, 55.0, 103.75],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_563": {
+			"kind": "marker",
+			"position": [170.0, 55.0, 176.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_565": {
+			"kind": "marker",
+			"position": [85.0, 55.0, 430.0],
+			"type": "speaker",
+			"yaw": 0.0
+		},
+		"speaker_576": {
 			"kind": "marker",
 			"position": [72.5, 55.0, 267.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_571": {
+		"speaker_577": {
 			"kind": "marker",
 			"position": [267.5, 55.0, 332.5],
 			"type": "speaker",
@@ -15045,7 +15850,7 @@
 			"yaw": 0.0
 		},
 		"t_g_seal": {
-			"actions": "close=d_g_blast,lock=d_g_blast",
+			"actions": "close=d_g_blast",
 			"activates": "",
 			"kind": "marker",
 			"position": [430.0, 250.0, 110.0],
@@ -15078,7 +15883,7 @@
 			"yaw": 0.0
 		},
 		"t_m1_stair_seal": {
-			"actions": "close=d_m1_stair,lock=d_m1_stair",
+			"actions": "close=d_m1_stair,lock=d_m1_stair,off=s_0_grow_1,off=s_0_lobby_vent_1,off=s_0_office_1,off=s_m1_store_1,off=s_m1_hall1_1,off=s_m1_hall1_2,off=s_m1_incub_1,off=s_m1_hall2_1,off=s_m1_hall2_2,off=s_m1_clean_1",
 			"activates": "",
 			"kind": "marker",
 			"position": [40.0, 170.0, 116.25],
@@ -15100,7 +15905,7 @@
 			"yaw": 0.0
 		},
 		"t_m2_airlock": {
-			"actions": "close=d_m2_airlock_out,lock=d_m2_airlock_out,unlock=d_m2_airlock_in,open=d_m2_airlock_in",
+			"actions": "close=d_m2_airlock_out,lock=d_m2_airlock_out,unlock=d_m2_airlock_in,open=d_m2_airlock_in,off=s_m2_hall_1,off=s_m2_hall_2,off=s_m2_hall_3,off=s_m2_cool_1,off=s_m2_cool_2,off=s_m2_cool_3,off=s_m2_arch_1,off=s_m2_arch_2,off=s_m2_vent_1,off=s_m2_vent_2",
 			"activates": "",
 			"kind": "marker",
 			"position": [365.0, 170.0, 365.0],
@@ -15141,6 +15946,17 @@
 			"size": [125, 35, 60],
 			"type": "trigger",
 			"who": "any",
+			"yaw": 0.0
+		},
+		"t_m3_cage_foot": {
+			"actions": "close=d_m3_cage,lock=d_m3_cage,off=s_m3_tc2_1,off=s_m3_diss_1,off=s_m3_diss_2,off=s_m3_ward_1,off=s_m3_ward_1b,off=s_m3_ward_2,off=s_m3_ward_3,off=s_m3_tc3_1,off=s_m3_tc3_2,off=s_m3_vent_1",
+			"activates": "",
+			"kind": "marker",
+			"position": [448.0, 30.0, 76.25],
+			"repeat": false,
+			"size": [24, 35, 30],
+			"type": "trigger",
+			"who": "all",
 			"yaw": 0.0
 		},
 		"t_m3_diss": {
@@ -15281,7 +16097,7 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "say_signin",
-			"origin": [377, 290, 47],
+			"origin": [359, 298, 34],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.",
@@ -15347,23 +16163,215 @@
 			"to": [330, 285, 330],
 			"wall": 14
 		},
+		"vat_0": {
+			"kind": "marker",
+			"position": [242.5, 250.0, 235.0],
+			"type": "clone_vat",
+			"yaw": 0.0
+		},
+		"vat_0_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [249, 250, 231],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
 		"vat_m1": {
 			"kind": "marker",
 			"position": [105.0, 210.0, 55.0],
 			"type": "clone_vat",
 			"yaw": 0.0
 		},
+		"vat_m1_dock": {
+			"kind": "marker",
+			"position": [105.0, 210.0, 280.0],
+			"type": "clone_vat",
+			"yaw": 0.0
+		},
+		"vat_m1_dock_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [111, 210, 276],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
+		"vat_m1_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [111, 210, 51],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
 		"vat_m2": {
 			"kind": "marker",
-			"position": [311.25, 170.0, 371.0],
+			"position": [298.75, 170.0, 371.0],
 			"type": "clone_vat",
 			"yaw": 180.0
 		},
-		"vat_m3": {
+		"vat_m2_lobby": {
 			"kind": "marker",
-			"position": [170.0, 130.0, 123.0],
+			"position": [99.0, 170.0, 99.0],
 			"type": "clone_vat",
 			"yaw": 0.0
+		},
+		"vat_m2_lobby_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [105, 170, 95],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
+		"vat_m2_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [305, 170, 367],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
+		"vat_m3": {
+			"kind": "marker",
+			"position": [167.0, 130.0, 108.0],
+			"type": "clone_vat",
+			"yaw": 0.0
+		},
+		"vat_m3_decon": {
+			"kind": "marker",
+			"position": [371.0, 130.0, 430.0],
+			"type": "clone_vat",
+			"yaw": 0.0
+		},
+		"vat_m3_decon_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [377, 130, 426],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
+		"vat_m3_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [173, 130, 104],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
 		},
 		"vat_m3b": {
 			"kind": "marker",
@@ -15371,17 +16379,119 @@
 			"type": "clone_vat",
 			"yaw": 180.0
 		},
+		"vat_m3b_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [306, 130, 154],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
 		"vat_m4": {
 			"kind": "marker",
 			"position": [170.0, 30.0, 176.0],
 			"type": "clone_vat",
 			"yaw": 90.0
 		},
+		"vat_m4_foot": {
+			"kind": "marker",
+			"position": [430.0, 30.0, 103.75],
+			"type": "clone_vat",
+			"yaw": 0.0
+		},
+		"vat_m4_foot_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [436, 30, 100],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
+		"vat_m4_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [176, 30, 172],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
+		},
 		"vat_m4b": {
 			"kind": "marker",
-			"position": [47.5, 30.0, 430.0],
+			"position": [85.0, 30.0, 430.0],
 			"type": "clone_vat",
 			"yaw": 90.0
+		},
+		"vat_m4b_tank": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "clone_vat",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [91, 30, 426],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 12000
 		},
 		"vault": {
 			"ceiling": 3,

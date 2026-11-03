@@ -32,6 +32,11 @@ extends SceneTree
 ## WorldSync.set_voxels batches, the client must see it burning, and the world hashes are taken
 ## once it has burned out on both.
 ##
+## Party arming (after the finale): the client disarms itself as in a `start_unarmed` level, the
+## host walks into a spore shooter, and the client must be armed by it (LevelPlay.arm_party); a
+## second one changes nothing. Then the client drops its gun and the party flag again, as a late
+## joiner entering unarmed would, and the host's entry state (_full_state) must arm it.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -163,7 +168,32 @@ func _host(net: Node) -> void:
 	_check("host starts the finale", lab.director.finale_active and lab.play.power == "restored")
 	var ended := await _wait_until(func() -> bool: return survived[0], 10.0)
 	_check("host finale ends in survival", ended and not lab.director.finale_active)
-	await _wait_seconds(4.0)
+	await _host_arming(lab, client_id)
+	await _wait_seconds(2.0)
+
+
+## Host: the party-arming checks (see the top).
+func _host_arming(lab, client_id: int) -> void:
+	var avatar = lab.players[client_id]
+	var disarmed := await _wait_until(func() -> bool: return not avatar.has_weapon, 30.0)
+	_check("the client starts unarmed", disarmed)
+	lab.level.settings.start_unarmed = true
+	_check("the party isn't armed yet", not lab.play.armed)
+	var me = lab.local_player()
+	lab.items.spawn("spore_shooter", me.global_position + Vector3.UP * 0.4)
+	var armed := await _wait_until(func() -> bool: return lab.play.armed, 5.0)
+	_check("the host's spore shooter pickup arms the party", armed and me.has_weapon)
+	var client_armed := await _wait_until(func() -> bool: return avatar.has_weapon, 10.0)
+	_check("the client's player is armed by the host's pickup", client_armed)
+	lab.items.spawn("spore_shooter", me.global_position + Vector3.UP * 0.4)
+	await _wait_seconds(1.0)
+	_check("a second spore shooter is harmless", lab.play.armed and me.has_weapon and avatar.has_weapon)
+	# The client drops its gun as a late joiner would enter; its entry state must arm it.
+	var dropped := await _wait_until(func() -> bool: return not avatar.has_weapon, 20.0)
+	_check("the client drops its gun (as a late joiner)", dropped)
+	lab.play._send_state(client_id)
+	var rearmed := await _wait_until(func() -> bool: return is_instance_valid(avatar) and avatar.has_weapon, 10.0)
+	_check("the entry state arms a late joiner", rearmed)
 
 
 func _client(net: Node) -> void:
@@ -259,9 +289,26 @@ func _client(net: Node) -> void:
 	_check("the client's countdown starts near the host's 3 s", finale_samples.size() > 1 and absf(finale_samples[0] - 3.0) < 0.5, str(finale_samples))
 	_check("the client's countdown runs down", finale_samples.any(func(left: float) -> bool: return left < 2.0 and left > 0.0), str(finale_samples))
 	_check("the client finale is over", not lab.director.finale_active)
+	await _client_arming(lab, me)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))
+
+
+## Client: the party-arming checks (see the top).
+func _client_arming(lab, me) -> void:
+	lab.level.settings.start_unarmed = true
+	lab.play._apply_armed()
+	_check("the client is unarmed in a start_unarmed level", not me.has_weapon and not lab.play.armed)
+	var armed := await _wait_until(func() -> bool: return lab.play.armed and me.has_weapon, 30.0)
+	_check("the host's spore shooter pickup arms the client", armed)
+	await _wait_seconds(3.0) # The host picks up a second one meanwhile.
+	_check("the client stays armed after a second pickup", lab.play.armed and me.has_weapon)
+	lab.play.armed = false
+	me.set_armed(false)
+	var rearmed := await _wait_until(func() -> bool: return lab.play.armed and me.has_weapon, 20.0)
+	_check("the host's entry state (_full_state) carries armed", rearmed)
+	await _wait_seconds(2.0) # Stay up until the host has seen us armed again.
 
 
 ## Windowed runs only: turns to face the host's player and saves what the client sees.

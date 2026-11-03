@@ -65,6 +65,26 @@ cabinets, gear tables, jars and shroom pots. Props can stand on another prop (`o
 `tests/laboratory_test.gd` checks that floor props stand on something, that wall and hanging props
 touch a wall, and that no prop is in the keep-out boxes.
 
+Checkpoints and seals (2026-11-03, review package 1, `docs/review-2026-11-03.md`): every seal now
+has a vat on the far side, so a death never puts a clone behind a locked door. The vats are
+`vat_0` (break room, reached before the outbreak), `vat_m1_dock`, `vat_m1`, `vat_m2_lobby`
+(compute stair lobby), `vat_m2`, `vat_m3_decon`, `vat_m3`, `vat_m4_foot` (cage shaft bottom) and
+`vat_m4`, plus the secret `vat_m3b` and `vat_m4b`. With no checkpoint the clone is grown at the
+player's own spawn, never at the first vat in the file. Each vat has a `clone_vat` tank prop (id
+`<vat>_tank`, placeholder glass tank with a glowing ring) beside its marker. The respawn faces into
+the vat's room, fades red on death, and toasts "Clone #n grown. Billed to you." The seals are
+`t_g_seal` (closes the blast door without a lock: after the outbreak it refuses "No power"),
+`t_m1_stair_seal`, `t_m2_airlock` and the new `t_m3_cage_foot` at the cage ladder's foot (closes
+and locks `d_m3_cage`). Each seal's intercom line is keyed by its trigger id. The last three also
+`off=` every spawner on the floors behind them (`LabLayout.off_floors`). The blast door starts
+locked and the gatehouse sign-in terminal (now on the `desk_empty`) unlocks it through the
+`say_signin` trigger. Each keycard door has a note saying where its card is, and a
+`hint_<door id>` intercom line. Route rooms get two emergency lights at 2.5 energy. Grow room 0
+plays `say_flashlight` (T). The report's spawners in the line of travel moved to the far side of
+their rooms, and the lobby vent spawner sits under its grate. `tests/laboratory_play_test.gd`
+dies on floor 0 and after each seal and checks the respawn. `tests/laboratory_test.gd` checks
+each vat's tank is beside it and leaves room to respawn.
+
 ## 1. Premise
 
 **Fung AI** (CEO **Guy Fung**, decided 2026-11-03) found a mycelium that stores and processes
@@ -104,7 +124,7 @@ What the layout has to deliver:
 | Spawner fields: kinds, rate/min, max_alive, active, radius (<= 10 m), on_ceiling | `LevelSchema.MARKERS.horde` | All enemy placement is spawners; nothing is hand-placed |
 | Trigger fields: size, repeat, who (any/all), activates (spawner ids or `horde`) | `LevelSchema.MARKERS.trigger` | Triggers can only turn spawners on. Power, locks and door opening need the hooks in section 9 |
 | Keycards are party-wide; `door_key` names a color; `door_power` doors refuse on backup power | `LevelPlay` | One pickup per key is enough in co-op |
-| Respawn goes to the first clone vat in the file | `Lab._on_local_died` | Needs "nearest vat" (section 9) or a single vat is the whole game's checkpoint |
+| Respawn goes to the checkpoint vat (the last one any player reached), else the player's own spawn | `Lab._on_local_died` | Done: a vat past every seal (see Status) |
 | Generator: restores power, fires `on_use`, runs the finale; `finale_survived` / `finale_failed` fire as trigger ids | `HordeDirector`, `LevelPlay` | The exit elevator opens on `finale_survived` |
 | Global cap 80 enemies; horde burst 12; finale bursts grow 1.5x every 20 s | `EnemyManager`, `HordeDirector` | Finale arena needs room for 40 to 60 shrooms |
 | Props have no door model yet; a door is any prop with `door = true` | prop catalog | Door placeholders are the first thing to make |

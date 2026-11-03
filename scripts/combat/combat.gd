@@ -112,6 +112,25 @@ static func can_see(world: VoxelWorld, from: Vector3, to: Vector3) -> bool:
 	return false
 
 
+## Whether a box (a coarse fire cell, say) is in sight of a point: can_see to its middle, or the
+## first solid voxel a ray toward the middle meets lies in the box (grown by a voxel), so what's in
+## the way is the box's own contents (the burning voxels themselves). No world: true.
+static func can_see_box(world: VoxelWorld, from: Vector3, box: AABB) -> bool:
+	var to := box.get_center()
+	if world == null or can_see(world, from, to):
+		return true
+	var offset := to - from
+	var distance := offset.length()
+	if distance < 0.01:
+		return true
+	var dir := offset / distance
+	var start := 0.0
+	while start < 0.5 and world.get_voxel(world.world_to_voxel(from + dir * start)) != 0:
+		start += world.voxel_size * 0.5
+	var hit: Dictionary = world.raycast(from + dir * start, dir, maxf(distance - start, 0.0))
+	return hit.hit and box.grow(world.voxel_size).has_point(hit.position)
+
+
 ## Whether a player's chest is in sight of a point.
 static func sees_player(world: VoxelWorld, from: Vector3, player: Player) -> bool:
 	return can_see(world, from, chest(player))

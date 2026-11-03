@@ -1,8 +1,11 @@
 extends SceneTree
 ## Headless checks for the generator finale (phase 6):
 ##   godot --headless --path . --script res://tests/finale_test.gd
-## One room with a generator and two spawners (one off). Using the generator starts a short
-## finale: spawners turn on and their alive cap doubles, the countdown runs, and at zero
+## One room with a generator and two spawners (one off), and a sealed room beside it (close in a
+## straight line, no path) with two more, both off: "far" and "s_m4_gen_far". Using the generator
+## starts a short finale: the room's spawners turn on and their alive cap doubles, the sealed
+## room's "far" stays off and unscaled while the s_m4_gen_ one turns on anyway (finale scope), the
+## countdown runs, and at zero
 ## finale_survived and the "finale_survived" trigger fire, spawner settings are restored and the
 ## enemies live on. A second finale where the only player dies ends in finale_failed: enemies
 ## cleared, power back to backup, the generator usable again.
@@ -12,9 +15,11 @@ extends SceneTree
 const SCRATCH := "user://finale_test_levels/"
 const LEVEL := "finale_test"
 const M := preload("res://scripts/voxel/voxel_materials.gd")
-const SIZE := Vector3i(6, 2, 4)
+const SIZE := Vector3i(6, 2, 6)
 const FLOOR := 8
 const ROOM := [Vector3i(8, FLOOR, 8), Vector3i(184, 40, 120)]
+## Sealed off from ROOM by 1.6 m of concrete.
+const SEALED := [Vector3i(8, FLOOR, 136), Vector3i(184, 40, 184)]
 const NORTH := 0
 
 var _failures := 0
@@ -52,19 +57,26 @@ func _run() -> void:
 	await _frames(3)
 	_check("generator starts the finale", director.state == "finale" and director.finale_active and play.power == "restored")
 	_check("started event", events == ["started"], str(events))
-	_check("every spawner active", director.spawners.a.active and director.spawners.b.active)
+	_check("the room's spawners active", director.spawners.a.active and director.spawners.b.active)
+	_check("a spawner out of walking range stays off", not director.spawners.far.active
+			and director.spawners.far.alive_mult == 1.0 and not director.spawners.far.finale)
+	_check("one tagged s_m4_gen_ turns on wherever it is", director.spawners.s_m4_gen_far.active
+			and director.spawners.s_m4_gen_far.finale)
 	var most := [0]
 	await _wait_until(func() -> bool:
 		most[0] = maxi(most[0], director.spawners.a.alive.size())
 		return false, 1.5)
 	_check("alive cap doubles (2 -> 4)", most[0] == 4, str(most[0]))
+	_check("the far spawner's rate isn't scaled", director.spawners.far.rate_mult == 1.0 and director.spawners.far.alive.is_empty(),
+			str(director.spawners.far.rate_mult))
 	var left1: float = director.finale_left
 	_check("countdown runs", left1 < 3.5 and left1 > 0.0, str(left1))
 	await _wait_until(func() -> bool: return survived[0], 6.0)
 	_check("finale_survived fires", survived[0] and "finale_survived" in fired and events.back() == "survived", str(events))
 	_check("finale over", not director.finale_active and director.state == "calm" and director.finale_left == 0.0)
 	_check("spawners restored", not director.spawners.b.active and director.spawners.a.active
-			and director.spawners.a.alive_mult == 1.0 and director.spawners.a.rate_mult == 1.0)
+			and director.spawners.a.alive_mult == 1.0 and director.spawners.a.rate_mult == 1.0
+			and not director.spawners.s_m4_gen_far.active and not director.spawners.far.active)
 	var alive: int = enemies.alive_count()
 	await _frames(5)
 	_check("enemies live on", alive > 0 and enemies.alive_count() >= alive - 1, str(alive))
@@ -92,7 +104,8 @@ func _run() -> void:
 	quit(1 if _failures > 0 else 0)
 
 
-## One room, a spawn, a generator (4 s finale), spawner "a" (on) and "b" (off), both fast with max 2.
+## One room, a spawn, a generator (4 s finale), spawner "a" (on) and "b" (off), both with max 2;
+## the sealed room's "far" and "s_m4_gen_far" (both off).
 func _make_level() -> void:
 	var level := LevelData.new()
 	level.name = LEVEL
@@ -104,6 +117,7 @@ func _make_level() -> void:
 	root.add_child(world)
 	world.fill_all(M.CONCRETE)
 	world.fill_box(ROOM[0], ROOM[1], M.AIR, false)
+	world.fill_box(SEALED[0], SEALED[1], M.AIR, false)
 	level.voxels = world.get_data()
 	world.free()
 
@@ -114,7 +128,8 @@ func _make_level() -> void:
 	spawn.id = "spawn_1"
 	level.objects["gen"] = gen
 	level.objects["spawn_1"] = spawn
-	for entry in [["a", true, Vector3(30.0, FLOOR, 30.0)], ["b", false, Vector3(150.0, FLOOR, 30.0)]]:
+	for entry in [["a", true, Vector3(30.0, FLOOR, 30.0)], ["b", false, Vector3(150.0, FLOOR, 30.0)],
+			["far", false, Vector3(60.0, FLOOR, 160.0)], ["s_m4_gen_far", false, Vector3(140.0, FLOOR, 160.0)]]:
 		var spawner := LevelSchema.new_marker("horde", entry[2])
 		spawner.id = entry[0]
 		spawner.rate = 600.0

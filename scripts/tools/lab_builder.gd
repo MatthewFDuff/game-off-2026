@@ -13,6 +13,9 @@ const FILL_DEPTH := 5
 const CLEARANCE := 10
 ## Which wall a prop's back is against, by its facing (its front points away from it).
 const BACK_WALL := {0: "s", 1: "w", 2: "n", 3: "e"}
+## Route rooms' emergency lights: where along the long axis (and 1 - this), and their energy.
+const EMERGENCY_AT := 0.3
+const EMERGENCY_ENERGY := 2.5
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 const P := preload("res://scripts/world/props.gd")
 const Layout := preload("res://scripts/tools/lab_layout.gd")
@@ -380,8 +383,9 @@ func _marker(m: Dictionary) -> void:
 	_add(id, marker)
 
 
-## Facility lights from the room's `lights` count, an emergency light on route rooms, a soft glow
-## light in glow rooms (both of those are emergency-powered: they come on when the power goes).
+## Facility lights from the room's `lights` count, two emergency lights on route rooms (0.3 and 0.7
+## along the long axis), a soft glow light in glow rooms (both of those are emergency-powered: they
+## come on when the power goes).
 func _lights(room: Dictionary) -> void:
 	var extent: Vector3i = room.to - room.from
 	var top := float(room.to.y - 4) if int(room.get("lamp_up", -1)) < 0 else float(room.from.y + int(room.lamp_up))
@@ -404,12 +408,14 @@ func _lights(room: Dictionary) -> void:
 		light.range = range
 		_add("", light)
 	if room.route:
-		var red := LevelSchema.new_marker("light", Vector3(room.from.x + 0.5 * extent.x, top, room.from.z + 0.5 * extent.z))
-		red.color = Color(1.0, 0.18, 0.12)
-		red.energy = 2.0
-		red.range = clampf(maxf(extent.x, extent.z) / 10.0 * 0.7, 6.0, 12.0)
-		red.power = "emergency"
-		_add("", red)
+		for f: float in [EMERGENCY_AT, 1.0 - EMERGENCY_AT]:
+			var at := Vector2(f, 0.5) if extent.x > extent.z else Vector2(0.5, f)
+			var red := LevelSchema.new_marker("light", Vector3(room.from.x + at.x * extent.x, top, room.from.z + at.y * extent.z))
+			red.color = Color(1.0, 0.18, 0.12)
+			red.energy = EMERGENCY_ENERGY
+			red.range = clampf(maxf(extent.x, extent.z) / 10.0 * 0.7, 6.0, 12.0)
+			red.power = "emergency"
+			_add("", red)
 	if room.glow:
 		var glow := LevelSchema.new_marker("light", Vector3(room.from.x + 0.5 * extent.x, float(room.from.y + 8), room.from.z + 0.5 * extent.z))
 		glow.color = Color(0.4, 1.0, 0.75)

@@ -13,6 +13,9 @@ var _waiting := Label.new()
 var _toast := Label.new()
 var _toast_time := 0.0
 var _story: Story
+var _combat: CombatHud
+var _prompt: InteractPrompt
+var _controls: ControlsOverlay
 
 
 ## HUD label settings: the pixel font (PixelFont) at about size px, a drop shadow for outline > 0.
@@ -49,11 +52,14 @@ func _ready() -> void:
 		_toast.text = text
 		_toast_time = 4.0)
 
-	add_child(CombatHud.create(lab))
-	add_child(InteractPrompt.create(lab))
+	_combat = CombatHud.create(lab)
+	add_child(_combat)
+	_prompt = InteractPrompt.create(lab)
+	add_child(_prompt)
 	_build_pause()
 	if lab.mode != "edit":
-		add_child(ControlsOverlay.new())
+		_controls = ControlsOverlay.new()
+		add_child(_controls)
 		_story = Story.create(lab)
 		add_child(_story)
 	Net.players_changed.connect(_update_roster)
@@ -63,15 +69,23 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	# The Lab is torn down before its HUD on quit.
+	if lab == null or not is_instance_valid(lab):
+		return
 	_toast_time -= delta
+	# While the ending's statement shows, nothing of the HUD draws under it.
+	var ending := _story != null and _story.ending.shown
 	# The level editor shows its own toasts and roster.
-	_toast.visible = _toast_time > 0.0 and lab.mode != "edit"
-	_roster.visible = lab.mode != "edit"
+	_toast.visible = _toast_time > 0.0 and lab.mode != "edit" and not ending
+	_roster.visible = lab.mode != "edit" and not ending
+	_combat.suppressed = ending
+	_prompt.visible = not ending
+	if ending and _controls:
+		_controls.visible = false
 	var playing := InputSetup.is_playing()
 	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
-	var ending := _story != null and _story.ending.shown
 	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit" and not ending
-	_crosshair.visible = playing
+	_crosshair.visible = playing and not ending
 	# Solo play pauses with the mouse released; co-op and the editor keep running.
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
 	get_tree().paused = solo and lab.mode != "edit" and not playing and not _waiting.visible

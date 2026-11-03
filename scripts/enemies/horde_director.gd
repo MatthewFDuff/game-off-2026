@@ -10,10 +10,18 @@ extends Node
 ##   finale  finale(duration): the generator finale (see below)
 ## The trickle keeps going in every state.
 ##
+## Wake range: a spawner only trickles while the flow field (walking distance to the nearest living
+## player, EnemyManager.refresh_flow) reaches it within wake_range meters, so a floor above or below
+## through a slab is far away however close it is in a straight line. Only when the field is empty
+## (no living player on a floor) does the straight-line distance stand in. Hordes and the finale's
+## own spawners ignore it.
+##
 ## Triggers: a trigger marker's `activates` field (comma-separated) turns on spawners by id, or
 ## starts a horde with "horde". Prop triggers (a terminal's or the generator's `on_use`) can also name
 ## a spawner or "horde" directly. The generator calls finale(its finale_seconds) itself. A trigger
-## marker's `actions` (LevelPlay) can also turn spawners on and off (`on=` / `off=`).
+## marker's `actions` (LevelPlay) can also turn spawners on and off (`on=` / `off=`). Turning one off
+## also sinks its living enemies back into the floor (EnemyManager.sink: no death, no drops), so a
+## sealed floor goes quiet.
 ##
 ## Hordes come from the spawners nearest the players by walking distance (the flow field), so a
 ## spawner on the floor above never counts as near through the slab; spawners with no path go
@@ -32,13 +40,18 @@ extends Node
 ## Player count: the level's rates and caps are tuned for two players; with scale_per_player > 0
 ## they scale by (1 - s + s x players) / (1 + s), so one player gets less and four get more.
 ##
-## Finale: every spawner turns on, trickle rates ramp to finale_rate_multiplier x over the timer, a
-## burst fires every finale_burst_interval seconds (horde_size, x finale_burst_growth each time) and
-## max_alive caps are finale_alive_multiplier x. At zero: finale_survived (trigger id
-## "finale_survived"), spawners go back as they were, enemies keep living. If every player is dead at
-## once: finale_failed (trigger id "finale_failed"), spawners restored, every enemy despawned, power
-## back to backup and the generator usable again. The timer is replicated once a second so every HUD
-## counts down together; finale_event tells every peer when it started and how it ended.
+## Finale: its spawners are the ones within finale_range_factor x wake_range of walking distance
+## from the players when it starts (straight-line if the flow field is empty; every spawner if
+## wake_range is 0), plus any whose id starts with FINALE_PREFIX wherever they are. Those turn on,
+## ignore the wake range, their trickle rates ramp to finale_rate_multiplier x over the timer and
+## their max_alive caps are finale_alive_multiplier x; every other spawner stays as it was (and keeps
+## to its wake range). A burst fires every finale_burst_interval seconds (horde_size, x
+## finale_burst_growth each time) from the spawners nearest the players. At zero: finale_survived
+## (trigger id "finale_survived"), the finale's spawners go back as they were, enemies keep living.
+## If every player is dead at once: finale_failed (trigger id "finale_failed"), spawners restored,
+## every enemy despawned, power back to backup and the generator usable again. The timer is
+## replicated once a second so every HUD counts down together; finale_event tells every peer when
+## it started and how it ended.
 
 signal state_changed(state: String)
 ## The finale timer ran out with someone still standing.
@@ -68,9 +81,12 @@ signal finale_event(kind: String)
 @export var finale_alive_multiplier := 2.0
 ## How much each player beyond the second adds to rates and caps (0: no scaling). See the top.
 @export var scale_per_player := 0.25
-## A spawner only trickles while a living player is within this many meters of it (straight line);
-## the finale ignores it. 0 disables. Keeps far floors quiet until the party gets there.
+## A spawner only trickles while a living player is within this many meters of walking of it (the
+## flow field; straight line only when the field is empty). The finale's spawners ignore it. 0
+## disables. Keeps far floors quiet until the party gets there.
 @export var wake_range := 40.0
+## The finale turns on the spawners within this many wake ranges of walking from the players.
+@export var finale_range_factor := 2.0
 ## Fair spawns (_spawn_point, is_fair): no enemy appears within this many meters of a living
 ## player, or where a player would see it appear (within this many degrees of their view and in
 ## line of sight).
@@ -81,13 +97,16 @@ signal finale_event(kind: String)
 const SPAWN_TRIES := 8
 ## Seconds before a spawner with no fair spot looks again (its budget kept).
 const SPAWN_RETRY := 0.25
+## Spawners with ids starting with this are always in the finale, however far (the generator hall's).
+const FINALE_PREFIX := "s_m4_gen_"
 
 var state := "calm"
 ## Host: spawns put off for want of a fair spot (for tests and tuning).
 var deferred_spawns := 0
 var running := false
 ## id -> {object, active: bool, budget: float (spawns owed), alive: Array[int] (enemy ids),
-## rate_mult, alive_mult (finale scaling), spawned (ever), dead_fired (on_dead went)}
+## rate_mult, alive_mult (finale scaling), finale (one of the finale's spawners right now),
+## spawned (ever), dead_fired (on_dead went)}
 var spawners := {}
 ## Every peer: the finale is running, and how many seconds are left (replicated each second).
 var finale_active := false
@@ -127,7 +146,7 @@ func start() -> void:
 	for object: Dictionary in lab.level.objects.values():
 		if object.kind == "marker" and object.type == "horde":
 			spawners[object.id] = {object = object, active = bool(object.get("active", true)), budget = 0.0, alive = [],
-					rate_mult = 1.0, alive_mult = 1.0, spawned = false, dead_fired = false}
+					rate_mult = 1.0, alive_mult = 1.0, finale = false, spawned = false, dead_fired = false}
 	_set_state("calm")
 
 
@@ -142,11 +161,29 @@ func stop() -> void:
 	state = "calm"
 
 
-## Host (story scripts, triggers): turns a spawner's trickle on or off.
+## Host (story scripts, triggers): turns a spawner's trickle on or off. Off also sinks its living
+## enemies (EnemyManager.sink: gone without a death, so no drops and no on_dead) and drops its
+## queued horde spawns. During the finale the change also stands after it (what the finale
+## restores).
 func set_spawner_active(id: String, on: bool) -> void:
-	if spawners.has(id):
-		spawners[id].active = on
-		spawners[id].budget = 0.0
+	if not spawners.has(id):
+		return
+	var spawner: Dictionary = spawners[id]
+	spawner.active = on
+	spawner.budget = 0.0
+	if finale_active and _saved_active.has(id):
+		_saved_active[id] = on
+	if on:
+		return
+	# Ones already killed this frame stay listed, so their spawner still notices it emptied (on_dead).
+	var killed: Array = []
+	for enemy_id: int in spawner.alive:
+		if enemies.enemies.has(enemy_id):
+			enemies.sink(enemy_id)
+		else:
+			killed.append(enemy_id)
+	spawner.alive = killed
+	_queue.assign(_queue.filter(func(source: String) -> bool: return source != id))
 
 
 ## Host: a burst of count enemies from the spawners nearest the players.
@@ -162,17 +199,25 @@ func start_horde(count: int) -> void:
 		_set_state("horde")
 
 
-## Host: the generator finale. Power is restored, every spawner turns on and the horde ramps up for
-## duration seconds; then finale_survived (or finale_failed if everyone dies first).
+## Host: the generator finale. Power is restored, the spawners near the players (and the
+## FINALE_PREFIX ones) turn on and the horde ramps up for duration seconds; then finale_survived
+## (or finale_failed if everyone dies first). See the top for which spawners take part.
 func finale(duration: float) -> void:
 	if not running or finale_active:
 		return
 	lab.play.set_power("restored")
 	_saved_active.clear()
+	enemies.refresh_flow()
+	var reach := wake_range * finale_range_factor
 	for id: String in spawners:
-		_saved_active[id] = spawners[id].active
-		spawners[id].active = true
-		spawners[id].alive_mult = finale_alive_multiplier
+		var spawner: Dictionary = spawners[id]
+		var near := wake_range <= 0.0 or walk_distance(spawner.object) <= reach
+		spawner.finale = near or id.begins_with(FINALE_PREFIX)
+		if not spawner.finale:
+			continue
+		_saved_active[id] = spawner.active
+		spawner.active = true
+		spawner.alive_mult = finale_alive_multiplier
 	_finale_time = 0.0
 	_finale_duration = maxf(duration, 0.1)
 	_finale_burst_timer = finale_burst_interval
@@ -190,10 +235,14 @@ func _end_finale(outcome: String) -> void:
 	finale_left = 0.0
 	_queue.clear()
 	for id: String in spawners:
-		spawners[id].active = _saved_active.get(id, spawners[id].active)
-		spawners[id].alive_mult = 1.0
-		spawners[id].rate_mult = 1.0
-		spawners[id].budget = 0.0
+		var spawner: Dictionary = spawners[id]
+		if not spawner.finale:
+			continue
+		spawner.finale = false
+		spawner.active = _saved_active.get(id, spawner.active)
+		spawner.alive_mult = 1.0
+		spawner.rate_mult = 1.0
+		spawner.budget = 0.0
 	_saved_active.clear()
 	_set_state("calm")
 	if outcome == "survived":
@@ -314,7 +363,8 @@ func _tick_finale(delta: float) -> void:
 	finale_left = maxf(_finale_duration - _finale_time, 0.0)
 	var ramp := clampf(_finale_time / _finale_duration, 0.0, 1.0)
 	for spawner: Dictionary in spawners.values():
-		spawner.rate_mult = lerpf(1.0, finale_rate_multiplier, ramp)
+		if spawner.finale:
+			spawner.rate_mult = lerpf(1.0, finale_rate_multiplier, ramp)
 	_finale_burst_timer -= delta
 	if _finale_burst_timer <= 0.0:
 		_finale_burst_timer += finale_burst_interval
@@ -378,7 +428,7 @@ func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * player_factor()
 	if not spawner.active or rate <= 0.0:
 		return
-	if not finale_active and wake_range > 0.0 and enemies.nearest_player_distance(lab.view.to_world(object.position)) > wake_range:
+	if not spawner.finale and wake_range > 0.0 and walk_distance(object) > wake_range:
 		return
 	if float(spawner.get("retry", 0.0)) > 0.0:
 		spawner.retry = float(spawner.retry) - delta
@@ -477,6 +527,25 @@ func is_fair(feet: Vector3, body: Vector3) -> bool:
 		if (-camera.global_basis.z).dot(to.normalized()) > view_cos and Combat.can_see(lab.world, eye, body):
 			return false
 	return true
+
+
+## Host: meters from a spawner marker to the nearest living player, for the wake range and the
+## finale: walking distance by the flow field (INF where it doesn't reach), or the straight line
+## when the field is empty. The marker's own spot is tried first, then four around it within its
+## radius (up to a meter), in case the marker stands in a wall or a prop.
+func walk_distance(object: Dictionary) -> float:
+	var at := lab.view.to_world(object.position)
+	if enemies.flow_reached <= 0:
+		return enemies.nearest_player_distance(at)
+	var reach := clampf(float(object.get("radius", 1.5)), 0.2, 1.0)
+	var best := INF
+	for offset: Vector3 in [Vector3.ZERO, Vector3.RIGHT * reach, Vector3.LEFT * reach, Vector3.FORWARD * reach, Vector3.BACK * reach]:
+		var flow: Dictionary = lab.world.get_flow(at + offset + Vector3.UP * 0.05)
+		if flow.get("valid", false):
+			best = minf(best, float(flow.distance))
+		if offset == Vector3.ZERO and best < INF:
+			break
+	return best
 
 
 ## Spawner ids, nearest to any target player first: by walking distance (the flow field, which

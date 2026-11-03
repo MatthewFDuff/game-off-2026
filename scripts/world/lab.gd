@@ -29,6 +29,10 @@ signal peer_entered(peer_id: int)
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 ## Seconds dead before respawning (at the clone vat, or a spawn).
 const RESPAWN_DELAY := 3.0
+## The death fade: how red it gets and how long it takes to come in and to clear after respawning.
+const DEATH_FADE_ALPHA := 0.55
+const DEATH_FADE_IN := 0.6
+const DEATH_FADE_OUT := 0.8
 
 @export var world: VoxelWorld
 @export var world_sync: WorldSync
@@ -53,6 +57,9 @@ var players := {}
 ## Host, in play: the edit-mode world to restore, and the stamped props (for live reload).
 var _edit_base := PackedByteArray()
 var _props: Props
+## This peer: clones grown for the local player since play began (the respawn toast counts them).
+var clones := 0
+var _fade: ColorRect
 
 
 func _ready() -> void:
@@ -166,6 +173,7 @@ func _set_mode_locally(new_mode: String) -> void:
 	world.detach_floating = mode == "play"
 	view.set_mode(mode)
 	if mode == "play":
+		clones = 0
 		play.start()
 		_attach_story()
 	for player: Player in players.values():
@@ -336,23 +344,76 @@ func _die_here() -> void:
 
 func _on_local_died() -> void:
 	notify("You died. Respawning...", false)
+	_death_fade(DEATH_FADE_ALPHA, DEATH_FADE_IN)
 	await get_tree().create_timer(RESPAWN_DELAY).timeout
 	var me := local_player()
 	if me == null or not me.is_dead or mode != "play":
+		_death_fade(0.0, DEATH_FADE_OUT)
 		return
-	# The checkpoint vat (the last one the party reached), else the first vat, else a spawn.
-	var vats := level.objects.values().filter(func(o: Dictionary) -> bool: return o.kind == "marker" and o.type == "clone_vat")
-	var vat: Dictionary = level.objects.get(play.checkpoint, {})
-	if vat.get("type") != "clone_vat":
-		vat = vats[0] if not vats.is_empty() else {}
-	var index := _player_index(multiplayer.get_unique_id())
-	me.teleport(view.to_world(vat.position) if not vat.is_empty() else spawn_point(index))
-	me.rotation.y = deg_to_rad(vat.yaw) if not vat.is_empty() else spawn_yaw(index)
+	me.teleport(respawn_point())
+	me.rotation.y = respawn_yaw()
 	me.revive()
+	clones += 1
+	notify("Clone #%d grown. Billed to you." % clones, false)
+	_death_fade(0.0, DEATH_FADE_OUT)
+
+
+## Where the local player respawns: the checkpoint vat (the last one the party reached), else the
+## player's own spawn. Never some other vat: the first one in the file can be behind a seal.
+func respawn_point() -> Vector3:
+	var vat := _checkpoint_vat()
+	return view.to_world(vat.position) if not vat.is_empty() else spawn_point(_player_index(multiplayer.get_unique_id()))
+
+
+## Which way the respawned player faces: from the vat toward the middle of the room it stands in
+## (vats sit off to the side, so that's into the room), else the vat's yaw, else the spawn's.
+func respawn_yaw() -> float:
+	var vat := _checkpoint_vat()
+	if vat.is_empty():
+		return spawn_yaw(_player_index(multiplayer.get_unique_id()))
+	var at: Vector3 = vat.position
+	for object: Dictionary in level.objects.values():
+		if object.get("kind") != "room":
+			continue
+		var box := AABB(Vector3(object.from), Vector3(object.to - object.from))
+		if not box.has_point(at + Vector3.UP):
+			continue
+		var to_center := box.get_center() - at
+		to_center.y = 0.0
+		if to_center.length() > 4.0:
+			return atan2(-to_center.x, -to_center.z)
+		break
+	return deg_to_rad(vat.yaw)
+
+
+func _checkpoint_vat() -> Dictionary:
+	var vat: Dictionary = level.objects.get(play.checkpoint, {}) if level else {}
+	return vat if vat.get("kind") == "marker" and vat.get("type") == "clone_vat" else {}
+
+
+## This peer: tweens the red death overlay to alpha over seconds (made on first use).
+func _death_fade(alpha: float, seconds: float) -> void:
+	if _fade == null:
+		if alpha <= 0.0:
+			return
+		var layer := CanvasLayer.new()
+		layer.name = "DeathFade"
+		layer.layer = 50
+		add_child(layer)
+		_fade = ColorRect.new()
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fade.color = Color(0.45, 0.0, 0.0, 0.0)
+		layer.add_child(_fade)
+		# The offsets too: inside the tree, set_anchors_preset alone keeps the 0 x 0 rect.
+		_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var tween := _fade.create_tween()
+	tween.tween_property(_fade, "color:a", alpha, seconds)
 
 
 ## E in play: closes an open note, else uses the door or prop in view (LevelPlay.request_use; the
-## host decides). Refusals this peer can see coming ("Locked: needs red keycard") are shown here.
+## host decides). Refusals this peer can see coming ("Locked: needs red keycard") are shown here at
+## once; a refused door still goes to the host, which refuses it too (the same toast) and emits
+## door_refused, so the intercom can play its clearance line or the door's hint.
 func _on_local_interact() -> void:
 	if mode != "play":
 		return
@@ -368,6 +429,8 @@ func _on_local_interact() -> void:
 	var refusal := play.interactables.local_refusal(target, me)
 	if refusal != "":
 		notify(refusal, false)
+		if play.is_door(target):
+			play.request_use(target)
 	else:
 		play.request_use(target)
 

@@ -108,6 +108,8 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if lab == null or not is_instance_valid(lab):
+		return
 	if tool == null:
 		var me := lab.local_player()
 		if me == null:

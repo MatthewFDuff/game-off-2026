@@ -22,8 +22,11 @@ const STEP := 4
 const DROP := 24
 const BREAKABLE := [M.GLASS, M.PLANK, M.PLASTIC, M.WOOD]
 ## Story-locked doors and what opens them: a prop (terminal used) or a room entered.
-const UNLOCKS := {d_0_grow = {prop = "term_training"}, d_m2_airlock_in = {room = "airlock"}, d_m4_exit = {prop = "generator"}}
-const ROUTE_VATS := ["vat_m1", "vat_m2", "vat_m3", "vat_m4"]
+## (The sign-in terminal stands on the gatehouse desk, so reaching the desk is reaching it.)
+const UNLOCKS := {d_g_blast = {prop = "desk_gatehouse"}, d_0_grow = {prop = "term_training"}, d_m2_airlock_in = {room = "airlock"}, d_m4_exit = {prop = "generator"}}
+const ROUTE_VATS := ["vat_0", "vat_m1_dock", "vat_m1", "vat_m2_lobby", "vat_m2", "vat_m3_decon", "vat_m3", "vat_m4_foot", "vat_m4"]
+## Meters a clone vat marker keeps from every prop (its tank included), so a clone isn't grown inside one.
+const VAT_CLEAR := 0.4
 const SECRET_VATS := ["vat_m3b", "vat_m4b"]
 
 var _failures := 0
@@ -57,6 +60,7 @@ func _run() -> void:
 	_check_mounts()
 	_check_clearance(builder)
 	_check_markers()
+	_check_vats()
 
 	_breakables_pass = false
 	_walk()
@@ -228,6 +232,28 @@ func _check_markers() -> void:
 		if _voxel(cell) != M.AIR or _voxel(cell + Vector3i.DOWN) == M.AIR:
 			floating.append("%s at %s" % [object.id, cell])
 	_check("floor markers stand on floors", floating.is_empty(), ", ".join(floating.slice(0, 12)))
+
+
+## Every clone vat has its tank prop beside it, and no prop stands on (or within VAT_CLEAR of) the
+## spot players respawn on.
+func _check_vats() -> void:
+	var bad := []
+	var reach := VAT_CLEAR / 0.1
+	for object in _level.objects.values():
+		if object.kind != "marker" or object.type != "clone_vat":
+			continue
+		var tank: Dictionary = _level.objects.get(object.id + "_tank", {})
+		if tank.get("name") != "clone_vat":
+			bad.append("%s has no tank" % object.id)
+		elif LevelSchema.prop_box(tank).get_center().distance_to(object.position) > 20.0:
+			bad.append("%s's tank is %.0f voxels away" % [object.id, LevelSchema.prop_box(tank).get_center().distance_to(object.position)])
+		for other in _level.objects.values():
+			if other.kind == "prop" and not LevelSchema.is_door(other):
+				var box: AABB = LevelSchema.prop_box(other)
+				box = AABB(box.position - Vector3(reach, 0, reach), box.size + Vector3(reach, 0, reach) * 2.0)
+				if box.has_point(object.position + Vector3(0, 1, 0)):
+					bad.append("%s is in %s %s" % [object.id, other.id, other.name])
+	_check("every clone vat has its tank beside it and room to respawn", bad.is_empty(), ", ".join(bad))
 
 
 # --- The walk ---------------------------------------------------------------------------------------

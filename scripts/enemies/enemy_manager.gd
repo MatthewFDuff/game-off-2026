@@ -9,7 +9,8 @@ extends Node3D
 ## if it died, the death. Enemy attacks damage players on the player's own peer, like Lab._kill.
 ##
 ## The host also keeps the world's flow field pointed at every living player (a multi-target
-## field, so each enemy heads for its nearest player), and streams positions at STATE_RATE.
+## field, so each enemy heads for its nearest player; refreshed all through play, since the
+## director wakes spawners by it), and streams positions at STATE_RATE.
 ##
 ## Status effects (Enemy.apply_status) run on the host; each change of an enemy's active set goes
 ## to the peers (_statuses) so every peer tints it. Clouds (Cloud) are children here too ("C<id>"):
@@ -53,6 +54,8 @@ const KNOCKBACK := {rifle = 1.2, shotgun = 2.5, flame = 0.0, blast = 7.0, ricoch
 		poison = 0.5, melee = 6.0, flask = 0.5, enemy = 2.0, status = 0.0}
 ## Longest status (seconds) a peer can ask for.
 const MAX_STATUS := 30.0
+## Seconds a sunk enemy (sink) takes to go down into the floor.
+const SINK_TIME := 0.5
 
 @export var lab: Lab
 @export var world: VoxelWorld
@@ -67,6 +70,9 @@ var simulating := false
 var enemies := {}
 ## id -> Cloud
 var clouds := {}
+## Host: floor spans the flow field reached at its last refresh (0: the field is empty, e.g. no
+## living player stands on a floor).
+var flow_reached := 0
 
 var _next_id := 1
 var _next_cloud := 1
@@ -157,6 +163,17 @@ func despawn(id: int) -> void:
 		_removed.rpc_id(peer_id, id)
 
 
+## Host: removes an enemy everywhere without a death, sinking it into the floor over SINK_TIME (a
+## spawner turned off, see HordeDirector.set_spawner_active). No drops, no death sound, and it
+## can't be hit or attack on the way down.
+func sink(id: int) -> void:
+	if not multiplayer.is_server() or not enemies.has(id):
+		return
+	_sink(id)
+	for peer_id in _peers():
+		_sunk.rpc_id(peer_id, id)
+
+
 ## Host: kills an enemy everywhere: it pops into debris.
 func kill(id: int) -> void:
 	var enemy: Enemy = enemies.get(id)
@@ -184,6 +201,22 @@ func _create(id: int, kind: String, feet: Vector3, yaw: float, emerge := 0) -> E
 	enemies[id] = enemy
 	enemy.begin_emerge(emerge)
 	return enemy
+
+
+## Every peer: takes an enemy out of play now and lowers it out of sight, then frees it.
+func _sink(id: int) -> void:
+	var enemy: Enemy = enemies.get(id)
+	if enemy == null:
+		return
+	enemies.erase(id)
+	enemy.alive = false
+	enemy.remove_from_group(Enemy.GROUP)
+	enemy.set_physics_process(false)
+	enemy.set_process(false)
+	var depth := maxf(enemy.world_bounds().size.y, 0.5) + 0.1
+	var tween := enemy.create_tween()
+	tween.tween_property(enemy, "global_position", enemy.global_position - Vector3.UP * depth, SINK_TIME)
+	tween.tween_callback(enemy.queue_free)
 
 
 func _remove(id: int) -> void:
@@ -228,6 +261,11 @@ func _spawned(id: int, kind: String, feet: Vector3, yaw: float, emerge: int) -> 
 @rpc("authority", "reliable")
 func _removed(id: int) -> void:
 	_remove(id)
+
+
+@rpc("authority", "reliable")
+func _sunk(id: int) -> void:
+	_sink(id)
 
 
 @rpc("authority", "reliable")
@@ -558,14 +596,17 @@ func refresh_flow() -> void:
 	for player in targets():
 		points.append(player.global_position)
 	world.update_flow_field(points, FLOW_RANGE)
+	flow_reached = int(world.get_stats().get("flow_reached", 0)) if not points.is_empty() else 0
 
 
 func _physics_process(delta: float) -> void:
-	if not simulating or enemies.is_empty():
+	if not simulating:
 		return
 	_flow_timer -= delta
 	if _flow_timer <= 0.0:
 		refresh_flow()
+	if enemies.is_empty():
+		return
 	_state_timer -= delta
 	var peers := _peers()
 	if _state_timer > 0.0 or peers.is_empty():

@@ -4,17 +4,31 @@ class_name Lines
 ## and the payroll ending. Placeholder text from docs/story.md.
 
 ## Intercom lines by trigger id / event. The Intercom plays each once, except REPEATABLE ones.
+## The seals (t_g_seal, t_m1_stair_seal, t_m2_airlock, t_m3_cage_foot) are keyed by their trigger
+## ids. `hint_<door id>` is a keycard door's own refusal line, played on its first refusal instead
+## of gate_locked (the same hint is on a note beside each door). say_training_nudge isn't a
+## trigger: the Intercom plays it about 30 s after say_training unless the experiment has started.
 const INTERCOM := {
 	say_yard = "Welcome to Fung AI Site 3. You are the night shift. Please sign in at the desk.",
 	say_signin = "Thank you. Your supervisor tonight is the model. Follow its instructions on any screen. Please proceed to Level 0.",
 	say_lobby = "This is Administration. The grow rooms are off limits to expendable staff, except tonight.",
 	say_break_room = "The coffee machine is Fung AI property. Coffee is $4.",
-	say_training = "This is your station. The model will walk you through the experiment. Have a productive shift.",
+	say_training = "Your station is the terminal by the specimen. Press E to begin.",
+	say_training_nudge = "Reminder: your station is the terminal by the specimen. Press E to begin. Idle time is unpaid.",
+	say_flashlight = "Emergency lighting is minimal. Flashlights (T) are company property.",
 	t_0_outbreak = "Facility power has failed. Backup power is running the intercom and emergency lighting. The exit is locked. Please restore facility power at the generator, Level -4. Fung AI thanks you for your flexibility.",
+	t_g_seal = "Blast door closed behind you. Please proceed to Level 0.",
+	t_m1_stair_seal = "Fire door sealed behind you. Thank you for not going back.",
+	t_m2_airlock = "Decontamination seal engaged. Level -2 is now behind you. Thank you for not going back.",
+	t_m3_cage_foot = "Cage door sealed above you. Containment thanks you for not going back.",
 	say_clone_bay = "A clone vat. Should you die, a replacement will be grown at this location and billed to you.",
 	say_gate_m2 = "Decontamination ahead. Red clearance required beyond this point.",
 	say_gate_m3 = "The cage lift is black clearance only. The dig is not a staff area.",
 	gate_locked = "Clearance required.",
+	hint_d_0_lift = "Blue clearance is issued from the Security office, beside the lift lobby.",
+	hint_d_m1_stair = "Green clearance is held by the Mycology office, off grow hall 2.",
+	hint_d_m2_airlock_out = "Red clearance is kept in the Ops room, at the east end of the server hall.",
+	hint_d_m3_cage = "Black clearance is kept in the chamber 3 control booth.",
 	gate_open = "Clearance accepted. Thank you.",
 	t_m4_generator = "Generator start detected. Please hold.",
 	finale_survived = "Facility power restored. The freight elevator is available. Please proceed to the surface for debrief.",

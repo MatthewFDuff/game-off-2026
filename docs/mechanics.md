@@ -9,6 +9,18 @@ tone and art references, not mechanics.
 
 ## Status (2026-11-03)
 
+- 2026-11-03, spawner scope and the last sight gaps (review P1-4, P1-6, report 2;
+  `combat_los_test`, `finale_test`): a spawner trickles only while the flow field reaches it
+  within `wake_range` (40 m) of walking from a living player (straight line only when the field
+  is empty), so floors above and below through a slab stay quiet. The flow field now refreshes
+  all through play, not only while enemies live. Turning a spawner off (`off=`) sinks its living
+  enemies into the floor over 0.5 s (`EnemyManager.sink`, new `_sunk(id)` RPC: no death, no
+  drops, no `on_dead`). The finale only takes the spawners within 2 x `wake_range` of walking
+  when it starts, plus any `s_m4_gen_*`; only those turn on, ignore the wake range and get the
+  rate and cap multipliers; the rest stay as they were. Player explosive and flask blast damage
+  (`Weapon.splash`), player melee (from the camera), fireball damage and cloud combustion
+  (`Fire.near_fire(..., sighted)`, `Combat.can_see_box`) all need line of sight now; carving is
+  unchanged.
 - 2026-11-03, combat fairness (`combat_los_test`): `Combat.can_see` (voxel raycast, glass clear)
   gates every effect on a player: clouds (only in sight of the center, feet within a 2.5 m
   vertical extent, so never through a floor), spore releases, ceiling-cloud drops, giant swings,

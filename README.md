@@ -290,6 +290,7 @@ godot --headless --path . --script res://tests/lab_hooks_test.gd     # trigger a
 godot --headless --path . --script res://tests/laboratory_test.gd    # builds the laboratory into a scratch folder and walks it: doors, props, keys before gates, every vat and pickup (slow, ~5 min)
 godot --headless --path . --script res://tests/laboratory_play_test.gd # plays the laboratory: outbreak, keycards, checkpoint vat, generator finale, elevator
 godot --headless --path . --script res://tests/story_test.gd         # the lab-side story: intercom subtitles, the training experiment on SHIFT, unarmed start, gates, the payroll ending
+godot --headless --path . --script res://tests/ui_test.gd             # play HUD layout: prompt centered, reader on screen, subtitle off the reader, delayed lines, ending covers the HUD
 godot --headless --path . --script res://tests/intro_test.gd          # the cubicle intro: SHIFT pacing, the email, decline and death, go back, accept, skip
 godot --headless --path . --script res://tests/waiting_room_test.gd   # the waiting room: sign-in count, admittance door, the session's level change to the laboratory
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload

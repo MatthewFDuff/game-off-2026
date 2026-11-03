@@ -19,6 +19,7 @@ near = 0.03
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, -0.15, 0)
 light_color = Color(1, 0.95, 0.85, 1)
 light_energy = 5.0
+light_cull_mask = 4294443007
 shadow_enabled = false
 spot_range = 30.0
 spot_angle = 30.0
@@ -38,3 +39,5 @@ script = ExtResource("3_inventory")
 
 [node name="Weapon" type="Node" parent="."]
 script = ExtResource("2_weapon")
+view_offset = Vector3(0.19, -0.165, -0.44)
+view_voxel = 0.012

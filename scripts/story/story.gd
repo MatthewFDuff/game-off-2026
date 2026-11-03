@@ -3,8 +3,9 @@ extends Node
 ## The story glue in play: LabHud adds it. It owns the Intercom (subtitles), the Experiment's
 ## effects and the Ending, and wires them to the level: trigger ids play intercom lines
 ## (Lines.INTERCOM), keycard doors say "clearance required / accepted", the first pickup of the
-## spore shooter shows the controls sheet, the host counts deaths for the payroll, the `ending`
-## trigger rolls the statement, and the yard rains. Levels without these triggers get nothing.
+## spore shooter (LevelPlay arms the whole party and fires `armed`) shows everyone the controls
+## sheet, the host counts deaths for the payroll, the `ending` trigger rolls the statement, and the
+## yard rains. Levels without these triggers get nothing.
 
 ## How long the controls sheet shows when the gun is first picked up.
 const CONTROLS_SECONDS := 6.0
@@ -17,8 +18,6 @@ var experiment: Experiment
 var ending: Ending
 ## Host: respawns the night took (players seen going from alive to dead).
 var deaths := 0
-## Host: the "armed" trigger (the first spore shooter pickup) fired this play.
-var _armed_fired := false
 var _was_dead := {}
 var _rain: GPUParticles3D
 var _raining := false
@@ -46,16 +45,12 @@ func _ready() -> void:
 	play.door_refused.connect(func(_id: String, _peer: int) -> void: intercom.say("gate_locked"))
 	play.door_passed.connect(func(_id: String, _peer: int) -> void: intercom.say("gate_open"))
 	if lab.items:
-		lab.items.picked.connect(func(item: String, peer: int) -> void:
-			if item == "spore_shooter" and multiplayer.is_server() and not _armed_fired:
-				_armed_fired = true
-				lab.play.triggered.emit("armed", peer))
 		lab.items.local_picked.connect(_on_local_picked)
+	play.party_armed.connect(func() -> void: _on_local_picked("spore_shooter"))
 	lab.player_spawned.connect(_on_player_spawned)
 	lab.mode_changed.connect(func(_mode: String) -> void:
 		_was_dead.clear()
-		deaths = 0
-		_armed_fired = false)
+		deaths = 0)
 
 
 ## Host: a trigger id fired; the intercom has a line for it, or it's the ending.
@@ -76,10 +71,11 @@ func _on_local_picked(item: String) -> void:
 			node.show_for(CONTROLS_SECONDS)
 
 
-## Late joiners and respawns: the local player starts armed or not as the level says.
+## Late joiners and respawns: the local player is armed if the level doesn't start unarmed or the
+## party has the spore shooter (LevelPlay.armed, which the host replicates and sends late joiners).
 func _on_player_spawned(player: Player) -> void:
 	if player.is_local and lab.mode == "play":
-		player.set_armed(not bool(lab.level.settings.get("start_unarmed", false)))
+		player.set_armed(lab.play.is_armed_here())
 
 
 func _process(_delta: float) -> void:
@@ -140,10 +136,10 @@ func _make_rain() -> GPUParticles3D:
 	material.initial_velocity_max = 9.0
 	material.gravity = Vector3(0.0, -3.0, 0.0)
 	rain.process_material = material
-	# Drops are voxel streaks (VoxelFx: one 0.05 m cube wide, snapped to the effect grid), thinned
-	# by dither rather than blended.
+	# Drops are voxel streaks (VoxelFx: one 0.05 m cube wide, snapped to the effect grid), faint by
+	# true alpha blending (no dither).
 	var mesh := BoxMesh.new()
 	mesh.size = Vector3(0.05, 0.3, 0.05)
-	mesh.material = VoxelFx.material(0.05, true, Color(0.7, 0.8, 0.9, 0.45))
+	mesh.material = VoxelFx.alpha_material(0.05, true, Color(0.7, 0.8, 0.9, 0.45))
 	rain.draw_pass_1 = mesh
 	return rain

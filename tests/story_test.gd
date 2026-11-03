@@ -97,7 +97,12 @@ func _run() -> void:
 	intercom._queue.clear()
 	play._use("d_0_lift", _lab.multiplayer.get_unique_id())
 	await _frames(2)
-	_check("a locked gate says clearance required", "gate_locked" in intercom._queue or intercom.showing == "gate_locked", str(intercom._queue))
+	# A door with a hint line plays the hint on its first refusal; otherwise the generic line.
+	var said_gate := false
+	for id in ["gate_locked", "hint_d_0_lift"]:
+		if id in intercom._queue or intercom.showing == id:
+			said_gate = true
+	_check("a locked gate says clearance required (or its hint)", said_gate, str(intercom._queue))
 	play.add_keycard("blue")
 	play._use("d_0_lift", _lab.multiplayer.get_unique_id())
 	await _frames(2)

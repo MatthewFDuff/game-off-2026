@@ -393,13 +393,20 @@ func in_fire(feet: Vector3) -> bool:
 	return false
 
 
-## Every peer: whether any fire is within radius (meters) of a point.
-func near_fire(at: Vector3, radius: float) -> bool:
+## Every peer: whether any fire is within radius (meters) of a point. sighted: only fire the point
+## can see (Combat.can_see_box to the burning cell), so not a fire on the floor below.
+func near_fire(at: Vector3, radius: float, sighted := false) -> bool:
 	var reach := radius + CELL * world.voxel_size
 	for cell: Vector3i in cells:
-		if cell_center(cell).distance_to(at) <= reach:
+		if cell_center(cell).distance_to(at) <= reach and (not sighted or Combat.can_see_box(world, at, cell_box(cell))):
 			return true
 	return false
+
+
+## World-space box of a coarse cell.
+func cell_box(cell: Vector3i) -> AABB:
+	var size := CELL * world.voxel_size
+	return AABB(cell_center(cell) - Vector3.ONE * size * 0.5, Vector3.ONE * size)
 
 
 ## World position of a coarse cell's middle.
@@ -407,7 +414,8 @@ func cell_center(cell: Vector3i) -> Vector3:
 	return world.voxel_to_world(cell * CELL) + Vector3.ONE * (CELL - 1) * 0.5 * world.voxel_size
 
 
-## Host: spore and poison clouds touching fire (or a fire cloud) go up in a fireball.
+## Host: spore and poison clouds touching fire (or a fire cloud) they can see from their middle go
+## up in a fireball, so a fire on the floor below (through the slab) doesn't light one.
 func _combust_clouds() -> void:
 	var fire_clouds: Array[Cloud] = []
 	for cloud: Cloud in enemies.clouds.values():
@@ -416,23 +424,29 @@ func _combust_clouds() -> void:
 	for cloud: Cloud in enemies.clouds.values():
 		if not cloud.type in COMBUSTIBLE or cloud.is_queued_for_deletion():
 			continue
-		var lit := near_fire(cloud.global_position, cloud.radius)
+		var at := cloud.global_position
+		var lit := near_fire(at, cloud.radius, true)
 		for flame in fire_clouds:
-			lit = lit or flame.global_position.distance_to(cloud.global_position) < flame.radius + cloud.radius
+			lit = lit or (flame.global_position.distance_to(at) < flame.radius + cloud.radius
+					and Combat.can_see(world, at, flame.global_position))
 		if lit:
 			_fireball(cloud)
 
 
+## Host: a cloud goes up. Enemies and players within its radius that its middle can see
+## (Combat.can_see to an enemy's middle, a player's chest) take the blast; what it sets alight is
+## left to _ignite.
 func _fireball(cloud: Cloud) -> void:
 	var at := cloud.global_position
 	var radius := cloud.radius
 	enemies.end_cloud(cloud.id)
 	enemies.request_cloud("fire", at, radius * 0.8, 3.0)
 	for victim in Combat.sphere_hit(at, radius):
-		enemies.damage(victim.id, FIREBALL_DAMAGE, at, "blast")
+		if Combat.can_see(world, at, victim.get_center()):
+			enemies.damage(victim.id, FIREBALL_DAMAGE, at, "blast")
 	for player in enemies.targets():
 		var box := player.get_body_aabb()
-		if at.clamp(box.position, box.end).distance_to(at) <= radius:
+		if at.clamp(box.position, box.end).distance_to(at) <= radius and Combat.sees_player(world, at, player):
 			enemies.damage_player(player, FIREBALL_PLAYER_DAMAGE, at)
 	_ignite(at, radius, MAX_IGNITE, true)
 	_whoosh(at, radius)
@@ -459,14 +473,15 @@ func _whoosh(at: Vector3, radius: float) -> void:
 
 func _build_fx() -> void:
 	# Voxel flames: 0.1 m cubes (one terrain voxel) rising in grid steps, white-hot -> orange ->
-	# red -> a dithered wisp of smoke, shrinking out a step at a time.
-	var steps := [Color(1.0, 0.92, 0.5), Color(1.0, 0.6, 0.12), Color(0.85, 0.25, 0.06), Color(0.15, 0.12, 0.1, 0.5)]
+	# red -> opaque dark-grey smoke cubes that keep rising, shrinking out a step at a time.
+	var steps := [Color(1.0, 0.92, 0.5), Color(1.0, 0.6, 0.12), Color(0.85, 0.25, 0.06), Color(0.24, 0.23, 0.22),
+			Color(0.17, 0.16, 0.16)]
 	for i in FX_EMITTERS:
 		var flames := VoxelFx.particles(0.1, steps, 0.5)
 		flames.name = "Flames%d" % i
 		flames.top_level = true
-		flames.amount = 18
-		flames.lifetime = 0.9
+		flames.amount = 20
+		flames.lifetime = 1.2
 		flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 		flames.emission_box_extents = Vector3.ONE * CELL * 0.5 * world.voxel_size
 		flames.direction = Vector3.UP

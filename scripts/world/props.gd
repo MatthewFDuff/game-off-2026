@@ -358,6 +358,22 @@ func spore_tank(origin: Vector3i) -> void:
 	box(Vector3i(0, 9, 0), Vector3i(4, 10, 4), M.STEEL)
 
 
+## Clone vat (placeholder): a 0.8 x 2.4 m glass tank of green liquid on a steel base, a glowing
+## ring at the base and under the cap, and a pale clone floating inside.
+func clone_vat(origin: Vector3i) -> void:
+	_begin(origin, 8, 8, NORTH)
+	box(Vector3i(0, 0, 0), Vector3i(8, 3, 8), M.STEEL)
+	for y in [3, 21]:
+		box(Vector3i(0, y, 0), Vector3i(8, y + 1, 8), M.GLOW)
+	box(Vector3i(0, 4, 0), Vector3i(8, 21, 8), M.GLASS)
+	box(Vector3i(1, 3, 1), Vector3i(7, 19, 7), M.LIQUID_GREEN)
+	box(Vector3i(1, 19, 1), Vector3i(7, 22, 7), M.AIR)
+	box(Vector3i(3, 6, 3), Vector3i(5, 15, 5), M.PLASTIC)
+	box(Vector3i(3, 15, 3), Vector3i(5, 17, 5), M.CLOTH)
+	box(Vector3i(0, 22, 0), Vector3i(8, 24, 8), M.STEEL)
+	box(Vector3i(3, 22, 3), Vector3i(5, 24, 5), M.PIPE)
+
+
 func plank_stack(origin: Vector3i, facing: int, layers := 4) -> void:
 	_begin(origin, 12, 6, facing)
 	for i in layers:

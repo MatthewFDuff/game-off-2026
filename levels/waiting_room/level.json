@@ -77,7 +77,7 @@
 			"door": "d_staff",
 			"from": [156, 30, 90],
 			"kind": "opening",
-			"room": "reception",
+			"room": "reception_room",
 			"to": [161, 52, 102],
 			"type": "doorway"
 		},
@@ -85,7 +85,7 @@
 			"door": "d_admit",
 			"from": [89, 30, 51],
 			"kind": "opening",
-			"room": "reception",
+			"room": "reception_room",
 			"to": [113, 54, 56],
 			"type": "doorway"
 		},
@@ -734,11 +734,22 @@
 			"use": "terminal",
 			"value": 0
 		},
+		"reception_room": {
+			"ceiling": 3,
+			"floor": 12,
+			"from": [36, 30, 56],
+			"kind": "room",
+			"name": "Reception",
+			"order": 0,
+			"thickness": 5,
+			"to": [156, 65, 136],
+			"wall": 14
+		},
 		"slot_2": {
 			"door": "d_staff",
 			"from": [158, 30, 78],
 			"kind": "opening",
-			"room": "reception",
+			"room": "reception_room",
 			"to": [159, 52, 90],
 			"type": "slot"
 		},
@@ -746,7 +757,7 @@
 			"door": "d_admit",
 			"from": [65, 30, 53],
 			"kind": "opening",
-			"room": "reception",
+			"room": "reception_room",
 			"to": [89, 54, 54],
 			"type": "slot"
 		},
@@ -802,6 +813,7 @@
 		"room_thickness": 5,
 		"room_wall": 14,
 		"size_in_chunks": [6, 3, 6],
-		"start_power": "facility"
+		"start_power": "facility",
+		"start_unarmed": true
 	}
 }

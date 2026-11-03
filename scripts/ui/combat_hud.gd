@@ -6,20 +6,22 @@ extends Control
 ## with the type's name when it changes, a hit marker on the crosshair when one of this peer's
 ## shots lands on an enemy, a red screen flash when the player takes damage, and a vignette while
 ## a status is on the player (green poisoned, orange burning), and during the generator finale a
-## "GENERATOR m:ss" countdown at the top (pulsing in the last 10 s) with SURVIVE / SHIFT SURVIVED /
-## SHIFT FAILED banners. Hidden while editing. Added by
-## LabHud.
+## "SURVIVE m:ss" countdown at the top with "power restoring" under it (pulsing in the last 10 s)
+## and SURVIVE / SHIFT SURVIVED / SHIFT FAILED banners. Hidden while editing and while LabHud
+## suppresses it (the ending's statement). Added by LabHud.
 
 const BAR_SIZE := Vector2(220, 14)
 const HIT_MARKER_TIME := 0.12
 const DAMAGE_FLASH_TIME := 0.4
 const AMMO_TOAST_TIME := 1.5
-const BANNER_TIME := 3.0
+const BANNER_TIME := 6.0
 const FINALE_COLOR := Color(1.0, 0.35, 0.2)
 ## Player status -> vignette color, strongest first.
 const STATUS_VIGNETTES := {burning = Color(1.0, 0.45, 0.1), poisoned = Color(0.35, 0.95, 0.25)}
 
 var lab: Lab
+## Set by LabHud while the ending's statement shows: the whole combat HUD hides.
+var suppressed := false
 
 var _flash := ColorRect.new()
 var _flash_material := VoxelFx.overlay(0.35, 4.0, 3.0)
@@ -45,6 +47,7 @@ var _vignette := ColorRect.new()
 var _vignette_material := VoxelFx.overlay(0.5, 6.0, 4.0)
 var _blind_material := VoxelFx.overlay(-1.0, 3.0, 4.0)
 var _finale_label := Label.new()
+var _finale_note := Label.new()
 var _banner := Label.new()
 var _banner_time := 0.0
 
@@ -103,7 +106,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var me := lab.local_player()
-	visible = me != null and lab.mode == "play" and not me.editing
+	visible = me != null and lab.mode == "play" and not me.editing and not suppressed
 	if not visible:
 		return
 	# Damage is any drop in health (regen only ever raises it).
@@ -249,6 +252,14 @@ func _build_finale() -> void:
 	_finale_label.position.y = 14
 	_finale_label.visible = false
 	add_child(_finale_label)
+	_finale_note.text = "power restoring"
+	_finale_note.label_settings = LabHud._settings(16, FINALE_COLOR, 3)
+	_finale_note.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_finale_note.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_finale_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_finale_note.position.y = 52
+	_finale_note.visible = false
+	add_child(_finale_note)
 	_banner.label_settings = LabHud._settings(54, FINALE_COLOR, 6)
 	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -270,13 +281,15 @@ func _on_finale_event(kind: String) -> void:
 func _update_finale(delta: float) -> void:
 	var director := lab.director
 	_finale_label.visible = director != null and director.finale_active
+	_finale_note.visible = _finale_label.visible
 	if _finale_label.visible:
 		var left := ceili(director.finale_left)
-		_finale_label.text = "GENERATOR %d:%02d" % [left / 60, left % 60]
+		_finale_label.text = "SURVIVE %d:%02d" % [left / 60, left % 60]
 		var pulse := 1.0
 		if director.finale_left <= 10.0:
 			pulse = 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.012)
 		_finale_label.modulate.a = pulse
+		_finale_note.modulate.a = pulse
 	_banner_time = maxf(0.0, _banner_time - delta)
 	_banner.visible = _banner_time > 0.0
 	_banner.modulate.a = clampf(_banner_time / 0.6, 0.0, 1.0)

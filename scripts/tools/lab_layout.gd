@@ -34,6 +34,9 @@ const Y := {dig = 30, m3 = 130, m2 = 170, m1 = 210, f0 = 250, g = 290}
 const DOOR_SIZES := {door_single = [12, 22], door_double = [24, 22], door_security = [12, 22], door_blast = [24, 24],
 		vent_hatch = [12, 12]}
 const SIDES := ["n", "e", "s", "w"]
+## The clone_vat tank prop's footprint (voxels, square) and its gap from the vat marker.
+const VAT_SIZE := 8
+const VAT_GAP := 6
 
 var rooms := {}
 var doors := []
@@ -45,7 +48,10 @@ var spheres := []
 var ladders := []
 ## Boxes (AABB, voxels) no prop may stand in besides the doorways: stairs, ladder runs, the lift hatch.
 var keep_clear: Array[AABB] = []
+## Spawner ids by floor key (Y's keys), in the order they were made, for the seals' off= lists.
+var spawners_by_floor := {}
 var _order := 0
+var _floor_key := ""
 var _mats := {floor = M.CONCRETE, wall = M.WALL_PAINT, ceiling = M.CONCRETE}
 var _rng := RandomNumberGenerator.new()
 
@@ -162,6 +168,9 @@ func trigger(id: String, room_id: String, actions := "", o := {}) -> void:
 
 
 func spawner(id: String, room_id: String, fx: float, fz: float, kinds: String, rate: float, max_alive: int, active := true, o := {}) -> void:
+	if not spawners_by_floor.has(_floor_key):
+		spawners_by_floor[_floor_key] = []
+	spawners_by_floor[_floor_key].append(id)
 	var fields := {id = id, kinds = kinds, rate = rate, max_alive = max_alive, active = active,
 			radius = o.get("radius", 1.5), on_ceiling = o.get("on_ceiling", false), on_dead = o.get("on_dead", "")}
 	if o.has("up"):
@@ -173,9 +182,28 @@ func item(room_id: String, fx: float, fz: float, item_name: String, up := 0) -> 
 	marker("item", room_id, fx, fz, {item = item_name, up = up} if up > 0 else {item = item_name})
 
 
+## A clone vat: the checkpoint marker (players respawn on it), a speaker over it, and the
+## clone_vat tank prop (id + "_tank") standing beside it, east of the marker or west when the east
+## wall is too close, so nobody respawns inside the glass.
 func vat(id: String, room_id: String, fx: float, fz: float, yaw := 0.0) -> void:
 	marker("clone_vat", room_id, fx, fz, {id = id}, yaw)
 	marker("speaker", room_id, fx, fz, {}, 0.0, 25)
+	var r: Dictionary = rooms[room_id]
+	var extent: Vector3i = r.to - r.from
+	var mx := roundi(fx * extent.x)
+	var mz := roundi(fz * extent.z)
+	var tx := mx + VAT_GAP if mx + VAT_GAP + VAT_SIZE <= extent.x else mx - VAT_GAP - VAT_SIZE
+	var tz := clampi(mz - VAT_SIZE / 2, 0, extent.z - VAT_SIZE)
+	prop(room_id, "clone_vat", float(tx) / (extent.x - VAT_SIZE), float(tz) / (extent.z - VAT_SIZE), P.NORTH, {id = id + "_tank"})
+
+
+## "off=a,off=b,..." for every spawner made so far on the given floors (Y's keys).
+func off_floors(floors: Array) -> String:
+	var parts: Array[String] = []
+	for key: String in floors:
+		for id: String in spawners_by_floor.get(key, []):
+			parts.append("off=" + id)
+	return ",".join(parts)
 
 
 func speaker(room_id: String, fx: float, fz: float) -> void:
@@ -229,13 +257,16 @@ func _mats_for(floor: int, wall: int, ceiling := M.CONCRETE) -> void:
 # --- Floor G: Gatehouse (surface) ---------------------------------------------------------------
 
 func _floor_g() -> void:
+	_floor_key = "g"
 	_mats_for(M.CONCRETE, M.CONCRETE_PANEL)
 	var y: int = Y.g
 	room("yard", "Loading yard", y, 3, 0, 4, 1, {h = 94, wall = M.ROCK, ceiling = M.ROCK, route = true, lights = 4, lamp_up = 40, lamp_energy = 12.0, lamp_range = 30.0})
 	room("gatehouse", "Gatehouse", y, 5, 0, 5, 1, {route = true, lights = 2})
 	stair("stair_g0", "Stairs to Admin", 6, 0, 1, Y.f0, y)
 	open("yard", "gatehouse", "doorway", {w = 30, h = 30})
-	door("gatehouse", "stair_g0", "door_blast", {id = "d_g_blast", power = true, center = rooms.stair_g0.top_center, y = y})
+	# Locked until someone signs in at the gatehouse terminal (say_signin), and powered: once the
+	# outbreak puts the power on backup it won't open again ("No power").
+	door("gatehouse", "stair_g0", "door_blast", {id = "d_g_blast", power = true, locked = true, center = rooms.stair_g0.top_center, y = y})
 	# Spawns in the yard, facing the gatehouse.
 	for i in 4:
 		marker("spawn", "yard", 0.3 + 0.12 * i, 0.3, {index = i + 1}, -90.0)
@@ -246,16 +277,19 @@ func _floor_g() -> void:
 	prop("yard", "barrel_hazard", 0.95, 0.18)
 	prop("yard", "sandbags", 0.5, 0.92)
 	prop("yard", "plank_stack", 0.8, 0.9)
-	prop("gatehouse", "desk", 0.5, 0.2, P.SOUTH)
+	prop("gatehouse", "desk_empty", 0.5, 0.2, P.SOUTH, {id = "desk_gatehouse"})
 	prop("gatehouse", "chair", 0.5, 0.05, P.SOUTH)
-	prop("gatehouse", "terminal", 0.88, 0.2, P.SOUTH, {text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
+	prop("gatehouse", "terminal", 0.5, 0.5, P.SOUTH, {on = "desk_gatehouse", text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
 	prop("gatehouse", "locker", 0.9, 0.3, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.42, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.54, P.WEST)
 	prop("gatehouse", "trash_can", 0.1, 0.9)
 	wall_prop("gatehouse", "corkboard_a", "s", 0.5, 14, {use = "note", text = "SITE 3 VISITORS: all property damage is recovered from wages. Clones are property."})
 	speaker("gatehouse", 0.5, 0.5)
-	trigger("t_g_seal", "stair_g0", "close=d_g_blast,lock=d_g_blast", {who = "all", fz = 0.8, d = 40})
+	# Signing in (the terminal's on_use) unlocks the blast door; the intercom says say_signin too.
+	trigger("say_signin", "gatehouse", "unlock=d_g_blast", {nowhere = true, fx = 0.2, fz = 0.8})
+	# The seal only closes the door: on backup power it refuses "No power" (Lines.INTERCOM.t_g_seal).
+	trigger("t_g_seal", "stair_g0", "close=d_g_blast", {who = "all", fz = 0.8, d = 40})
 	# The intercom\'s tour (Lines.INTERCOM, keyed by these ids).
 	trigger("say_yard", "yard", "", {fx = 0.5, fz = 0.5, w = 80, d = 80})
 
@@ -263,6 +297,7 @@ func _floor_g() -> void:
 # --- Floor 0: Admin --------------------------------------------------------------------------------
 
 func _floor_0() -> void:
+	_floor_key = "f0"
 	_mats_for(M.TILE_LIGHT, M.WALL_PAINT)
 	var y: int = Y.f0
 	room("stair_lobby_0", "Admin stair lobby", y, 5, 1, 5, 1, {route = true})
@@ -324,7 +359,7 @@ func _floor_0() -> void:
 	item("security", 0.5, 0.35, "keycard_blue")
 	prop("lift_lobby", "crate_6", 0.9, 0.9)
 	prop("lift_lobby", "crate_5", 0.8, 0.9)
-	wall_prop("lift_lobby", "corkboard_small", "n", 0.5, 14, {use = "note", text = "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry)."})
+	wall_prop("lift_lobby", "corkboard_small", "n", 0.5, 14, {use = "note", text = "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).\n\nBlue cards are kept in the Security office, through the north door."})
 	for i in 4:
 		prop("open_office", "desk", 0.1 + 0.25 * i, 0.2, P.SOUTH)
 		prop("open_office", "chair", 0.1 + 0.25 * i, 0.08, P.SOUTH)
@@ -346,6 +381,8 @@ func _floor_0() -> void:
 	prop("break_room", "chair", 0.67, 0.75, P.NORTH)
 	prop("break_room", "trash_can", 0.95, 0.95)
 	prop("break_room", "water_cooler", 0.95, 0.1, P.WEST)
+	# Floor 0's checkpoint: on the way from the lobby to the training room, so it's set before the outbreak.
+	vat("vat_0", "break_room", 0.3, 0.5, 0.0)
 	prop("bathrooms", "counter_sink", 0.05, 0.1, P.SOUTH)
 	prop("bathrooms", "trash_can", 0.3, 0.05)
 	prop("bathrooms", "locker", 0.9, 0.2, P.WEST)
@@ -384,7 +421,8 @@ func _floor_0() -> void:
 
 	# Spawners and triggers.
 	spawner("s_0_grow_1", "grow_0", 0.35, 0.5, "basic", 12.0, 3, false, {radius = 2.0})
-	spawner("s_0_lobby_vent_1", "lobby", 0.85, 0.08, "basic", 4.0, 2, false)
+	# Under the lobby's vent grate (north wall, 0.85 along): they come out of the vent.
+	spawner("s_0_lobby_vent_1", "lobby", 0.82, 0.03, "basic", 4.0, 2, false)
 	spawner("s_0_office_1", "open_office", 0.9, 0.9, "basic", 6.0, 2, false)
 	trigger("t_0_outbreak", "training", "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
 	# The grow beds wake once the player has the spore shooter (Story fires "armed" on the pickup).
@@ -394,6 +432,8 @@ func _floor_0() -> void:
 	trigger("say_lobby", "lobby", "")
 	trigger("say_break_room", "break_room", "")
 	trigger("say_training", "training", "")
+	# Grow room 0 opens at the outbreak: the first room after it, so the flashlight line plays there.
+	trigger("say_flashlight", "grow_0", "")
 	speaker("lobby", 0.5, 0.5)
 	speaker("training", 0.5, 0.5)
 
@@ -401,6 +441,7 @@ func _floor_0() -> void:
 # --- Floor -1: Cultivation -----------------------------------------------------------------------
 
 func _floor_m1() -> void:
+	_floor_key = "m1"
 	_mats_for(M.TILE_DARK, M.WALL_PAINT)
 	var y: int = Y.m1
 	room("dock", "Lift dock", y, 1, 3, 1, 4, {route = true, lights = 2})
@@ -440,6 +481,7 @@ func _floor_m1() -> void:
 	prop("dock", "crate_6", 0.9, 0.25)
 	prop("dock", "crate_5", 0.78, 0.1)
 	prop("dock", "barrel", 0.1, 0.9)
+	vat("vat_m1_dock", "dock", 0.5, 0.6, 0.0)
 	wall_prop("dock", "corkboard_small", "e", 0.5, 14, {use = "note", text = "LEVEL -1: CULTIVATION\nGrow halls, wet lab, incubation. Masks on. Do not taste the substrate."})
 	prop("secret_1a", "shelf_storage_a", 0.5, 0.05, P.SOUTH)
 	prop("secret_1a", "barrel", 0.1, 0.9)
@@ -506,19 +548,21 @@ func _floor_m1() -> void:
 	prop("clone_bay_m1", "ammo_bench", 0.05, 0.1, P.SOUTH, {charges = 2})
 	wall_prop("clone_bay_m1", "medkit_station", "n", 0.7, 0, {charges = 3})
 	vat("vat_m1", "clone_bay_m1", 0.5, 0.75, 0.0)
+	wall_prop("clone_bay_m1", "corkboard_small", "n", 0.3, 14, {use = "note", text = "SERVICE STAIRS: green clearance.\n\nGreen cards: the Mycology office, the far door of grow hall 2."})
 	prop("clone_bay_m1", "spore_tank", 0.85, 0.85)
 
 	spawner("s_m1_store_1", "burrow_m1", 0.5, 0.5, "basic", 8.0, 3, false, {radius = 1.0})
 	spawner("s_m1_hall1_1", "grow_hall_1", 0.5, 0.08, "basic", 4.0, 2, false, {radius = 2.0})
-	spawner("s_m1_hall1_2", "grow_hall_1", 0.85, 0.5, "fast", 5.0, 3, false, {radius = 2.0})
+	spawner("s_m1_hall1_2", "grow_hall_1", 0.85, 0.04, "fast", 5.0, 3, false, {radius = 2.0})
 	spawner("s_m1_incub_1", "incubation", 0.5, 0.5, "spore", 3.0, 3, false, {radius = 3.0})
-	spawner("s_m1_hall2_1", "grow_hall_2", 0.3, 0.5, "basic,fast", 10.0, 4, false, {radius = 3.0})
+	spawner("s_m1_hall2_1", "grow_hall_2", 0.08, 0.95, "basic,fast", 10.0, 4, false, {radius = 3.0})
 	spawner("s_m1_hall2_2", "grow_hall_2", 0.9, 0.8, "basic", 10.0, 4, false, {radius = 1.5})
-	spawner("s_m1_clean_1", "clean_room", 0.6, 0.8, "fast", 6.0, 2, false)
+	spawner("s_m1_clean_1", "clean_room", 0.95, 0.05, "fast", 6.0, 2, false)
 	trigger("t_m1_store_enter", "substrate_store", "on=s_m1_store_1")
 	trigger("t_m1_catwalk", "grow_hall_1", "on=s_m1_hall1_2", {fx = 0.85, fz = 0.5, w = 30, d = 100})
 	trigger("t_m1_hall2", "grow_hall_2", "on=s_m1_hall2_1,on=s_m1_hall2_2,on=s_m1_clean_1", {fx = 0.5, fz = 0.5, w = 70, d = 70})
-	trigger("t_m1_stair_seal", "stair_m1_m2", "close=d_m1_stair,lock=d_m1_stair", {who = "all", fz = 0.85, d = 40})
+	# The stair seal: floors 0 and -1 go quiet behind the party.
+	trigger("t_m1_stair_seal", "stair_m1_m2", "close=d_m1_stair,lock=d_m1_stair," + off_floors(["f0", "m1"]), {who = "all", fz = 0.85, d = 40})
 	trigger("say_clone_bay", "clone_bay_m1", "")
 	speaker("grow_hall_1", 0.5, 0.5)
 	speaker("grow_hall_2", 0.5, 0.5)
@@ -527,6 +571,7 @@ func _floor_m1() -> void:
 # --- Floor -2: Compute -----------------------------------------------------------------------------
 
 func _floor_m2() -> void:
+	_floor_key = "m2"
 	_mats_for(M.CONCRETE, M.METAL)
 	var y: int = Y.m2
 	room("stair_lobby_m2", "Compute stair lobby", y, 1, 1, 1, 1, {route = true})
@@ -561,6 +606,7 @@ func _floor_m2() -> void:
 
 	wall_prop("stair_lobby_m2", "corkboard_a", "s", 0.5, 14, {use = "note", text = "LEVEL -2: COMPUTE\nRack map: rows 1-11 silicon. Rows 12-40 HYBRID (Substrate Array B). Do not water the racks."})
 	prop("stair_lobby_m2", "bench", 0.5, 0.95, P.NORTH)
+	vat("vat_m2_lobby", "stair_lobby_m2", 0.4, 0.4, 0.0)
 	prop("network_closet", "cabinet", 0.5, 0.05, P.SOUTH, {contents = "ammo_ricochet"})
 	wall_prop("network_closet", "vent_grate", "e", 0.5, 20)
 	for row in 4:
@@ -616,7 +662,8 @@ func _floor_m2() -> void:
 	wall_prop("bullpen", "whiteboard", "n", 0.5, 14, {use = "note", text = "ON CALL: nobody. Fung says the model will handle it."})
 	wall_prop("bullpen", "medkit_station", "e", 0.5, 0, {charges = 3})
 	wall_prop("bullpen", "vent_grate", "s", 0.9, 22)
-	vat("vat_m2", "bullpen", 0.85, 0.6, 180.0)
+	vat("vat_m2", "bullpen", 0.75, 0.6, 180.0)
+	wall_prop("bullpen", "corkboard_small", "s", 0.6, 14, {use = "note", text = "DECON AIRLOCK: red clearance.\n\nRed cards: the Ops room, off the east end of the server hall."})
 	prop("break_room_2", "fridge", 0.1, 0.1, P.SOUTH, {contents = "medkit"})
 	prop("break_room_2", "vending_machine", 0.3, 0.1, P.SOUTH)
 	prop("break_room_2", "table_small", 0.6, 0.6, P.NORTH)
@@ -626,8 +673,9 @@ func _floor_m2() -> void:
 
 	spawner("s_m2_hall_1", "server_hall", 0.75, 0.9, "ranged", 4.0, 1, false)
 	spawner("s_m2_hall_2", "server_hall", 0.95, 0.9, "ranged", 4.0, 1, false)
-	spawner("s_m2_hall_3", "server_hall", 0.15, 0.08, "basic", 6.0, 3, false)
-	spawner("s_m2_cool_1", "cooling_plant", 0.5, 0.1, "exploding", 5.0, 2, false, {radius = 2.0})
+	spawner("s_m2_hall_3", "server_hall", 0.7, 0.04, "basic", 6.0, 3, false)
+	# By the west vent grate, the far end from the server hall door.
+	spawner("s_m2_cool_1", "cooling_plant", 0.06, 0.55, "exploding", 5.0, 2, false, {radius = 2.0})
 	spawner("s_m2_cool_2", "cooling_plant", 0.5, 0.5, "ceiling_cloud", 2.0, 1, false, {on_ceiling = true})
 	spawner("s_m2_cool_3", "cooling_plant", 0.5, 0.9, "basic", 6.0, 3, false, {radius = 2.0})
 	spawner("s_m2_arch_1", "archive", 0.5, 0.5, "alarm", 1.0, 2, false, {radius = 3.0})
@@ -637,7 +685,7 @@ func _floor_m2() -> void:
 	trigger("t_m2_hall", "server_hall", "on=s_m2_hall_1,on=s_m2_hall_2,on=s_m2_hall_3", {fx = 0.2, fz = 0.5, w = 60, d = 120})
 	trigger("t_m2_cool", "cooling_plant", "on=s_m2_cool_1,on=s_m2_cool_2,on=s_m2_cool_3")
 	trigger("t_m2_inference", "inference_lab", "on=s_m2_arch_1,on=s_m2_arch_2")
-	trigger("t_m2_airlock", "airlock", "close=d_m2_airlock_out,lock=d_m2_airlock_out,unlock=d_m2_airlock_in,open=d_m2_airlock_in", {who = "all"})
+	trigger("t_m2_airlock", "airlock", "close=d_m2_airlock_out,lock=d_m2_airlock_out,unlock=d_m2_airlock_in,open=d_m2_airlock_in," + off_floors(["m2"]), {who = "all"})
 	trigger("say_gate_m2", "bullpen", "", {fx = 0.85, fz = 0.5, w = 40, d = 60})
 	speaker("server_hall", 0.5, 0.5)
 	speaker("airlock", 0.5, 0.5)
@@ -646,6 +694,7 @@ func _floor_m2() -> void:
 # --- Floor -3: Containment -----------------------------------------------------------------------
 
 func _floor_m3() -> void:
+	_floor_key = "m3"
 	_mats_for(M.TILE_LIGHT, M.CONCRETE_PANEL)
 	var y: int = Y.m3
 	room("decon", "Decon showers", y, 5, 6, 5, 6, {route = true, floor = M.TILE_DARK})
@@ -694,6 +743,7 @@ func _floor_m3() -> void:
 	prop("decon", "locker", 0.29, 0.1, P.SOUTH)
 	prop("decon", "counter_sink", 0.5, 1.0, P.NORTH)
 	prop("decon", "bench", 0.0, 0.6, P.EAST)
+	vat("vat_m3_decon", "decon", 0.6, 0.5, 0.0)
 	wall_prop("decon", "corkboard_a", "w", 0.5, 14, {use = "note", text = "LEVEL -3: CONTAINMENT\nShower in. Shower out. Specimens do not leave this level. (They did.)"})
 	prop("gallery", "terminal", 0.95, 0.15, P.WEST, {text = "CHAMBER 1: subject expired week 9 (dried out). Glass cracked during removal. Not replaced."})
 	prop("gallery", "terminal", 0.95, 0.5, P.WEST, {text = "CHAMBER 2: 'tentacle' morphology. Rooted. Reach 4 m. Grabs. Do not approach alone."})
@@ -732,7 +782,7 @@ func _floor_m3() -> void:
 	prop("hazmat", "barrel_hazard", 0.9, 0.1)
 	prop("hazmat", "ammo_bench", 0.9, 0.5, P.WEST, {charges = 3})
 	wall_prop("hazmat", "medkit_station", "w", 0.5, 0, {charges = 3})
-	vat("vat_m3", "hazmat", 0.5, 0.8, 0.0)
+	vat("vat_m3", "hazmat", 0.45, 0.55, 0.0)
 	prop("tc3", "spore_tank", 0.1, 0.1)
 	prop("tc3", "spore_tank", 0.9, 0.1)
 	prop("tc3", "spore_tank", 0.1, 0.9)
@@ -745,7 +795,7 @@ func _floor_m3() -> void:
 	prop("checkpoint", "chair", 0.5, 0.05, P.SOUTH)
 	prop("checkpoint", "sandbags", 0.1, 0.8, P.NORTH)
 	prop("checkpoint", "locker", 0.9, 0.6, P.WEST)
-	wall_prop("checkpoint", "corkboard_small", "n", 0.5, 14, {use = "note", text = "CAGE LIFT: black clearance. The cage is stuck at the bottom. Use the ladder. Mind the drop."})
+	wall_prop("checkpoint", "corkboard_small", "n", 0.5, 14, {use = "note", text = "CAGE LIFT: black clearance. The black card is kept in the chamber 3 control booth, next door.\n\nThe cage is stuck at the bottom. Use the ladder. Mind the drop."})
 	prop("cage_shaft", "plank_stack", 0.1, 0.9)
 	prop("cage_shaft", "crate_6", 0.8, 0.95)
 	prop("cage_shaft", "barrel", 0.1, 0.8)
@@ -758,7 +808,7 @@ func _floor_m3() -> void:
 	spawner("s_m3_ward_2", "cell_3", 0.5, 0.5, "basic,fast,spore", 12.0, 4, false, {radius = 1.5})
 	spawner("s_m3_ward_3", "cell_2", 0.5, 0.5, "giant", 1.0, 1, false)
 	spawner("s_m3_tc3_1", "tc3", 0.5, 0.5, "mommy", 1.0, 1, false)
-	spawner("s_m3_tc3_2", "tc3", 0.1, 0.5, "fast", 4.0, 2, false)
+	spawner("s_m3_tc3_2", "tc3", 0.85, 0.75, "fast", 4.0, 2, false)
 	spawner("s_m3_vent_1", "gallery", 0.1, 0.5, "basic", 0.0, 6, false)
 	trigger("t_m3_diss", "dissection", "on=s_m3_diss_2")
 	trigger("t_m3_ward_a", "ward", "on=s_m3_ward_1,on=s_m3_ward_1b", {fz = 0.75, d = 120})
@@ -772,6 +822,7 @@ func _floor_m3() -> void:
 # --- Floor -4: The Dig -----------------------------------------------------------------------------
 
 func _floor_dig() -> void:
+	_floor_key = "dig"
 	_mats_for(M.GRAVEL, M.ROCK, M.ROCK)
 	var y: int = Y.dig
 	room("drift", "Main drift", y, 3, 1, 5, 1, {h = 26, d = 26, route = true, dark = true, lights = 0})
@@ -838,6 +889,8 @@ func _floor_dig() -> void:
 		fill(Vector3i(gx, y - 1, gz), Vector3i(gx + 2, y, gz + 2), M.GLOW)
 
 	prop("cage_shaft", "crate_7", 0.5, 0.2)
+	# The dig's first checkpoint, between the ladder's foot and the drift.
+	vat("vat_m4_foot", "cage_shaft", 0.5, 0.75, 0.0)
 	prop("drift", "plank_stack", 0.1, 0.1)
 	prop("drift", "plank_stack", 0.5, 0.9)
 	prop("drift", "barrel", 0.8, 0.1)
@@ -862,7 +915,7 @@ func _floor_dig() -> void:
 	prop("survey_tunnel", "crate_5", 0.8, 0.2)
 	prop("survey_tunnel", "terminal", 0.9, 0.7, P.WEST, {text = "SURVEY LOG, day 3\nLamp died at 40 m. The walls kept glowing. The glow moved when I talked. It repeated the pattern of my words back, slower. I have stopped talking.\n\nday 4: it says hello now.\n\n(Fung AI acquired the claim the following week.)"})
 	item("survey_tunnel", 0.5, 0.5, "ammo_homing")
-	vat("vat_m4b", "survey_tunnel", 0.3, 0.5, 90.0)
+	vat("vat_m4b", "survey_tunnel", 0.6, 0.5, 90.0)
 	prop("generator_hall", "generator", 0.5, 0.5, P.NORTH, {id = "generator", finale_seconds = 150.0, on_use = "t_m4_generator"})
 	prop("generator_hall", "sandbags", 0.3, 0.3, P.NORTH)
 	prop("generator_hall", "sandbags", 0.7, 0.3, P.NORTH)
@@ -900,6 +953,8 @@ func _floor_dig() -> void:
 	spawner("s_m4_gen_w2", "mouth_e", 0.5, 0.5, "basic,fast,giant", 5.0, 4, false)
 	spawner("s_m4_gen_c", "generator_hall", 0.5, 0.5, "ceiling_cloud", 3.0, 2, false, {on_ceiling = true, radius = 5.0})
 	spawner("s_m4_gen_v", "generator_hall", 0.1, 0.5, "basic,fast,tentacle", 6.0, 4, false, {radius = 2.0})
+	# The ladder's foot: the cage door above seals and containment goes quiet.
+	trigger("t_m3_cage_foot", "cage_shaft", "close=d_m3_cage,lock=d_m3_cage," + off_floors(["m3"]), {who = "all", fx = 0.8, fz = 0.53, w = 24, d = 30})
 	trigger("t_m4_drift", "drift", "on=s_m4_drift_1,on=s_m4_drift_2", {fx = 0.5, fz = 0.5, w = 40, d = 26})
 	trigger("t_m4_cavern", "cavern", "on=s_m4_cav_4,on=s_m4_cav_5", {fx = 0.5, fz = 0.5, w = 80, d = 150})
 	trigger("t_m4_mother_dead", "cavern", "off=s_m4_cav_4,off=s_m4_cav_5", {nowhere = true})

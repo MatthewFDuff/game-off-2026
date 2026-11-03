@@ -129,7 +129,7 @@ func _poison_cloud() -> void:
 	var outside = _target(Vector3(5.0, 0.0, -8.0))
 	var cloud = load("res://scripts/weapons/cloud.gd").spawn("poison", center, 2.0, 1.5)
 	_check("Cloud.spawn makes a host cloud", cloud != null and cloud.authoritative and enemies.clouds.size() == 1)
-	_check("drawn with a sphere and particles", cloud != null and cloud.get_node_or_null("Sphere") != null and cloud.get_node_or_null("Particles") != null)
+	_check("drawn with a ground stain and particles", cloud != null and cloud.get_node_or_null("Stain") != null and cloud.get_node_or_null("Particles") != null)
 	await _wait_seconds(1.1)
 	_check("poison cloud poisons the enemy inside", inside.statuses.has("poisoned") and _damage.get(inside.id, 0.0) > 0.0,
 			"%s %s" % [inside.statuses, _damage.get(inside.id, 0.0)])

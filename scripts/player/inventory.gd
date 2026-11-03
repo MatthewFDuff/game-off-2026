@@ -5,7 +5,8 @@ extends Node
 ## reach it through ItemManager, which the host runs.
 ##
 ## Item names (the item marker's string, and pickups): `medkit`, `ammo_<type>` (AmmoType.ORDER),
-## `flask_<fire|poison|rage|freeze>`, `keycard_<color>`, `spore_shooter` (arms the player).
+## `flask_<fire|poison|rage|freeze>`, `keycard_<color>`, `spore_shooter` (arms the player;
+## LevelPlay.arm_party arms the rest of the party).
 
 ## Any count changed (ammo, flasks, keycards).
 signal changed

@@ -30,7 +30,9 @@ static func create(level: Lab) -> InteractPrompt:
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# The offsets too: inside the tree, set_anchors_preset alone keeps the old 0 x 0 rect, and the
+	# prompt would center on the top-left corner.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	_prompt.label_settings = LabHud._settings(17, Color(1.0, 0.95, 0.8))
@@ -77,6 +79,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if lab == null or not is_instance_valid(lab):
+		return
 	var play := lab.play
 	var me := lab.local_player()
 	var playing := lab.mode == "play" and me != null and not me.is_dead and InputSetup.is_playing()
@@ -90,6 +94,11 @@ func _process(_delta: float) -> void:
 		_prompt.text = play.interactables.prompt_for(me.camera).text
 	if _panel.visible:
 		_fit_reader()
+
+
+## The reader panel's rect on screen (empty while closed).
+func reader_rect() -> Rect2:
+	return _panel.get_global_rect() if _panel.visible and is_visible_in_tree() else Rect2()
 
 
 ## Keeps the reader on screen: its width fits the viewport and the text area is capped at a share of

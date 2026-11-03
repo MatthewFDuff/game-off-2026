@@ -110,10 +110,14 @@ func to_world(voxel: Vector3) -> Vector3:
 ## True when the level is on backup power (LevelPlay.power): facility lights go out and emergency
 ## lights come on. Facility and restored power are the other way round; editing shows them all.
 func on_backup() -> bool:
+	if lab == null or not is_instance_valid(lab):
+		return false
 	return mode == "play" and lab.play != null and lab.play.active and lab.play.power == "backup"
 
 
 func _process(delta: float) -> void:
+	if lab == null or not is_instance_valid(lab):
+		return
 	_flicker_time += delta
 	var backup := on_backup()
 	var lamp_target := 0.0 if backup else 1.0

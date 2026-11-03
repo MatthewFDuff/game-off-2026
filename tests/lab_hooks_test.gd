@@ -88,8 +88,9 @@ func _run() -> void:
 	_check("boss spawns", born)
 	var boss_id: int = director.spawners.boss.alive[0] if born else -1
 	_check("on_dead waits for the death", "boss_dead" not in fired)
-	director.set_spawner_active("boss", false)
+	# Killed first: turning a spawner off sinks its living enemies (no death, so no on_dead).
 	enemies.kill(boss_id)
+	director.set_spawner_active("boss", false)
 	var dead := await _wait_until(func() -> bool: return "boss_dead" in fired, 3.0)
 	_check("on_dead fires", dead, str(fired))
 	var d2 := await _wait_until(func() -> bool: return play.is_door_open("d2"), 3.0)
