@@ -5,7 +5,7 @@ extends Node
 ## reach it through ItemManager, which the host runs.
 ##
 ## Item names (the item marker's string, and pickups): `medkit`, `ammo_<type>` (AmmoType.ORDER),
-## `flask_<fire|poison|rage|freeze>`, `keycard_<color>`.
+## `flask_<fire|poison|rage|freeze>`, `keycard_<color>`, `spore_shooter` (arms the player).
 
 ## Any count changed (ammo, flasks, keycards).
 signal changed
@@ -49,6 +49,12 @@ func use_ammo(ammo_name: String, amount := 1) -> bool:
 ## Gives an item: amount rounds of ammo, flasks or (medkit) health; -1 is the item's usual amount
 ## (an ammo type's pickup size, one flask, MEDKIT_HEAL). Returns false for unknown item names.
 func add(item_name: String, amount := -1) -> bool:
+	if item_name == "spore_shooter":
+		var player := get_parent() as Player
+		if player:
+			player.set_armed(true)
+		changed.emit()
+		return true
 	if item_name == "medkit":
 		var player := get_parent() as Player
 		if player:

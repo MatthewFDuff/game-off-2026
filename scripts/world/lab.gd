@@ -167,6 +167,7 @@ func _set_mode_locally(new_mode: String) -> void:
 	view.set_mode(mode)
 	if mode == "play":
 		play.start()
+		_attach_story()
 	for player: Player in players.values():
 		if not player.is_local:
 			player.editing = mode == "edit" # Hides their gun while editing.
@@ -179,6 +180,15 @@ func _set_mode_locally(new_mode: String) -> void:
 			me.rotation.y = spawn_yaw(index)
 			me.revive()
 	mode_changed.emit(mode)
+
+
+## Story nodes that live with particular levels (named, so RPC paths match on every peer).
+func _attach_story() -> void:
+	if level and level.name == "waiting_room" and not has_node("WaitingRoom"):
+		var room := WaitingRoom.new()
+		room.name = "WaitingRoom"
+		room.lab = self
+		add_child(room)
 
 
 ## Any peer: asks the host to save the level.

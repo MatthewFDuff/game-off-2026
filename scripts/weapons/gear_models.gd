@@ -14,7 +14,7 @@ const WEAPONS := ["shroom_shooter", "axe"]
 ## Every pickup with a placeholder (the item marker names these).
 const ITEMS := ["medkit", "ammo_shotgun", "ammo_flame", "ammo_explosive", "ammo_ricochet", "ammo_homing",
 		"ammo_poison", "flask_fire", "flask_poison", "flask_rage", "flask_freeze", "keycard_red", "keycard_blue",
-		"keycard_green", "keycard_black"]
+		"keycard_green", "keycard_black", "spore_shooter"]
 const ITEM_COLORS := {
 	medkit = Color(1.0, 0.25, 0.25), flask_fire = Color(1.0, 0.5, 0.15), flask_poison = Color(0.45, 1.0, 0.3),
 	flask_rage = Color(1.0, 0.2, 0.3), flask_freeze = Color(0.55, 0.85, 1.0), keycard_red = Color(1.0, 0.2, 0.2),
@@ -131,6 +131,8 @@ static func generate(model_name: String) -> Dictionary:
 		return _axe()
 	if model_name == "medkit":
 		return _medkit()
+	if model_name == "spore_shooter":
+		return _spore_shooter_item()
 	if model_name == "ammo_flame":
 		return _canister()
 	if model_name.begins_with("ammo_"):
@@ -234,6 +236,18 @@ static func _flask() -> Dictionary:
 
 
 ## A flat plastic card with a glowing stripe.
+## The spore shooter as a pickup: a stubby gun on its side, cap on top, glow ring at the muzzle.
+static func _spore_shooter_item() -> Dictionary:
+	var model := _empty(Vector3i(10, 5, 3))
+	_box(model, Vector3i(0, 1, 0), Vector3i(4, 3, 3), M.WOOD) # Stock.
+	_box(model, Vector3i(4, 1, 0), Vector3i(8, 4, 3), M.STEEL) # Receiver.
+	_box(model, Vector3i(8, 2, 1), Vector3i(10, 3, 2), M.METAL) # Barrel.
+	_box(model, Vector3i(9, 1, 0), Vector3i(10, 4, 3), M.GLOW) # Muzzle ring.
+	_box(model, Vector3i(5, 4, 1), Vector3i(8, 5, 2), M.SHROOM_CAP) # Cap.
+	_box(model, Vector3i(5, 0, 1), Vector3i(7, 1, 2), M.RUBBER) # Grip.
+	return model
+
+
 static func _keycard() -> Dictionary:
 	var model := _empty(Vector3i(6, 4, 1))
 	_box(model, Vector3i(0, 0, 0), Vector3i(6, 4, 1), M.PLASTIC)

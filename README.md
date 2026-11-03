@@ -72,6 +72,10 @@ Levels live in `levels/<name>/` (`level.json`: settings, props and markers, read
 
 In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
 
+## The story
+
+`docs/story.md` is the script and plan. The menu's **New game (solo)** plays the cubicle intro (`scenes/intro.tscn`, `scripts/story/intro.gd`: press SHIFT to advance the model's thought log; the job email after line 4; decline to die and be offered the job again) and then starts `laboratory`. **Host game** plays the intro and hosts the session in `levels/waiting_room` (built by `scripts/tools/build_waiting_room.gd`), Fung AI's reception, where each player signs in at the terminal; once everyone has, the admittance door opens and the host moves the whole session to the laboratory (`Net.change_level`: the host reloads first, then every peer reloads and enters as a late joiner would). **Join game** plays the intro, then joins. "Skip the intro" is remembered. The old level picker, Edit level and Join the editor stay under "Testing and editing".
+
 `levels/laboratory` is the game's lab (`docs/lab-design.md`): six floors from the surface gatehouse down to the dig and the generator, generated from `scripts/tools/lab_layout.gd` (the plan as data: rooms on a 7 x 7 grid of 6 m cells, doors, openings, props, markers) by `godot --headless --path . --script res://scripts/tools/build_laboratory.gd -- --force` (`scripts/tools/lab_builder.gd` does the work). Rooms and openings come out as editor objects, so the level can be dressed and reshaped in the editor afterwards; regenerating overwrites those changes, so edit the layout script for structural changes and the level for dressing.
 
 The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules, paper UI), 2 (builder view), 3 (three-click volumes), 4 (rooms as objects, openings), 5 (props that sit on things), 6 (seeing each other) and the 8 polish pass are in (7, the movement, is under Playing). There are two views, and **V** switches between them:
@@ -283,8 +287,12 @@ godot --headless --path . --script res://tests/interact_test.gd      # container
 godot --headless --path . --script res://tests/lab_hooks_test.gd     # trigger actions, on_dead, hordes by walking distance, checkpoint vats, player scaling
 godot --headless --path . --script res://tests/laboratory_test.gd    # builds the laboratory into a scratch folder and walks it: doors, props, keys before gates, every vat and pickup (slow, ~5 min)
 godot --headless --path . --script res://tests/laboratory_play_test.gd # plays the laboratory: outbreak, keycards, checkpoint vat, generator finale, elevator
+godot --headless --path . --script res://tests/story_test.gd         # the lab-side story: intercom subtitles, the training experiment on SHIFT, unarmed start, gates, the payroll ending
+godot --headless --path . --script res://tests/intro_test.gd          # the cubicle intro: SHIFT pacing, the email, decline and death, go back, accept, skip
+godot --headless --path . --script res://tests/waiting_room_test.gd   # the waiting room: sign-in count, admittance door, the session's level change to the laboratory
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, rooms, presence and locks, play-test, save
 godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)
 godot --path . --script res://tests/laboratory_shots.gd -- <dir>     # the laboratory's floor plans and a few views (needs a window)
+godot --path . --script res://tests/intro_shots.gd -- <dir>          # the cubicle intro: console, email, dying (needs a window)
 ```

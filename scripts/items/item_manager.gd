@@ -202,6 +202,8 @@ static func describe(item: String) -> String:
 		return "%s flask" % item.trim_prefix("flask_").capitalize()
 	if item.begins_with("keycard_"):
 		return "%s keycard" % item.trim_prefix("keycard_").capitalize()
+	if item == "spore_shooter":
+		return "Experimental spore shooter"
 	return item.capitalize()
 
 

@@ -36,6 +36,7 @@ func build(parent: Node) -> Error:
 	level.settings = LevelData.default_settings(size, "rock")
 	level.settings.room_thickness = Layout.T
 	level.settings.start_power = "facility"
+	level.settings.start_unarmed = true # The spore shooter is in grow room 0's case (docs/story.md).
 	level.settings.ambient_energy = 0.18
 	level.settings.fog_density = 0.025
 

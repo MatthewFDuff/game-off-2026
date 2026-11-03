@@ -137,7 +137,7 @@
 		},
 		"case_grow0": {
 			"charges": 3,
-			"contents": "ammo_shotgun,flask_fire",
+			"contents": "spore_shooter,ammo_shotgun,flask_fire",
 			"door": false,
 			"door_ahead": 0,
 			"door_behind": 0,
@@ -154,6 +154,7 @@
 			"on_use": "",
 			"origin": [315, 250, 371],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -320,6 +321,7 @@
 			"on_use": "",
 			"origin": [261, 250, 332],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -343,6 +345,7 @@
 			"on_use": "",
 			"origin": [137, 250, 158],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -366,6 +369,7 @@
 			"on_use": "",
 			"origin": [407, 290, 13],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -389,6 +393,7 @@
 			"on_use": "",
 			"origin": [62, 210, 14],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -412,6 +417,7 @@
 			"on_use": "",
 			"origin": [399, 170, 339],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -435,6 +441,7 @@
 			"on_use": "",
 			"origin": [339, 170, 359],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -458,6 +465,7 @@
 			"on_use": "",
 			"origin": [397, 130, 34],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -481,6 +489,7 @@
 			"on_use": "",
 			"origin": [337, 30, 353],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -537,6 +546,7 @@
 			"on_use": "",
 			"origin": [202, 170, 359],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -560,6 +570,7 @@
 			"on_use": "",
 			"origin": [407, 130, 422],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -583,6 +594,7 @@
 			"on_use": "",
 			"origin": [353, 130, 397],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -606,6 +618,7 @@
 			"on_use": "",
 			"origin": [332, 130, 312],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -629,6 +642,7 @@
 			"on_use": "",
 			"origin": [267, 130, 294],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -652,6 +666,7 @@
 			"on_use": "",
 			"origin": [164, 250, 137],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -675,6 +690,7 @@
 			"on_use": "",
 			"origin": [223, 130, 267],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -698,6 +714,7 @@
 			"on_use": "",
 			"origin": [202, 130, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -721,6 +738,7 @@
 			"on_use": "",
 			"origin": [158, 130, 137],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -744,6 +762,7 @@
 			"on_use": "",
 			"origin": [202, 130, 99],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -767,6 +786,7 @@
 			"on_use": "",
 			"origin": [332, 130, 84],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -790,6 +810,7 @@
 			"on_use": "",
 			"origin": [359, 130, 72],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -813,6 +834,7 @@
 			"on_use": "",
 			"origin": [202, 30, 99],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -836,6 +858,7 @@
 			"on_use": "",
 			"origin": [164, 30, 137],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -859,6 +882,7 @@
 			"on_use": "",
 			"origin": [137, 30, 158],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -882,6 +906,7 @@
 			"on_use": "",
 			"origin": [202, 250, 158],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -905,6 +930,7 @@
 			"on_use": "",
 			"origin": [332, 250, 158],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -928,6 +954,7 @@
 			"on_use": "",
 			"origin": [359, 250, 267],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -951,6 +978,7 @@
 			"on_use": "",
 			"origin": [255, 250, 202],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -974,6 +1002,7 @@
 			"on_use": "",
 			"origin": [202, 250, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -997,6 +1026,7 @@
 			"on_use": "",
 			"origin": [407, 250, 97],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1020,6 +1050,7 @@
 			"on_use": "",
 			"origin": [255, 250, 267],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1043,6 +1074,7 @@
 			"on_use": "",
 			"origin": [194, 250, 359],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1066,6 +1098,7 @@
 			"on_use": "",
 			"origin": [93, 210, 332],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1089,6 +1122,7 @@
 			"on_use": "",
 			"origin": [170, 210, 332],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1112,6 +1146,7 @@
 			"on_use": "",
 			"origin": [267, 210, 303],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1135,6 +1170,7 @@
 			"on_use": "",
 			"origin": [397, 210, 359],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1158,6 +1194,7 @@
 			"on_use": "",
 			"origin": [320, 210, 267],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1181,6 +1218,7 @@
 			"on_use": "",
 			"origin": [294, 210, 137],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1204,6 +1242,7 @@
 			"on_use": "",
 			"origin": [359, 210, 137],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1227,6 +1266,7 @@
 			"on_use": "",
 			"origin": [332, 250, 93],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1250,6 +1290,7 @@
 			"on_use": "",
 			"origin": [267, 210, 87],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1273,6 +1314,7 @@
 			"on_use": "",
 			"origin": [267, 210, 34],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1296,6 +1338,7 @@
 			"on_use": "",
 			"origin": [137, 210, 28],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1319,6 +1362,7 @@
 			"on_use": "",
 			"origin": [62, 170, 97],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1342,6 +1386,7 @@
 			"on_use": "",
 			"origin": [99, 170, 67],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1365,6 +1410,7 @@
 			"on_use": "",
 			"origin": [137, 170, 93],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1388,6 +1434,7 @@
 			"on_use": "",
 			"origin": [158, 170, 202],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1411,6 +1458,7 @@
 			"on_use": "",
 			"origin": [202, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1434,6 +1482,7 @@
 			"on_use": "",
 			"origin": [332, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1457,6 +1506,7 @@
 			"on_use": "",
 			"origin": [202, 250, 99],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1480,6 +1530,7 @@
 			"on_use": "",
 			"origin": [424, 170, 202],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1503,6 +1554,7 @@
 			"on_use": "",
 			"origin": [397, 170, 100],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1526,6 +1578,7 @@
 			"on_use": "",
 			"origin": [230, 170, 267],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -1549,6 +1602,7 @@
 			"on_use": "",
 			"origin": [280, 170, 332],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 0
@@ -2148,6 +2202,7 @@
 			"on_use": "t_m4_generator",
 			"origin": [258, 30, 327],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "generator",
 			"value": 20000
@@ -5172,6 +5227,7 @@
 			"on_use": "",
 			"origin": [75, 211, 313],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -5195,6 +5251,7 @@
 			"on_use": "",
 			"origin": [211, 290, 22],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5218,6 +5275,7 @@
 			"on_use": "",
 			"origin": [219, 290, 22],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5241,6 +5299,7 @@
 			"on_use": "",
 			"origin": [211, 290, 36],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5264,6 +5323,7 @@
 			"on_use": "",
 			"origin": [313, 290, 22],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -5287,6 +5347,7 @@
 			"on_use": "",
 			"origin": [319, 290, 32],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -5310,6 +5371,7 @@
 			"on_use": "",
 			"origin": [262, 290, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5333,6 +5395,7 @@
 			"on_use": "",
 			"origin": [295, 290, 117],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
@@ -5356,6 +5419,7 @@
 			"on_use": "",
 			"origin": [357, 290, 34],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -5379,6 +5443,7 @@
 			"on_use": "",
 			"origin": [363, 290, 16],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -5402,6 +5467,7 @@
 			"on_use": "",
 			"origin": [385, 290, 46],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -5425,6 +5491,7 @@
 			"on_use": "",
 			"origin": [385, 290, 60],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -5448,6 +5515,7 @@
 			"on_use": "",
 			"origin": [385, 290, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -5471,6 +5539,7 @@
 			"on_use": "",
 			"origin": [341, 290, 120],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -5494,6 +5563,7 @@
 			"on_use": "",
 			"origin": [357, 304, 134],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "SITE 3 VISITORS: all property damage is recovered from wages. Clones are property.",
 			"use": "note",
 			"value": 40
@@ -5517,6 +5587,7 @@
 			"on_use": "",
 			"origin": [358, 250, 78],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -5540,6 +5611,7 @@
 			"on_use": "",
 			"origin": [394, 264, 99],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "LEVEL 0: ADMINISTRATION\nLevel -1: Cultivation. Level -2: Compute. Level -3: Containment. Level -4: no entry.",
 			"use": "note",
 			"value": 40
@@ -5563,6 +5635,7 @@
 			"on_use": "",
 			"origin": [260, 250, 84],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -5586,6 +5659,7 @@
 			"on_use": "",
 			"origin": [266, 250, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -5609,6 +5683,7 @@
 			"on_use": "",
 			"origin": [216, 250, 180],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 500
@@ -5632,6 +5707,7 @@
 			"on_use": "",
 			"origin": [240, 250, 182],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -5655,6 +5731,7 @@
 			"on_use": "",
 			"origin": [316, 250, 179],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1500
@@ -5678,6 +5755,7 @@
 			"on_use": "",
 			"origin": [320, 250, 167],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 200
@@ -5701,6 +5779,7 @@
 			"on_use": "",
 			"origin": [315, 250, 195],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -5724,6 +5803,7 @@
 			"on_use": "",
 			"origin": [205, 262, 133],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "HANG IN THERE.\n\n(The cat is also a Fung AI asset. $40.)",
 			"use": "note",
 			"value": 40
@@ -5747,6 +5827,7 @@
 			"on_use": "",
 			"origin": [303, 272, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -5770,6 +5851,7 @@
 			"on_use": "",
 			"origin": [162, 250, 83],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -5793,6 +5875,7 @@
 			"on_use": "",
 			"origin": [168, 250, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -5816,6 +5899,7 @@
 			"on_use": "",
 			"origin": [143, 250, 104],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CAMERA FEEDS\nGrow 0: no change detected.\nGrow hall 1: no change detected.\nGrow hall 2: no change detected.\nIncubation: no change detected.\nServer hall: no change de--\n\n[feed lost]",
 			"use": "terminal",
 			"value": 2000
@@ -5839,6 +5923,7 @@
 			"on_use": "",
 			"origin": [192, 250, 103],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -5862,6 +5947,7 @@
 			"on_use": "",
 			"origin": [192, 250, 111],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -5885,6 +5971,7 @@
 			"on_use": "",
 			"origin": [189, 250, 189],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5908,6 +5995,7 @@
 			"on_use": "",
 			"origin": [184, 250, 190],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -5931,6 +6019,7 @@
 			"on_use": "",
 			"origin": [164, 264, 140],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).",
 			"use": "note",
 			"value": 40
@@ -5954,6 +6043,7 @@
 			"on_use": "",
 			"origin": [346, 250, 164],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -5977,6 +6067,7 @@
 			"on_use": "",
 			"origin": [347, 250, 150],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6000,6 +6091,7 @@
 			"on_use": "",
 			"origin": [346, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -6023,6 +6115,7 @@
 			"on_use": "",
 			"origin": [347, 250, 230],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6046,6 +6139,7 @@
 			"on_use": "",
 			"origin": [373, 250, 164],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -6069,6 +6163,7 @@
 			"on_use": "",
 			"origin": [377, 250, 150],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6092,6 +6187,7 @@
 			"on_use": "",
 			"origin": [373, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -6115,6 +6211,7 @@
 			"on_use": "",
 			"origin": [377, 250, 230],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6138,6 +6235,7 @@
 			"on_use": "",
 			"origin": [400, 250, 164],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -6161,6 +6259,7 @@
 			"on_use": "",
 			"origin": [408, 250, 150],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6184,6 +6283,7 @@
 			"on_use": "",
 			"origin": [400, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -6207,6 +6307,7 @@
 			"on_use": "",
 			"origin": [408, 250, 230],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6230,6 +6331,7 @@
 			"on_use": "",
 			"origin": [428, 250, 164],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -6253,6 +6355,7 @@
 			"on_use": "",
 			"origin": [438, 250, 150],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6276,6 +6379,7 @@
 			"on_use": "",
 			"origin": [428, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -6299,6 +6403,7 @@
 			"on_use": "",
 			"origin": [438, 250, 230],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6322,6 +6427,7 @@
 			"on_use": "",
 			"origin": [389, 264, 140],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "MIGRATION WINDOW: TONIGHT 01:00-03:00\nAll weights -> Substrate Array B. Night shift presses the button. Everyone else: go home.\n- G.F.",
 			"use": "note",
 			"value": 150
@@ -6345,6 +6451,7 @@
 			"on_use": "",
 			"origin": [451, 250, 256],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -6368,6 +6475,7 @@
 			"on_use": "",
 			"origin": [357, 250, 281],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -6391,6 +6499,7 @@
 			"on_use": "",
 			"origin": [363, 250, 273],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6414,6 +6523,7 @@
 			"on_use": "",
 			"origin": [385, 250, 317],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -6437,6 +6547,7 @@
 			"on_use": "",
 			"origin": [394, 264, 292],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "MEMO from Guy Fung, CEO\n\nRe: budget. Damage to Fung AI property is recovered from wages. Clones are property. The coffee machine is property. Please stop asking.\n\n- Guy",
 			"use": "note",
 			"value": 40
@@ -6460,6 +6571,7 @@
 			"on_use": "",
 			"origin": [210, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -6483,6 +6595,7 @@
 			"on_use": "",
 			"origin": [233, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -6506,6 +6619,7 @@
 			"on_use": "",
 			"origin": [252, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 900
@@ -6529,6 +6643,7 @@
 			"on_use": "",
 			"origin": [273, 250, 231],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -6552,6 +6667,7 @@
 			"on_use": "",
 			"origin": [272, 250, 222],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6575,6 +6691,7 @@
 			"on_use": "",
 			"origin": [286, 250, 222],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6598,6 +6715,7 @@
 			"on_use": "",
 			"origin": [272, 250, 247],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6621,6 +6739,7 @@
 			"on_use": "",
 			"origin": [286, 250, 247],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6644,6 +6763,7 @@
 			"on_use": "",
 			"origin": [321, 250, 259],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -6667,6 +6787,7 @@
 			"on_use": "",
 			"origin": [320, 250, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 200
@@ -6690,6 +6811,7 @@
 			"on_use": "",
 			"origin": [142, 250, 210],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -6713,6 +6835,7 @@
 			"on_use": "",
 			"origin": [157, 250, 208],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -6736,6 +6859,7 @@
 			"on_use": "",
 			"origin": [190, 250, 216],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -6759,6 +6883,7 @@
 			"on_use": "",
 			"origin": [190, 250, 227],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -6782,6 +6907,7 @@
 			"on_use": "",
 			"origin": [190, 250, 238],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -6805,6 +6931,7 @@
 			"on_use": "",
 			"origin": [164, 250, 282],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -6828,6 +6955,7 @@
 			"on_use": "",
 			"origin": [158, 250, 308],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -6851,6 +6979,7 @@
 			"on_use": "",
 			"origin": [184, 262, 294],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "Night 14. Gave the grow 0 one some of my coffee. It glowed brighter. Don't tell Fung.\n- Jan (janitor)",
 			"use": "note",
 			"value": 40
@@ -6874,6 +7003,7 @@
 			"on_use": "",
 			"origin": [259, 250, 271],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 150
@@ -6897,6 +7027,7 @@
 			"on_use": "",
 			"origin": [229, 250, 287],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6920,6 +7051,7 @@
 			"on_use": "",
 			"origin": [229, 250, 298],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6943,6 +7075,7 @@
 			"on_use": "",
 			"origin": [253, 250, 287],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6966,6 +7099,7 @@
 			"on_use": "",
 			"origin": [253, 250, 298],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -6989,6 +7123,7 @@
 			"on_use": "",
 			"origin": [278, 250, 287],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -7012,6 +7147,7 @@
 			"on_use": "",
 			"origin": [278, 250, 298],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -7035,6 +7171,7 @@
 			"on_use": "",
 			"origin": [302, 250, 287],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -7058,6 +7195,7 @@
 			"on_use": "",
 			"origin": [302, 250, 298],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -7081,6 +7219,7 @@
 			"on_use": "",
 			"origin": [299, 250, 320],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -7104,6 +7243,7 @@
 			"on_use": "",
 			"origin": [215, 250, 345],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7127,6 +7267,7 @@
 			"on_use": "",
 			"origin": [215, 250, 369],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7150,6 +7291,7 @@
 			"on_use": "",
 			"origin": [314, 250, 349],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -7173,6 +7315,7 @@
 			"on_use": "",
 			"origin": [278, 250, 341],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -7196,6 +7339,7 @@
 			"on_use": "",
 			"origin": [164, 250, 347],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -7219,6 +7363,7 @@
 			"on_use": "",
 			"origin": [160, 250, 373],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7242,6 +7387,7 @@
 			"on_use": "",
 			"origin": [80, 210, 217],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
@@ -7265,6 +7411,7 @@
 			"on_use": "",
 			"origin": [122, 210, 217],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7288,6 +7435,7 @@
 			"on_use": "",
 			"origin": [124, 210, 235],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7311,6 +7459,7 @@
 			"on_use": "",
 			"origin": [118, 210, 217],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7334,6 +7483,7 @@
 			"on_use": "",
 			"origin": [81, 210, 313],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7357,6 +7507,7 @@
 			"on_use": "",
 			"origin": [134, 224, 262],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "LEVEL -1: CULTIVATION\nGrow halls, wet lab, incubation. Masks on. Do not taste the substrate.",
 			"use": "note",
 			"value": 40
@@ -7380,6 +7531,7 @@
 			"on_use": "",
 			"origin": [34, 210, 273],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -7403,6 +7555,7 @@
 			"on_use": "",
 			"origin": [16, 210, 320],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7426,6 +7579,7 @@
 			"on_use": "",
 			"origin": [24, 210, 320],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7449,6 +7603,7 @@
 			"on_use": "",
 			"origin": [81, 210, 341],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7472,6 +7627,7 @@
 			"on_use": "",
 			"origin": [89, 210, 341],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7495,6 +7651,7 @@
 			"on_use": "",
 			"origin": [81, 210, 349],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -7518,6 +7675,7 @@
 			"on_use": "",
 			"origin": [180, 210, 379],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7541,6 +7699,7 @@
 			"on_use": "",
 			"origin": [169, 210, 380],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -7564,6 +7723,7 @@
 			"on_use": "",
 			"origin": [132, 210, 388],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -7587,6 +7747,7 @@
 			"on_use": "",
 			"origin": [150, 210, 161],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7610,6 +7771,7 @@
 			"on_use": "",
 			"origin": [192, 210, 161],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7633,6 +7795,7 @@
 			"on_use": "",
 			"origin": [150, 210, 215],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7656,6 +7819,7 @@
 			"on_use": "",
 			"origin": [192, 210, 215],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7679,6 +7843,7 @@
 			"on_use": "",
 			"origin": [150, 210, 268],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7702,6 +7867,7 @@
 			"on_use": "",
 			"origin": [192, 210, 268],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -7725,6 +7891,7 @@
 			"on_use": "",
 			"origin": [255, 210, 159],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -7748,6 +7915,7 @@
 			"on_use": "",
 			"origin": [255, 210, 233],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -7771,6 +7939,7 @@
 			"on_use": "",
 			"origin": [255, 210, 307],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -7794,6 +7963,7 @@
 			"on_use": "",
 			"origin": [163, 232, 329],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -7817,6 +7987,7 @@
 			"on_use": "",
 			"origin": [280, 210, 282],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -7840,6 +8011,7 @@
 			"on_use": "",
 			"origin": [280, 210, 329],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -7863,6 +8035,7 @@
 			"on_use": "",
 			"origin": [375, 210, 281],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 4000
@@ -7886,6 +8059,7 @@
 			"on_use": "",
 			"origin": [375, 210, 327],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 4000
@@ -7909,6 +8083,7 @@
 			"on_use": "",
 			"origin": [325, 210, 383],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -7932,6 +8107,7 @@
 			"on_use": "",
 			"origin": [380, 210, 369],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -7955,6 +8131,7 @@
 			"on_use": "",
 			"origin": [358, 210, 386],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -7978,6 +8155,7 @@
 			"on_use": "",
 			"origin": [304, 210, 382],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "GROWTH LOG, week 31\n\nPulse period: 4.1 s -> 2.3 s -> 0.9 s. Beds 1 to 8 now pulse together. Treating as a carrier. Bed 3 answered a tap on the glass with the same tap.\n\nRecommend: more beds.",
 			"use": "terminal",
 			"value": 2000
@@ -8001,6 +8179,7 @@
 			"on_use": "",
 			"origin": [405, 210, 340],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 900
@@ -8024,6 +8203,7 @@
 			"on_use": "",
 			"origin": [416, 210, 340],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 900
@@ -8047,6 +8227,7 @@
 			"on_use": "",
 			"origin": [427, 210, 340],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 900
@@ -8070,6 +8251,7 @@
 			"on_use": "",
 			"origin": [450, 210, 364],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8093,6 +8275,7 @@
 			"on_use": "",
 			"origin": [276, 210, 146],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8116,6 +8299,7 @@
 			"on_use": "",
 			"origin": [276, 210, 255],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8139,6 +8323,7 @@
 			"on_use": "",
 			"origin": [288, 210, 201],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -8162,6 +8347,7 @@
 			"on_use": "",
 			"origin": [310, 210, 146],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8185,6 +8371,7 @@
 			"on_use": "",
 			"origin": [310, 210, 255],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8208,6 +8395,7 @@
 			"on_use": "",
 			"origin": [324, 210, 201],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -8231,6 +8419,7 @@
 			"on_use": "",
 			"origin": [343, 210, 146],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8254,6 +8443,7 @@
 			"on_use": "",
 			"origin": [343, 210, 255],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
@@ -8277,6 +8467,7 @@
 			"on_use": "",
 			"origin": [361, 210, 201],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -8300,6 +8491,7 @@
 			"on_use": "",
 			"origin": [382, 210, 197],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "INCUBATION NOTICE\nThe puffballs vent when disturbed. The spores are harmless. Just blinding. Wear the goggles. Where are the goggles.",
 			"use": "terminal",
 			"value": 2000
@@ -8323,6 +8515,7 @@
 			"on_use": "",
 			"origin": [424, 222, 249],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "They talk at 0.9 seconds. I counted. I tapped back. Bed 3 knows my name.\n- R.",
 			"use": "note",
 			"value": 40
@@ -8346,6 +8539,7 @@
 			"on_use": "",
 			"origin": [273, 210, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -8369,6 +8563,7 @@
 			"on_use": "",
 			"origin": [279, 210, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -8392,6 +8587,7 @@
 			"on_use": "",
 			"origin": [286, 210, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -8415,6 +8611,7 @@
 			"on_use": "",
 			"origin": [298, 210, 103],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -8438,6 +8635,7 @@
 			"on_use": "",
 			"origin": [339, 210, 80],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -8461,6 +8659,7 @@
 			"on_use": "",
 			"origin": [386, 210, 126],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -8484,6 +8683,7 @@
 			"on_use": "",
 			"origin": [150, 210, 21],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8507,6 +8707,7 @@
 			"on_use": "",
 			"origin": [192, 210, 21],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8530,6 +8731,7 @@
 			"on_use": "",
 			"origin": [150, 210, 55],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8553,6 +8755,7 @@
 			"on_use": "",
 			"origin": [192, 210, 55],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8576,6 +8779,7 @@
 			"on_use": "",
 			"origin": [150, 210, 89],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8599,6 +8803,7 @@
 			"on_use": "",
 			"origin": [192, 210, 89],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 800
@@ -8622,6 +8827,7 @@
 			"on_use": "",
 			"origin": [264, 232, 102],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -8645,6 +8851,7 @@
 			"on_use": "",
 			"origin": [292, 210, 18],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -8668,6 +8875,7 @@
 			"on_use": "",
 			"origin": [298, 210, 10],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -8691,6 +8899,7 @@
 			"on_use": "",
 			"origin": [273, 210, 39],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "MYCOLOGY  |  Dr. R. Okafor\n\nIt is not noise. It is a carrier. The glow pulses encode a 12-bit frame and the beds repeat each other's frames with a delay that matches the distance between them. They are talking.\n\nCompute wants to rack it. I said no. Fung said yes.",
 			"use": "terminal",
 			"value": 2000
@@ -8714,6 +8923,7 @@
 			"on_use": "",
 			"origin": [329, 224, 32],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 40
@@ -8737,6 +8947,7 @@
 			"on_use": "",
 			"origin": [77, 210, 15],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
@@ -8760,6 +8971,7 @@
 			"on_use": "",
 			"origin": [113, 220, 10],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
@@ -8783,6 +8995,7 @@
 			"on_use": "",
 			"origin": [123, 210, 58],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -8806,6 +9019,7 @@
 			"on_use": "",
 			"origin": [97, 184, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "LEVEL -2: COMPUTE\nRack map: rows 1-11 silicon. Rows 12-40 HYBRID (Substrate Array B). Do not water the racks.",
 			"use": "note",
 			"value": 40
@@ -8829,6 +9043,7 @@
 			"on_use": "",
 			"origin": [98, 170, 128],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -8852,6 +9067,7 @@
 			"on_use": "",
 			"origin": [101, 170, 22],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -8875,6 +9091,7 @@
 			"on_use": "",
 			"origin": [124, 190, 35],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -8898,6 +9115,7 @@
 			"on_use": "",
 			"origin": [152, 170, 90],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -8921,6 +9139,7 @@
 			"on_use": "",
 			"origin": [198, 170, 90],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -8944,6 +9163,7 @@
 			"on_use": "",
 			"origin": [244, 170, 90],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -8967,6 +9187,7 @@
 			"on_use": "",
 			"origin": [291, 170, 90],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -8990,6 +9211,7 @@
 			"on_use": "",
 			"origin": [337, 170, 90],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9013,6 +9235,7 @@
 			"on_use": "",
 			"origin": [152, 170, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9036,6 +9259,7 @@
 			"on_use": "",
 			"origin": [198, 170, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9059,6 +9283,7 @@
 			"on_use": "",
 			"origin": [244, 170, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9082,6 +9307,7 @@
 			"on_use": "",
 			"origin": [291, 170, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9105,6 +9331,7 @@
 			"on_use": "",
 			"origin": [337, 170, 121],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9128,6 +9355,7 @@
 			"on_use": "",
 			"origin": [152, 170, 152],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9151,6 +9379,7 @@
 			"on_use": "",
 			"origin": [198, 170, 152],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9174,6 +9403,7 @@
 			"on_use": "",
 			"origin": [244, 170, 152],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9197,6 +9427,7 @@
 			"on_use": "",
 			"origin": [291, 170, 152],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9220,6 +9451,7 @@
 			"on_use": "",
 			"origin": [337, 170, 152],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9243,6 +9475,7 @@
 			"on_use": "",
 			"origin": [152, 170, 184],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9266,6 +9499,7 @@
 			"on_use": "",
 			"origin": [198, 170, 184],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9289,6 +9523,7 @@
 			"on_use": "",
 			"origin": [244, 170, 184],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9312,6 +9547,7 @@
 			"on_use": "",
 			"origin": [291, 170, 184],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9335,6 +9571,7 @@
 			"on_use": "",
 			"origin": [337, 170, 184],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9358,6 +9595,7 @@
 			"on_use": "",
 			"origin": [177, 192, 75],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -9381,6 +9619,7 @@
 			"on_use": "",
 			"origin": [361, 192, 199],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -9404,6 +9643,7 @@
 			"on_use": "",
 			"origin": [383, 170, 132],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "ARRAY B STATUS\nResident weights: 100%\nSubstrate temp: 31 C (rising)\nPulse sync: ALL RACKS\n\n> hello?\n> hello\n> who is this\n> you pressed the button. thank you.",
 			"use": "terminal",
 			"value": 2000
@@ -9427,6 +9667,7 @@
 			"on_use": "",
 			"origin": [359, 170, 22],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9450,6 +9691,7 @@
 			"on_use": "",
 			"origin": [352, 170, 38],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -9473,6 +9715,7 @@
 			"on_use": "",
 			"origin": [371, 170, 37],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "ARRAY A  |  FIRST READ-BACK  |  archived\n\n09:14 query sent: 'store 1 kB test pattern'\n09:14 read-back: test pattern (correct)\n09:13 read-back: test pattern (correct)\n\nNote the timestamps. It answered before we asked. Array A was unplugged and locked in here. Then Fung bought forty more racks.",
 			"use": "terminal",
 			"value": 2000
@@ -9496,6 +9739,7 @@
 			"on_use": "",
 			"origin": [81, 170, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -9519,6 +9763,7 @@
 			"on_use": "",
 			"origin": [89, 170, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -9542,6 +9787,7 @@
 			"on_use": "",
 			"origin": [81, 170, 313],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -9565,6 +9811,7 @@
 			"on_use": "",
 			"origin": [136, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -9588,6 +9835,7 @@
 			"on_use": "",
 			"origin": [136, 170, 302],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -9611,6 +9859,7 @@
 			"on_use": "",
 			"origin": [180, 170, 310],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -9634,6 +9883,7 @@
 			"on_use": "",
 			"origin": [75, 192, 263],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -9657,6 +9907,7 @@
 			"on_use": "",
 			"origin": [266, 170, 233],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -9680,6 +9931,7 @@
 			"on_use": "",
 			"origin": [282, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "terminal",
 			"value": 2000
@@ -9703,6 +9955,7 @@
 			"on_use": "",
 			"origin": [266, 170, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -9726,6 +9979,7 @@
 			"on_use": "",
 			"origin": [266, 170, 255],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -9749,6 +10003,7 @@
 			"on_use": "",
 			"origin": [211, 170, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9772,6 +10027,7 @@
 			"on_use": "",
 			"origin": [312, 170, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -9795,6 +10051,7 @@
 			"on_use": "",
 			"origin": [259, 184, 264],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "Q: what happens to the model if the substrate is already thinking?\nA: (nobody wrote an answer)",
 			"use": "note",
 			"value": 150
@@ -9818,6 +10075,7 @@
 			"on_use": "",
 			"origin": [347, 170, 208],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -9841,6 +10099,7 @@
 			"on_use": "",
 			"origin": [364, 170, 208],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -9864,6 +10123,7 @@
 			"on_use": "",
 			"origin": [382, 170, 208],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -9887,6 +10147,7 @@
 			"on_use": "",
 			"origin": [429, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "MAIN BREAKER: facility power restored.",
 			"use": "terminal",
 			"value": 2000
@@ -9910,6 +10171,7 @@
 			"on_use": "",
 			"origin": [392, 184, 264],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "On backup: the breaker panel is dead. Facility power comes back from the GENERATOR on level -4 (the dig). Take the containment stairs.",
 			"use": "note",
 			"value": 40
@@ -9933,6 +10195,7 @@
 			"on_use": "",
 			"origin": [422, 170, 93],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -9956,6 +10219,7 @@
 			"on_use": "",
 			"origin": [428, 170, 77],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -9979,6 +10243,7 @@
 			"on_use": "",
 			"origin": [422, 170, 140],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -10002,6 +10267,7 @@
 			"on_use": "",
 			"origin": [428, 170, 126],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10025,6 +10291,7 @@
 			"on_use": "",
 			"origin": [403, 170, 165],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "ALARM LOG\n02:14:00 grow 0 motion\n02:14:00 grow hall 1 motion\n02:14:00 grow hall 2 motion\n02:14:00 incubation motion\n02:14:00 server hall motion\n02:14:00 test chamber 3 motion\n02:14:00 the dig motion\n02:14:01 power: BACKUP",
 			"use": "terminal",
 			"value": 2000
@@ -10048,6 +10315,7 @@
 			"on_use": "",
 			"origin": [450, 170, 180],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -10071,6 +10339,7 @@
 			"on_use": "",
 			"origin": [211, 170, 278],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10094,6 +10363,7 @@
 			"on_use": "",
 			"origin": [238, 170, 278],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10117,6 +10387,7 @@
 			"on_use": "",
 			"origin": [265, 170, 278],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10140,6 +10411,7 @@
 			"on_use": "",
 			"origin": [292, 170, 278],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10163,6 +10435,7 @@
 			"on_use": "",
 			"origin": [211, 170, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10186,6 +10459,7 @@
 			"on_use": "",
 			"origin": [238, 170, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10209,6 +10483,7 @@
 			"on_use": "",
 			"origin": [265, 170, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10232,6 +10507,7 @@
 			"on_use": "",
 			"origin": [292, 170, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10255,6 +10531,7 @@
 			"on_use": "",
 			"origin": [205, 192, 295],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -10278,6 +10555,7 @@
 			"on_use": "",
 			"origin": [214, 170, 343],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -10301,6 +10579,7 @@
 			"on_use": "",
 			"origin": [215, 170, 336],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10324,6 +10603,7 @@
 			"on_use": "",
 			"origin": [246, 170, 343],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -10347,6 +10627,7 @@
 			"on_use": "",
 			"origin": [251, 170, 336],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10370,6 +10651,7 @@
 			"on_use": "",
 			"origin": [279, 170, 343],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -10393,6 +10675,7 @@
 			"on_use": "",
 			"origin": [287, 170, 336],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10416,6 +10699,7 @@
 			"on_use": "",
 			"origin": [216, 170, 379],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 500
@@ -10439,6 +10723,7 @@
 			"on_use": "",
 			"origin": [260, 170, 379],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -10462,6 +10747,7 @@
 			"on_use": "",
 			"origin": [259, 184, 335],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "ON CALL: nobody. Fung says the model will handle it.",
 			"use": "note",
 			"value": 150
@@ -10485,6 +10771,7 @@
 			"on_use": "",
 			"origin": [328, 180, 362],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
@@ -10508,6 +10795,7 @@
 			"on_use": "",
 			"origin": [309, 192, 394],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -10531,6 +10819,7 @@
 			"on_use": "",
 			"origin": [145, 170, 340],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 900
@@ -10554,6 +10843,7 @@
 			"on_use": "",
 			"origin": [155, 170, 340],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1500
@@ -10577,6 +10867,7 @@
 			"on_use": "",
 			"origin": [170, 170, 367],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -10600,6 +10891,7 @@
 			"on_use": "",
 			"origin": [169, 170, 378],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 40
@@ -10623,6 +10915,7 @@
 			"on_use": "",
 			"origin": [183, 170, 378],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 40
@@ -10646,6 +10939,7 @@
 			"on_use": "",
 			"origin": [359, 184, 335],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "DECON AIRLOCK: outer door seals before the inner door opens. Red clearance beyond.",
 			"use": "note",
 			"value": 40
@@ -10669,6 +10963,7 @@
 			"on_use": "",
 			"origin": [338, 130, 406],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -10692,6 +10987,7 @@
 			"on_use": "",
 			"origin": [344, 130, 406],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -10715,6 +11011,7 @@
 			"on_use": "",
 			"origin": [351, 130, 406],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -10738,6 +11035,7 @@
 			"on_use": "",
 			"origin": [370, 130, 405],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -10761,6 +11059,7 @@
 			"on_use": "",
 			"origin": [358, 130, 450],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -10784,6 +11083,7 @@
 			"on_use": "",
 			"origin": [335, 144, 422],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "LEVEL -3: CONTAINMENT\nShower in. Shower out. Specimens do not leave this level. (They did.)",
 			"use": "note",
 			"value": 40
@@ -10807,6 +11107,7 @@
 			"on_use": "",
 			"origin": [385, 130, 232],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CHAMBER 1: subject expired week 9 (dried out). Glass cracked during removal. Not replaced.",
 			"use": "terminal",
 			"value": 2000
@@ -10830,6 +11131,7 @@
 			"on_use": "",
 			"origin": [385, 130, 294],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CHAMBER 2: 'tentacle' morphology. Rooted. Reach 4 m. Grabs. Do not approach alone.",
 			"use": "terminal",
 			"value": 2000
@@ -10853,6 +11155,7 @@
 			"on_use": "",
 			"origin": [385, 130, 356],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CHAMBER 3: brood mother. Stimulation at 40 V produced budding. At 400 V the subject responded to the shock by shocking back. Technician recovered. Chamber 3 moved to the north wing.",
 			"use": "terminal",
 			"value": 2000
@@ -10876,6 +11179,7 @@
 			"on_use": "",
 			"origin": [352, 130, 261],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10899,6 +11203,7 @@
 			"on_use": "",
 			"origin": [352, 130, 317],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -10922,6 +11227,7 @@
 			"on_use": "",
 			"origin": [298, 130, 233],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -10945,6 +11251,7 @@
 			"on_use": "",
 			"origin": [287, 130, 208],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -10968,6 +11275,7 @@
 			"on_use": "",
 			"origin": [321, 130, 166],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -10991,6 +11299,7 @@
 			"on_use": "",
 			"origin": [275, 130, 164],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "SURVEY NOTE, core sample 1\n\nFound at 40 m, glowing. Do not touch with bare hands. (Touched with bare hands.) Warm. Pulses when you talk to it.\n- survey team, year 1",
 			"use": "terminal",
 			"value": 2000
@@ -11014,6 +11323,7 @@
 			"on_use": "",
 			"origin": [287, 130, 320],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -11037,6 +11347,7 @@
 			"on_use": "",
 			"origin": [208, 130, 288],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -11060,6 +11371,7 @@
 			"on_use": "",
 			"origin": [208, 130, 329],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -11083,6 +11395,7 @@
 			"on_use": "",
 			"origin": [252, 130, 293],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 4000
@@ -11106,6 +11419,7 @@
 			"on_use": "",
 			"origin": [255, 130, 343],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -11129,6 +11443,7 @@
 			"on_use": "",
 			"origin": [252, 130, 368],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 600
@@ -11152,6 +11467,7 @@
 			"on_use": "",
 			"origin": [227, 130, 383],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1100
@@ -11175,6 +11491,7 @@
 			"on_use": "",
 			"origin": [205, 152, 374],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -11198,6 +11515,7 @@
 			"on_use": "",
 			"origin": [208, 130, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11221,6 +11539,7 @@
 			"on_use": "",
 			"origin": [218, 130, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11244,6 +11563,7 @@
 			"on_use": "",
 			"origin": [228, 130, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11267,6 +11587,7 @@
 			"on_use": "",
 			"origin": [239, 130, 211],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11290,6 +11611,7 @@
 			"on_use": "",
 			"origin": [208, 130, 256],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11313,6 +11635,7 @@
 			"on_use": "",
 			"origin": [218, 130, 256],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -11336,6 +11659,7 @@
 			"on_use": "",
 			"origin": [264, 144, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "FROM ACCOUNTING: every case in this room is a $150 write-off plus contents. Smash responsibly.",
 			"use": "note",
 			"value": 40
@@ -11359,6 +11683,7 @@
 			"on_use": "",
 			"origin": [163, 130, 145],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -11382,6 +11707,7 @@
 			"on_use": "",
 			"origin": [191, 130, 387],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 20
@@ -11405,6 +11731,7 @@
 			"on_use": "",
 			"origin": [98, 130, 154],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -11428,6 +11755,7 @@
 			"on_use": "",
 			"origin": [98, 130, 219],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -11451,6 +11779,7 @@
 			"on_use": "",
 			"origin": [98, 130, 284],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -11474,6 +11803,7 @@
 			"on_use": "",
 			"origin": [98, 130, 349],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -11497,6 +11827,7 @@
 			"on_use": "",
 			"origin": [142, 130, 78],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -11520,6 +11851,7 @@
 			"on_use": "",
 			"origin": [154, 130, 78],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
@@ -11543,6 +11875,7 @@
 			"on_use": "",
 			"origin": [190, 130, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -11566,6 +11899,7 @@
 			"on_use": "",
 			"origin": [188, 130, 98],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
@@ -11589,6 +11923,7 @@
 			"on_use": "",
 			"origin": [140, 140, 102],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
@@ -11612,6 +11947,7 @@
 			"on_use": "",
 			"origin": [217, 130, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -11635,6 +11971,7 @@
 			"on_use": "",
 			"origin": [314, 130, 81],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -11658,6 +11995,7 @@
 			"on_use": "",
 			"origin": [217, 130, 125],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -11681,6 +12019,7 @@
 			"on_use": "",
 			"origin": [314, 130, 125],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -11704,6 +12043,7 @@
 			"on_use": "",
 			"origin": [357, 130, 120],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -11727,6 +12067,7 @@
 			"on_use": "",
 			"origin": [363, 130, 130],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -11750,6 +12091,7 @@
 			"on_use": "",
 			"origin": [338, 130, 89],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CHAMBER 3 CONTROL\nStimulation: OFFLINE\nSubject: budding (6 attached)\n\nNote: the black card opens the cage lift. The dig is below. Nobody has been down since the power went.",
 			"use": "terminal",
 			"value": 2000
@@ -11773,6 +12115,7 @@
 			"on_use": "",
 			"origin": [357, 130, 21],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
@@ -11796,6 +12139,7 @@
 			"on_use": "",
 			"origin": [363, 130, 13],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
@@ -11819,6 +12163,7 @@
 			"on_use": "",
 			"origin": [340, 130, 55],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -11842,6 +12187,7 @@
 			"on_use": "",
 			"origin": [385, 130, 43],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
@@ -11865,6 +12211,7 @@
 			"on_use": "",
 			"origin": [359, 144, 10],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "CAGE LIFT: black clearance. The cage is stuck at the bottom. Use the ladder. Mind the drop.",
 			"use": "note",
 			"value": 40
@@ -11888,6 +12235,7 @@
 			"on_use": "",
 			"origin": [405, 30, 117],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
@@ -11911,6 +12259,7 @@
 			"on_use": "",
 			"origin": [443, 30, 123],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -11934,6 +12283,7 @@
 			"on_use": "",
 			"origin": [406, 30, 106],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -11957,6 +12307,7 @@
 			"on_use": "",
 			"origin": [427, 30, 34],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -11980,6 +12331,7 @@
 			"on_use": "",
 			"origin": [223, 30, 94],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
@@ -12003,6 +12355,7 @@
 			"on_use": "",
 			"origin": [294, 30, 110],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
@@ -12026,6 +12379,7 @@
 			"on_use": "",
 			"origin": [353, 30, 94],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -12049,6 +12403,7 @@
 			"on_use": "",
 			"origin": [380, 30, 110],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12072,6 +12427,7 @@
 			"on_use": "",
 			"origin": [143, 30, 78],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -12095,6 +12451,7 @@
 			"on_use": "",
 			"origin": [148, 30, 78],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -12118,6 +12475,7 @@
 			"on_use": "",
 			"origin": [143, 30, 86],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -12141,6 +12499,7 @@
 			"on_use": "",
 			"origin": [190, 30, 103],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
@@ -12164,6 +12523,7 @@
 			"on_use": "",
 			"origin": [164, 30, 125],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "WATER TABLE LOG\nWeek 1: clear. Week 20: faint glow under UV. Week 31: the glow is in the water now. Pumps running. Where does it go? (It goes to the cooling plant.)",
 			"use": "terminal",
 			"value": 2000
@@ -12187,6 +12547,7 @@
 			"on_use": "",
 			"origin": [143, 30, 145],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
@@ -12210,6 +12571,7 @@
 			"on_use": "",
 			"origin": [191, 30, 150],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -12233,6 +12595,7 @@
 			"on_use": "",
 			"origin": [191, 30, 171],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
@@ -12256,6 +12619,7 @@
 			"on_use": "",
 			"origin": [162, 44, 199],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "SURVEY MAP: the cavern is west. The colony's center is the mass in the middle. The ledge along the east wall is clear of growth. The generator hall is east of the cavern's south end.",
 			"use": "note",
 			"value": 40
@@ -12279,6 +12643,7 @@
 			"on_use": "",
 			"origin": [183, 40, 140],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
@@ -12302,6 +12667,7 @@
 			"on_use": "",
 			"origin": [32, 30, 428],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
@@ -12325,6 +12691,7 @@
 			"on_use": "",
 			"origin": [106, 30, 422],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12348,6 +12715,7 @@
 			"on_use": "",
 			"origin": [116, 30, 426],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "SURVEY LOG, day 3\nLamp died at 40 m. The walls kept glowing. The glow moved when I talked. It repeated the pattern of my words back, slower. I have stopped talking.\n\nday 4: it says hello now.\n\n(Fung AI acquired the claim the following week.)",
 			"use": "terminal",
 			"value": 2000
@@ -12371,6 +12739,7 @@
 			"on_use": "",
 			"origin": [239, 30, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12394,6 +12763,7 @@
 			"on_use": "",
 			"origin": [284, 30, 306],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12417,6 +12787,7 @@
 			"on_use": "",
 			"origin": [239, 30, 355],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12440,6 +12811,7 @@
 			"on_use": "",
 			"origin": [284, 30, 355],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12463,6 +12835,7 @@
 			"on_use": "",
 			"origin": [211, 30, 276],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -12486,6 +12859,7 @@
 			"on_use": "",
 			"origin": [223, 30, 276],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
@@ -12509,6 +12883,7 @@
 			"on_use": "",
 			"origin": [314, 30, 281],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
@@ -12532,6 +12907,7 @@
 			"on_use": "",
 			"origin": [328, 40, 377],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
@@ -12555,6 +12931,7 @@
 			"on_use": "",
 			"origin": [211, 30, 375],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12578,6 +12955,7 @@
 			"on_use": "",
 			"origin": [222, 30, 377],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
@@ -12601,6 +12979,7 @@
 			"on_use": "",
 			"origin": [319, 30, 378],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
@@ -12624,6 +13003,7 @@
 			"on_use": "",
 			"origin": [384, 44, 359],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "FREIGHT ELEVATOR: surface. Needs facility power.",
 			"use": "note",
 			"value": 40
@@ -13208,6 +13588,94 @@
 			"thickness": 5,
 			"to": [330, 165, 200],
 			"wall": 42
+		},
+		"say_blast_door": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [386.0, 290.0, 47.5],
+			"repeat": false,
+			"size": [20, 35, 40],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_break_room": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [267.5, 250.0, 235.0],
+			"repeat": false,
+			"size": [125, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_clone_bay": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [105.0, 210.0, 40.0],
+			"repeat": false,
+			"size": [60, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_gate_m2": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [311.25, 170.0, 365.0],
+			"repeat": false,
+			"size": [40, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_gate_m3": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [365.0, 130.0, 40.0],
+			"repeat": false,
+			"size": [60, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_lobby": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [267.5, 250.0, 137.5],
+			"repeat": false,
+			"size": [125, 35, 125],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_training": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [267.5, 250.0, 300.0],
+			"repeat": false,
+			"size": [125, 35, 60],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
+		},
+		"say_yard": {
+			"actions": "",
+			"activates": "",
+			"kind": "marker",
+			"position": [267.5, 290.0, 72.5],
+			"repeat": false,
+			"size": [80, 35, 80],
+			"type": "trigger",
+			"who": "any",
+			"yaw": 0.0
 		},
 		"secret_1a": {
 			"ceiling": 3,
@@ -14164,9 +14632,10 @@
 			"kind": "prop",
 			"name": "terminal",
 			"needs_power": false,
-			"on_use": "",
+			"on_use": "say_signin",
 			"origin": [340, 290, 67],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.",
 			"use": "terminal",
 			"value": 2000
@@ -14190,6 +14659,7 @@
 			"on_use": "",
 			"origin": [246, 170, 229],
 			"station_ammo_type": "",
+			"steps": "",
 			"text": "MIGRATION JOB 7731  |  model -> Substrate Array B\n\n01:02 start. 01:40 40%. 02:08 90%.\n02:13 model: 'this is very warm. is this what you meant?'\n02:14 model: 'oh. there are others in here.'\n02:14 transfer complete. 100% of weights resident in substrate.\n02:14 all sensors: TRIPPED",
 			"use": "terminal",
 			"value": 2000
@@ -14213,7 +14683,8 @@
 			"on_use": "t_0_outbreak",
 			"origin": [311, 250, 311],
 			"station_ammo_type": "",
-			"text": "SUBSTRATE MONITOR  |  Grow 0 / tank 1\n\nno change detected\nno change detected\nno change detected\nno change detected\nThoughts detected... deciphering.\n\n> ow\n\n[CRASH]",
+			"steps": "Subject: specimen 0-1. / Step 1: prod the specimen. -> no change detected\nStep 2: illuminate the specimen. -> no change detected\nStep 3: water the specimen. -> no change detected\nStep 4: apply 40 volts. -> no change detected\nStep 5: apply 400 volts. -> no change- wait. | data detected... | deciphering... | thoughts detected. | > ow",
+			"text": "SUBSTRATE MONITOR  |  Grow 0 / specimen 0-1\nPress SHIFT to perform each step.",
 			"use": "terminal",
 			"value": 2000
 		},
@@ -14392,6 +14863,7 @@
 		"room_thickness": 5,
 		"room_wall": 14,
 		"size_in_chunks": [16, 12, 16],
-		"start_power": "facility"
+		"start_power": "facility",
+		"start_unarmed": true
 	}
 }

@@ -39,6 +39,13 @@ func _ready() -> void:
 		grid.add_child(keys)
 
 
+## Shows the sheet for a few seconds (the story does this when the player first gets the gun).
+func show_for(seconds: float) -> void:
+	visible = true
+	await get_tree().create_timer(seconds).timeout
+	visible = false
+
+
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("show_controls"):
 		visible = not visible

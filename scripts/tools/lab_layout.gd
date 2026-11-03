@@ -16,6 +16,7 @@ extends RefCounted
 
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 const P := preload("res://scripts/world/props.gd")
+const StoryLines := preload("res://scripts/story/lines.gd")
 
 const SIZE_IN_CHUNKS := Vector3i(16, 12, 16)
 const CELL := 60
@@ -238,7 +239,7 @@ func _floor_g() -> void:
 	prop("yard", "plank_stack", 0.8, 0.9)
 	prop("gatehouse", "desk", 0.5, 0.2, P.SOUTH)
 	prop("gatehouse", "chair", 0.5, 0.05, P.SOUTH)
-	prop("gatehouse", "terminal", 0.1, 0.5, P.EAST, {text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin"})
+	prop("gatehouse", "terminal", 0.1, 0.5, P.EAST, {text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
 	prop("gatehouse", "locker", 0.9, 0.3, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.42, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.54, P.WEST)
@@ -246,6 +247,9 @@ func _floor_g() -> void:
 	wall_prop("gatehouse", "corkboard_a", "s", 0.5, 14, {use = "note", text = "SITE 3 VISITORS: all property damage is recovered from wages. Clones are property."})
 	speaker("gatehouse", 0.5, 0.5)
 	trigger("t_g_seal", "stair_g0", "close=d_g_blast,lock=d_g_blast", {who = "all", fz = 0.8, d = 40})
+	# The intercom\'s tour (Lines.INTERCOM, keyed by these ids).
+	trigger("say_yard", "yard", "", {fx = 0.5, fz = 0.5, w = 80, d = 80})
+	trigger("say_blast_door", "gatehouse", "", {fx = 0.85, fz = 0.3, w = 20, d = 40})
 
 
 # --- Floor 0: Admin --------------------------------------------------------------------------------
@@ -346,12 +350,12 @@ func _floor_0() -> void:
 	for i in 4:
 		prop("training", "chair", 0.2 + 0.2 * i, 0.3, P.NORTH)
 		prop("training", "chair", 0.2 + 0.2 * i, 0.5, P.NORTH)
-	prop("training", "terminal", 0.9, 0.85, P.WEST, {id = "term_training", on_use = "t_0_outbreak", text = "SUBSTRATE MONITOR  |  Grow 0 / tank 1\n\nno change detected\nno change detected\nno change detected\nno change detected\nThoughts detected... deciphering.\n\n> ow\n\n[CRASH]"})
+	prop("training", "terminal", 0.9, 0.85, P.WEST, {id = "term_training", on_use = "t_0_outbreak", text = StoryLines.EXPERIMENT_HEADER, steps = StoryLines.steps_text()})
 	prop("training", "spore_tank", 0.78, 0.9)
 	prop("grow_0", "grow_bed", 0.1, 0.2, P.NORTH)
 	prop("grow_0", "grow_bed", 0.1, 0.7, P.NORTH)
 	prop("grow_0", "shelf_lab_a", 0.9, 0.3, P.WEST)
-	prop("grow_0", "glass_case", 0.9, 0.7, P.WEST, {id = "case_grow0", contents = "ammo_shotgun,flask_fire"})
+	prop("grow_0", "glass_case", 0.9, 0.7, P.WEST, {id = "case_grow0", contents = "spore_shooter,ammo_shotgun,flask_fire"})
 	prop("grow_0", "spore_tank", 0.6, 0.1)
 	prop("closet_0", "shelf_storage_a", 0.5, 0.05, P.SOUTH)
 	prop("closet_0", "crate_5", 0.2, 0.8)
@@ -365,6 +369,9 @@ func _floor_0() -> void:
 	trigger("t_0_outbreak", "training", "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_0_grow_1", {nowhere = true})
 	trigger("t_0_gun_taken", "grow_0", "on=s_0_lobby_vent_1", {fx = 0.85, fz = 0.7, w = 30, d = 30})
 	trigger("t_0_office_enter", "open_office", "on=s_0_office_1")
+	trigger("say_lobby", "lobby", "")
+	trigger("say_break_room", "break_room", "")
+	trigger("say_training", "training", "")
 	speaker("lobby", 0.5, 0.5)
 	speaker("training", 0.5, 0.5)
 
@@ -481,6 +488,7 @@ func _floor_m1() -> void:
 	trigger("t_m1_catwalk", "grow_hall_1", "on=s_m1_hall1_2", {fx = 0.85, fz = 0.5, w = 30, d = 100})
 	trigger("t_m1_hall2", "grow_hall_2", "on=s_m1_hall2_1,on=s_m1_hall2_2,on=s_m1_clean_1", {fx = 0.5, fz = 0.5, w = 70, d = 70})
 	trigger("t_m1_stair_seal", "stair_m1_m2", "close=d_m1_stair,lock=d_m1_stair", {who = "all", fz = 0.85, d = 40})
+	trigger("say_clone_bay", "clone_bay_m1", "")
 	speaker("grow_hall_1", 0.5, 0.5)
 	speaker("grow_hall_2", 0.5, 0.5)
 
@@ -597,6 +605,7 @@ func _floor_m2() -> void:
 	trigger("t_m2_cool", "cooling_plant", "on=s_m2_cool_1,on=s_m2_cool_2,on=s_m2_cool_3")
 	trigger("t_m2_inference", "inference_lab", "on=s_m2_arch_1,on=s_m2_arch_2")
 	trigger("t_m2_airlock", "airlock", "close=d_m2_airlock_out,lock=d_m2_airlock_out,unlock=d_m2_airlock_in,open=d_m2_airlock_in", {who = "all"})
+	trigger("say_gate_m2", "bullpen", "", {fx = 0.85, fz = 0.5, w = 40, d = 60})
 	speaker("server_hall", 0.5, 0.5)
 	speaker("airlock", 0.5, 0.5)
 
@@ -719,6 +728,7 @@ func _floor_m3() -> void:
 	trigger("t_m3_ward_a", "ward", "on=s_m3_ward_1,on=s_m3_ward_1b", {fz = 0.75, d = 120})
 	trigger("t_m3_ward_b", "ward", "on=s_m3_ward_2,on=s_m3_ward_3", {fz = 0.3, d = 100})
 	trigger("t_m3_tc3", "tc3", "on=s_m3_tc3_2")
+	trigger("say_gate_m3", "checkpoint", "")
 	speaker("gallery", 0.5, 0.5)
 	speaker("ward", 0.5, 0.5)
 

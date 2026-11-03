@@ -90,6 +90,25 @@ func join(address: String, port := DEFAULT_PORT) -> Error:
 	return OK
 
 
+## Host: moves the whole session to another level (the waiting room admitting the party to the
+## laboratory). The host reloads the level scene first, so its Lab exists by the time the peers
+## reload theirs and ask to enter; they then get the new level as a late joiner would.
+func change_level(level_name: String) -> void:
+	if not is_host() or not in_session:
+		return
+	session = {level = level_name, mode = session.mode}
+	get_tree().change_scene_to_file(LEVEL_SCENE)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_level_changed.rpc(session)
+
+
+@rpc("authority", "reliable")
+func _level_changed(host_session: Dictionary) -> void:
+	session = host_session
+	get_tree().change_scene_to_file(LEVEL_SCENE)
+
+
 ## Leaves the session and returns to the menu.
 func leave(reason := "") -> void:
 	_reset()

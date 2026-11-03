@@ -4,6 +4,10 @@ extends Control
 ## between runs. Web builds are single-player, so the editor and co-op run solo there.
 
 const SETTINGS_PATH := "user://settings.cfg"
+const INTRO_SCENE := preload("res://scenes/intro.tscn")
+## The story's levels: solo games start in the lab, co-op games in the waiting room.
+const STORY_LEVEL := "laboratory"
+const WAITING_LEVEL := "waiting_room"
 const SIZES := [
 	{label = "Small (25 x 19 x 25 m)", chunks = Vector3i(8, 6, 8)},
 	{label = "Medium (38 x 25 x 38 m)", chunks = Vector3i(12, 8, 12)},
@@ -19,6 +23,9 @@ var _new_panel := VBoxContainer.new()
 var _new_name := LineEdit.new()
 var _new_size := OptionButton.new()
 var _new_fill := OptionButton.new()
+var _skip_intro := CheckBox.new()
+var _column: VBoxContainer
+var _intro: Intro
 
 
 func _ready() -> void:
@@ -38,6 +45,7 @@ func _ready() -> void:
 	column.custom_minimum_size = Vector2(380, 0)
 	column.add_theme_constant_override("separation", 10)
 	center.add_child(column)
+	_column = column
 
 	var title := Label.new()
 	title.text = "EXPENDABLE"
@@ -55,6 +63,24 @@ func _ready() -> void:
 	_name.max_length = 20
 	column.add_child(_labeled("Name", _name))
 
+	# The story: the cubicle intro, then the lab (solo) or the waiting room (co-op).
+	_add_button(column, "New game (solo)", _on_new_game)
+	if Net.can_network():
+		_add_button(column, "Host game (co-op, port %d)" % Net.DEFAULT_PORT, _on_host_game)
+		_address.placeholder_text = "host address, e.g. 203.0.113.5"
+		_address.text = settings.get_value("player", "address", "127.0.0.1")
+		column.add_child(_labeled("Join", _address))
+		_add_button(column, "Join game", _on_join_game)
+		_address.text_submitted.connect(func(_t: String) -> void: _on_join_game())
+	_skip_intro.text = "Skip the intro"
+	_skip_intro.button_pressed = settings.get_value("player", "skip_intro", false)
+	column.add_child(_skip_intro)
+	var testing := Label.new()
+	testing.text = "Testing and editing"
+	testing.modulate = Color(1, 1, 1, 0.5)
+	testing.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(testing)
+
 	var level_row := HBoxContainer.new()
 	_level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	level_row.add_child(_level)
@@ -71,11 +97,7 @@ func _ready() -> void:
 		_add_button(column, "Host co-op game (port %d)" % Net.DEFAULT_PORT, _on_host)
 	_add_button(column, "Edit level" + (" (co-op: friends can join)" if Net.can_network() else ""), _on_edit)
 	if Net.can_network():
-		_address.placeholder_text = "host address, e.g. 203.0.113.5"
-		_address.text = settings.get_value("player", "address", "127.0.0.1")
-		column.add_child(_labeled("Join", _address))
-		_add_button(column, "Join (game or editor)", _on_join)
-		_address.text_submitted.connect(func(_t: String) -> void: _on_join())
+		_add_button(column, "Join the editor at the address above", _on_join)
 	else:
 		var note := Label.new()
 		note.text = "Co-op needs the desktop build."
@@ -146,7 +168,45 @@ func _remember() -> void:
 	settings.set_value("player", "name", _name.text.strip_edges())
 	settings.set_value("player", "address", _address.text.strip_edges())
 	settings.set_value("player", "level", _level_name())
+	settings.set_value("player", "skip_intro", _skip_intro.button_pressed)
 	settings.save(SETTINGS_PATH)
+
+
+# --- The story -------------------------------------------------------------------------------------
+
+## Plays the cubicle intro (unless skipped), then calls `then` if the job was accepted; declining
+## and refusing to go back returns to the menu.
+func _play_intro(then: Callable) -> void:
+	_remember()
+	if _skip_intro.button_pressed:
+		then.call()
+		return
+	_column.visible = false
+	_intro = INTRO_SCENE.instantiate()
+	_intro.finished.connect(func(accepted: bool) -> void:
+		_intro.queue_free()
+		_intro = null
+		_column.visible = true
+		if accepted:
+			then.call()
+		else:
+			_status.text = "You declined. The position remains open.")
+	add_child(_intro)
+
+
+func _on_new_game() -> void:
+	_play_intro(func() -> void: Net.start_solo(STORY_LEVEL, "play"))
+
+
+func _on_host_game() -> void:
+	_play_intro(func() -> void:
+		var error := Net.host(Net.DEFAULT_PORT, WAITING_LEVEL, "play")
+		if error != OK:
+			_status.text = "Couldn't host on port %d (%s). Is another copy already hosting?" % [Net.DEFAULT_PORT, error_string(error)])
+
+
+func _on_join_game() -> void:
+	_play_intro(_on_join)
 
 
 func _on_solo() -> void:

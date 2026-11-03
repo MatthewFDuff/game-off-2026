@@ -132,6 +132,9 @@ const REMOTE_DELAY := 0.1
 
 ## False on the copies of other peers' players.
 var is_local := true
+## Carrying the spore shooter (levels with `start_unarmed` begin without it; the case drops it).
+## Replicated with the movement state so every peer hides or shows the gun.
+var has_weapon := true
 ## Level editor: flying with no weapon or collision.
 var editing := false
 ## Level editor builder view (EditorCamera): the player stays put and leaves the mouse free.
@@ -391,6 +394,11 @@ func set_body_visible(shown: bool) -> void:
 			node.visible = shown
 
 
+## Arms or disarms the player (the spore shooter, melee and flasks all need the weapon).
+func set_armed(on: bool) -> void:
+	has_weapon = on
+
+
 ## Back to full health after dying.
 func revive() -> void:
 	health = max_health
@@ -615,11 +623,12 @@ func _send_state(delta: float) -> void:
 		return
 	_send_timer += 1.0 / NET_SEND_RATE
 	for peer_id in net_peers:
-		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible, is_dead)
+		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible, is_dead, has_weapon)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool) -> void:
+func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool, armed := true) -> void:
+	has_weapon = armed
 	var now := Time.get_ticks_msec() / 1000.0
 	if _remote_states.is_empty():
 		global_position = feet # First state: appear there instead of sliding in from the spawn.

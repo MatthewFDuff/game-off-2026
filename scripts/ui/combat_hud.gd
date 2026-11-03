@@ -192,8 +192,9 @@ func _build_ammo() -> void:
 
 func _update_ammo(me: Player, delta: float) -> void:
 	var weapon: Weapon = me.weapon
-	if weapon == null or weapon.ammo == null:
+	if weapon == null or weapon.ammo == null or not me.has_weapon:
 		_ammo_box.visible = false
+		_flask_box.visible = false
 		return
 	_ammo_box.visible = true
 	var type := weapon.ammo

@@ -7,6 +7,11 @@ extends Control
 
 ## Meters past reach the player can wander before an open note closes.
 const READ_SLACK := 1.0
+## The reader's text area never takes more than this share of the viewport's height; longer texts
+## scroll (wheel, arrows, Page Up / Down).
+const READ_HEIGHT_SHARE := 0.6
+const READ_WIDTH := 520.0
+const SCROLL_STEP := 40.0
 
 var lab: Lab
 
@@ -14,6 +19,8 @@ var _prompt := Label.new()
 var _panel := PanelContainer.new()
 var _title := Label.new()
 var _text := Label.new()
+var _scroll := ScrollContainer.new()
+var _reading := ""
 
 
 static func create(level: Lab) -> InteractPrompt:
@@ -53,8 +60,12 @@ func _ready() -> void:
 	column.add_child(_title)
 	_text.label_settings = LabHud._settings(16, Color(0.85, 0.95, 0.9), 0)
 	_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_text.custom_minimum_size = Vector2(484, 0)
-	column.add_child(_text)
+	_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_scroll.custom_minimum_size = Vector2(READ_WIDTH - 36.0, 0)
+	_scroll.add_child(_text)
+	column.add_child(_scroll)
 	var hint := Label.new()
 	hint.text = "E or Esc to close"
 	hint.label_settings = LabHud._settings(13, Color(1, 1, 1, 0.5), 0)
@@ -77,6 +88,48 @@ func _process(_delta: float) -> void:
 	_prompt.visible = playing and play.reading == ""
 	if _prompt.visible:
 		_prompt.text = play.interactables.prompt_for(me.camera).text
+	if _panel.visible:
+		_fit_reader()
+
+
+## Keeps the reader on screen: its width fits the viewport and the text area is capped at a share of
+## the viewport's height, scrolling past that.
+func _fit_reader() -> void:
+	var viewport := get_viewport_rect().size
+	var width := minf(READ_WIDTH, viewport.x - 40.0)
+	_panel.custom_minimum_size.x = width
+	_scroll.custom_minimum_size.x = width - 36.0
+	var cap := maxf(80.0, viewport.y * READ_HEIGHT_SHARE - 90.0)
+	_scroll.custom_minimum_size.y = minf(_text.get_combined_minimum_size().y, cap)
+	# Centered whatever size it ends up: its rect is its minimum size around the viewport's middle.
+	var size := _panel.get_combined_minimum_size()
+	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_panel.position = (viewport - size) * 0.5
+	_panel.size = size
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _panel.visible:
+		return
+	var step := 0.0
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			step = SCROLL_STEP
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			step = -SCROLL_STEP
+	elif event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_DOWN: step = SCROLL_STEP
+			KEY_UP: step = -SCROLL_STEP
+			KEY_PAGEDOWN: step = _scroll.size.y
+			KEY_PAGEUP: step = -_scroll.size.y
+	if step != 0.0:
+		_scroll.scroll_vertical += int(step)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("cycle_ammo") and lab.play.reading != "" and str(lab.level.objects.get(lab.play.reading, {}).get("steps", "")) != "":
+		# SHIFT runs the next step of an experiment terminal (the host decides).
+		lab.play.request_step(lab.play.reading)
+		get_viewport().set_input_as_handled()
 
 
 func _on_reading_changed(id: String) -> void:
@@ -85,8 +138,13 @@ func _on_reading_changed(id: String) -> void:
 		return
 	var object: Dictionary = lab.level.objects.get(id, {})
 	_title.text = "TERMINAL" if object.get("use") == "terminal" else "Note"
-	var text := str(object.get("text", "")).strip_edges()
+	var text := lab.play.reading_text(id).strip_edges()
 	_text.text = text if text != "" else "(blank)"
+	var same := id == _reading
+	_reading = id
+	_fit_reader()
+	# A fresh note starts at the top; an experiment that just printed a line shows its end.
+	_scroll.scroll_vertical = 100000 if same else 0
 
 
 static func _distance_to_box(point: Vector3, box: AABB) -> float:

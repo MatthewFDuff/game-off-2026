@@ -42,15 +42,22 @@ func _run() -> void:
 	_check("the blast door needs power but opens now", play.door_refusal("d_g_blast") == "", play.door_refusal("d_g_blast"))
 	_check("grow room 0 starts locked", play.is_door_locked("d_0_grow"))
 	_check("no enemies before the outbreak", _lab.enemies.get_child_count() == 0, str(_lab.enemies.get_child_count()))
+	_check("the player starts unarmed", not _me.has_weapon and not _me.weapon.fire())
 
 	# The training terminal: power to backup, grow room 0 unlocked and open, its spawner on.
 	var fired := []
 	play.triggered.connect(func(id: String, _peer: int) -> void: fired.append(id))
 	_teleport_to("training", 0.5, 0.5)
 	await _frames(5)
+	# The training terminal is an experiment: SHIFT runs each step, the last one fires the outbreak.
 	play._use("term_training", _lab.multiplayer.get_unique_id())
-	await _frames(5)
-	_check("the terminal fires the outbreak trigger", "t_0_outbreak" in fired, str(fired))
+	await _frames(2)
+	for i in Lines.EXPERIMENT.size():
+		play.request_step("term_training")
+		await _frames(2)
+	var outbreak := await _wait_until(func() -> bool: return "t_0_outbreak" in fired, 8.0)
+	await _frames(3)
+	_check("the experiment's last step fires the outbreak trigger", outbreak, str(fired))
 	_check("power goes to backup", play.power == "backup", play.power)
 	var grow_open := await _wait_until(func() -> bool: return play.is_door_open("d_0_grow"), 3.0)
 	_check("grow room 0 unlocks and opens", not play.is_door_locked("d_0_grow") and grow_open)
@@ -63,6 +70,16 @@ func _run() -> void:
 	_teleport_to("grow_0", 0.85, 0.7)
 	await _frames(5)
 	_check("the case trigger wakes the lobby vent", director.spawners.s_0_lobby_vent_1.active)
+	play.smash_glass("case_grow0")
+	await _frames(3)
+	var gun = null
+	for pickup in _lab.items.pickups.values():
+		if pickup.item == "spore_shooter":
+			gun = pickup
+	if gun:
+		_me.teleport(gun.global_position - Vector3.UP * 0.35)
+	var armed := await _wait_until(func() -> bool: return _me.has_weapon, 3.0)
+	_check("the case drops the spore shooter and picking it up arms the player", armed, "dropped: %s" % (gun != null))
 	_check("the lift refuses without the blue card", play.door_refusal("d_0_lift").contains("blue"), play.door_refusal("d_0_lift"))
 	play.add_keycard("blue")
 	_check("the blue card opens the lift", play.door_refusal("d_0_lift") == "")

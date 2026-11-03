@@ -150,6 +150,8 @@ func _process(delta: float) -> void:
 	_update_effects(delta)
 	if not player.is_local or player.is_dead or player.editing or not InputSetup.is_playing() or EditorInput.blocks_keyboard():
 		return
+	if not player.has_weapon:
+		return
 	if Input.is_action_just_pressed("melee"):
 		melee()
 	if Input.is_action_just_pressed("alt_fire"):
@@ -244,7 +246,7 @@ func _remote_ammo(ammo_name: String) -> void:
 ## Fires the loaded ammo if it's ready and there's ammo; direction defaults to where the camera
 ## looks. Returns whether it fired.
 func fire(direction := Vector3.ZERO) -> bool:
-	if _cooldown > 0.0 or player == null or player.world == null:
+	if _cooldown > 0.0 or player == null or player.world == null or not player.has_weapon:
 		return false
 	var type := ammo
 	if inventory and not inventory.use_ammo(type.name):
@@ -497,7 +499,7 @@ func _light_burst(at: Vector3, color: Color, light_range: float, seconds: float)
 
 ## Swings the axe if it's ready; the hit lands MELEE_HIT_AT into the swing. Returns whether it swung.
 func melee() -> bool:
-	if _melee_cooldown > 0.0 or player == null or player.world == null or player.is_dead:
+	if _melee_cooldown > 0.0 or player == null or player.world == null or player.is_dead or not player.has_weapon:
 		return false
 	_melee_cooldown = MELEE_COOLDOWN
 	_melee_hit_in = MELEE_HIT_AT
@@ -602,7 +604,7 @@ func cycle_flask() -> void:
 ## Throws the selected flask (one from the Inventory) along direction (default: where the camera
 ## looks), in an arc. Returns whether it threw.
 func throw_flask(direction := Vector3.ZERO) -> bool:
-	if _flask_cooldown > 0.0 or player == null or player.world == null or player.is_dead:
+	if _flask_cooldown > 0.0 or player == null or player.world == null or player.is_dead or not player.has_weapon:
 		return false
 	var type := AmmoType.flask_type(flask)
 	# Spending the last one selects the next type (inventory.changed), so look the type up first.
@@ -779,7 +781,7 @@ func _update_effects(delta: float) -> void:
 	_flame.emitting = _flame_time > 0.0
 	# Kick back on each shot and settle; hidden while editing or dead.
 	_kick = maxf(0.0, _kick - delta * 8.0)
-	_pivot.visible = not player.editing and not player.is_dead
+	_pivot.visible = not player.editing and not player.is_dead and player.has_weapon
 	var offset := view_offset if player.is_local else body_offset
 	_pivot.position = offset + Vector3(0.0, 0.0, _kick * _kick * 0.05)
 	_pivot.rotation.x = _kick * _kick * 0.12

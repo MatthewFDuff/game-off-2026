@@ -12,6 +12,7 @@ var _pause_info := Label.new()
 var _waiting := Label.new()
 var _toast := Label.new()
 var _toast_time := 0.0
+var _story: Story
 
 
 static func _settings(size: int, color := Color.WHITE, outline := 5) -> LabelSettings:
@@ -57,6 +58,8 @@ func _ready() -> void:
 	_build_pause()
 	if lab.mode != "edit":
 		add_child(ControlsOverlay.new())
+		_story = Story.create(lab)
+		add_child(_story)
 	Net.players_changed.connect(_update_roster)
 	lab.player_spawned.connect(func(_p: Player) -> void: _update_roster())
 	lab.player_despawned.connect(func(_id: int) -> void: _update_roster())
@@ -70,7 +73,8 @@ func _process(delta: float) -> void:
 	_roster.visible = lab.mode != "edit"
 	var playing := InputSetup.is_playing()
 	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
-	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit"
+	var ending := _story != null and _story.ending.shown
+	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit" and not ending
 	_crosshair.visible = playing
 	# Solo play pauses with the mouse released; co-op and the editor keep running.
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer

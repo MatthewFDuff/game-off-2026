@@ -22,7 +22,8 @@ const FACINGS := ["north", "east", "south", "west"]
 ## What E does with a prop in play (the `use` field). See LevelPlay.
 ##   container       opens once and drops its `contents` in front of it
 ##   terminal        shows `text`, fires the `on_use` trigger the first time; `needs_power` refuses
-##                   it on backup power
+##                   it on backup power. With `steps` it is an experiment: each SHIFT while reading
+##                   runs the next step and prints its result; `on_use` fires after the last one
 ##   note            shows `text`
 ##   station_medkit  heals the user to full, `charges` times
 ##   station_ammo    20 rounds of `station_ammo_type` (empty: the user's loaded type), `charges` times
@@ -48,6 +49,7 @@ const PROP_FIELDS := [
 	{key = "use", type = "enum", options = USES, default = "none", label = "Use (E)"},
 	{key = "contents", type = "string", default = "", label = "Contents (pickups, comma-separated)"},
 	{key = "text", type = "text", default = "", label = "Text (terminal / note)"},
+	{key = "steps", type = "text", default = "", label = "Steps (terminal: 'prompt -> result | result' per line, SHIFT advances)"},
 	{key = "on_use", type = "string", default = "", label = "On use fires trigger"},
 	{key = "needs_power", type = "bool", default = false, label = "Needs power (terminal)"},
 	{key = "charges", type = "int", min = 0, max = 99, default = 3, label = "Charges (station)"},

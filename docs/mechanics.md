@@ -9,6 +9,17 @@ tone and art references, not mechanics.
 
 ## Status (2026-11-03)
 
+- 2026-11-03, story (lab side, `docs/story.md`): `Lines` holds every intercom line, the experiment
+  steps and the ending texts. `Story` (added by LabHud in play) runs the `Intercom` subtitles
+  (host picks the line for a trigger id, peers get the id), the `Experiment` effects, and the
+  `Ending` statement; it also counts deaths on the host and rains over the laboratory's yard.
+  Terminals with a `steps` field are experiments: SHIFT while reading runs the next step
+  (`LevelPlay.request_step`), the last step's results reveal one by one, then `on_use` fires.
+  Levels with the setting `start_unarmed` begin without the spore shooter (`Player.has_weapon`,
+  replicated in the movement state); the `spore_shooter` item arms the player. `LevelPlay` keeps
+  `damage_by_name` beside `total_damage` and emits `state_changed`, `door_refused`, `door_passed`.
+  New Sfx: intercom_chime, register_tick, crash, zap, splash, rain (loop).
+
 All seven phases are implemented on the `mechanics` branch and covered by headless tests
 (`controls_test`, `enemy_test`, `weapon_test`, `status_test`, `interact_test`, `roster_a_test`,
 `roster_b_test`, `finale_test`, plus the two-process `tools/net_test.sh`). The README documents

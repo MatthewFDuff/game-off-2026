@@ -230,13 +230,72 @@ func _synthesize_all() -> int:
 		"melee_swing", "melee_hit", "flask_throw", "flask_break",
 		"drawer_open", "terminal_beep", "station_use", "glass_break",
 		"fuse", "shroom_scream", "spit", "giant_slam",
-		"spawn_pop", "burst", "spore_puff", "tentacle_grab",
+		"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
+		"intercom_chime", "register_tick", "crash", "zap", "splash", "rain",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
 			_streams[sound] = stream
 			total += stream.data.size() / 2
 	return total
+
+
+## Heartbeat: a lub and a softer dub, low and round (the cubicle's decline).
+func _make_heartbeat() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.5)
+	_add_tone(buf, RATE, 0.0, 0.16, 70.0, 42.0, 0.9, 0.05, Shape.SINE, 0.004, 0.03)
+	_add_tone(buf, RATE, 0.2, 0.18, 62.0, 38.0, 0.6, 0.06, Shape.SINE, 0.004, 0.04)
+	return _to_wav(buf, RATE)
+
+
+## Intercom: a soft two-note chime (a corporate "bing-bong") before a line.
+func _make_intercom_chime() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.7)
+	_add_tone(buf, RATE, 0.0, 0.3, 880.0, 880.0, 0.22, 2.0, Shape.SINE, 0.005, 0.1)
+	_add_tone(buf, RATE, 0.25, 0.4, 659.3, 659.3, 0.22, 2.0, Shape.SINE, 0.005, 0.15)
+	return _to_wav(buf, RATE)
+
+
+## Cash register: a dry click and a short bright ding.
+func _make_register_tick() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.16)
+	_add_noise(buf, RATE, 0.0, 0.02, 0.5, 60.0, 4000.0, 800.0)
+	_add_tone(buf, RATE, 0.02, 0.14, 2093.0, 2093.0, 0.14, 12.0, Shape.SINE, 0.002, 0.03)
+	return _to_wav(buf, RATE)
+
+
+## A crash in the next room: a low thud with glass and clatter on top.
+func _make_crash() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.9)
+	_add_tone(buf, RATE, 0.0, 0.35, 90.0, 40.0, 0.6, 6.0, Shape.SINE, 0.002, 0.05)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.5, 5.0, 3000.0, 200.0)
+	_add_noise(buf, RATE, 0.12, 0.6, 0.3, 4.0, 6000.0, 1500.0, 0.001, 0.05, 23.0, 0.8)
+	return _to_wav(buf, RATE)
+
+
+## Electric shock: a buzzing square burst with crackle.
+func _make_zap() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.4)
+	_add_tone(buf, RATE, 0.0, 0.35, 120.0, 95.0, 0.3, 3.0, Shape.SQUARE, 0.002, 0.03, 50.0, 0.9)
+	_add_noise(buf, RATE, 0.0, 0.3, 0.3, 6.0, 7000.0, 1200.0, 0.001, 0.02, 90.0, 0.9)
+	return _to_wav(buf, RATE)
+
+
+## Water on a specimen: a short filtered splash.
+func _make_splash() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.45)
+	_add_noise(buf, RATE, 0.0, 0.4, 0.4, 5.0, 2500.0, 400.0, 0.01, 0.1)
+	_add_tone(buf, RATE, 0.05, 0.15, 520.0, 260.0, 0.08, 8.0, Shape.SINE)
+	return _to_wav(buf, RATE)
+
+
+## Rain on the yard: a looping wash of filtered noise with a slow swell.
+func _make_rain() -> AudioStreamWAV:
+	var buf := _buffer(LOW_RATE, 2.05)
+	_add_noise(buf, LOW_RATE, 0.0, 2.05, 0.5, 0.0, 2200.0, 300.0, 0.0, 0.0, 0.7, 0.25)
+	_add_noise(buf, LOW_RATE, 0.0, 2.05, 0.2, 0.0, 600.0, 80.0, 0.0, 0.0, 1.3, 0.3)
+	_seam(buf, LOW_RATE)
+	return _to_wav(buf, LOW_RATE, true)
 
 
 ## Sharp crack: bright noise burst over a darker body and a fast low thump.

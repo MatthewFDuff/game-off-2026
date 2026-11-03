@@ -35,6 +35,12 @@ signal power_changed(state: String)
 signal prop_used(id: String, peer_id: int)
 ## This peer: a note or terminal opened on screen (id), or closed ("").
 signal reading_changed(id: String)
+## Every peer: a usable prop's state changed (the host decided); sound is what played at it.
+signal state_changed(id: String, state: Dictionary, sound: String)
+## Host: a keycard or locked door refused a player.
+signal door_refused(id: String, peer_id: int)
+## Host: a keycard door was opened by a player who had its card.
+signal door_passed(id: String, peer_id: int)
 
 ## How close (meters) a player must be to use a door or prop.
 const DOOR_REACH := 3.0
@@ -47,6 +53,8 @@ const STATION_AMMO := 20
 @export var lab: Lab
 
 var active := false
+## Host: dollars of asset damage per asset name since play started (the payroll statement).
+var damage_by_name := {}
 ## Host: dollars of asset damage since play started.
 var total_damage := 0
 ## Every peer (the host decides): "facility", "backup" or "restored".
@@ -90,6 +98,7 @@ func _ready() -> void:
 func start() -> void:
 	active = true
 	total_damage = 0
+	damage_by_name.clear()
 	_doors.clear()
 	_assets.clear()
 	_usables.clear()
@@ -100,6 +109,9 @@ func start() -> void:
 	keycards.clear()
 	checkpoint = ""
 	close_reading()
+	var me := lab.local_player()
+	if me:
+		me.set_armed(not bool(lab.level.settings.get("start_unarmed", false)))
 	var start_power := str(lab.level.settings.get("start_power", "facility"))
 	power = start_power if start_power in POWER_STATES else "facility"
 	power_changed.emit(power)
@@ -316,7 +328,10 @@ func _use(id: String, peer_id: int) -> void:
 		var why := door_refusal(id)
 		if why != "":
 			lab.notify_peer(peer_id, why)
+			door_refused.emit(id, peer_id)
 		else:
+			if not _doors[id].open and door_key(id) != "":
+				door_passed.emit(id, peer_id)
 			set_door(id, not _doors[id].open)
 		return
 	var object: Dictionary = lab.level.objects.get(id, {})
@@ -337,6 +352,8 @@ func _use(id: String, peer_id: int) -> void:
 				lab.notify_peer(peer_id, "No power")
 				return
 			_show_text(peer_id, id)
+			if str(object.get("steps", "")).strip_edges() != "":
+				return # An experiment: SHIFT runs its steps (request_step); it's used up when they're done.
 			if not state.used:
 				state.used = true
 				_set_state(id, state, "")
@@ -371,6 +388,90 @@ func _use(id: String, peer_id: int) -> void:
 	prop_used.emit(id, peer_id)
 
 
+## Any peer: runs the next step of an experiment terminal (SHIFT while reading it).
+func request_step(id: String) -> void:
+	if multiplayer.is_server():
+		_step(id, multiplayer.get_unique_id())
+	else:
+		_request_step.rpc_id(1, id)
+
+
+@rpc("any_peer", "reliable")
+func _request_step(id: String) -> void:
+	if multiplayer.is_server():
+		_step(id, multiplayer.get_remote_sender_id())
+
+
+## Host: one step of an experiment: prints its results (the last step's one at a time), then
+## marks the terminal used and fires its `on_use`.
+func _step(id: String, peer_id: int) -> void:
+	if not active:
+		return
+	var object: Dictionary = lab.level.objects.get(id, {})
+	var steps := Lines.parse_steps(str(object.get("steps", "")))
+	if steps.is_empty():
+		return
+	var state := state_of(id).duplicate()
+	var index := int(state.get("step", 0))
+	if state.used or index >= steps.size():
+		return
+	var last := index == steps.size() - 1
+	state.step = index + 1
+	state.reveal = 1 if last else 0
+	_set_state(id, state, _step_sound(index))
+	if not last:
+		return
+	while int(state.reveal) < steps[index].results.size():
+		await get_tree().create_timer(Lines.REVEAL_SECONDS).timeout
+		if not active or state_of(id).get("step", 0) != state.step:
+			return
+		state = state_of(id).duplicate()
+		state.reveal = int(state.reveal) + 1
+		# The last result is the crash: Experiment plays it in grow room 0, not at the terminal.
+		_set_state(id, state, "terminal_beep" if int(state.reveal) < steps[index].results.size() else "")
+	state = state_of(id).duplicate()
+	state.used = true
+	_set_state(id, state, "")
+	if str(object.get("on_use", "")) != "":
+		triggered.emit(object.on_use, peer_id)
+
+
+## What the tank does on a step: the Lines table's effect for it, else a beep.
+static func _step_sound(index: int) -> String:
+	if index < Lines.EXPERIMENT.size():
+		match str(Lines.EXPERIMENT[index].effect):
+			"zap": return "zap"
+			"water": return "splash"
+			"light": return "ui_blip"
+			"prod": return "station_use"
+	return "terminal_beep"
+
+
+## The text a note or terminal shows now: its `text`, plus for an experiment the steps run so far
+## (the last one's results as far as revealed), the next prompt, or what it says when done.
+func reading_text(id: String) -> String:
+	var object: Dictionary = lab.level.objects.get(id, {})
+	var text := str(object.get("text", "")).strip_edges()
+	var steps := Lines.parse_steps(str(object.get("steps", "")))
+	if steps.is_empty():
+		return text
+	var state := state_of(id)
+	var index := int(state.get("step", 0))
+	var lines: Array[String] = []
+	if text != "":
+		lines.append(text)
+	for i in mini(index, steps.size()):
+		lines.append("\n" + steps[i].prompt)
+		var shown: int = steps[i].results.size() if i < steps.size() - 1 else int(state.get("reveal", 0))
+		for r in mini(shown, steps[i].results.size()):
+			lines.append("  " + steps[i].results[r])
+	if state.used:
+		lines.append("\n" + Lines.EXPERIMENT_DONE)
+	elif index < steps.size():
+		lines.append("\n" + steps[index].prompt + "   [SHIFT]")
+	return "\n".join(lines)
+
+
 ## Host: puts a prop back to its starting state (unused, full charges), e.g. a retried generator.
 func reset_prop(id: String) -> void:
 	if not multiplayer.is_server():
@@ -393,6 +494,9 @@ func _prop_state_changed(id: String, state: Dictionary, sound: String) -> void:
 
 func _apply_state(id: String, state: Dictionary, sound: String) -> void:
 	prop_state[id] = state
+	state_changed.emit(id, state, sound)
+	if reading == id:
+		reading_changed.emit(id) # The reader re-reads the text (experiment steps).
 	if sound == "":
 		return
 	var box := box_of(id)
@@ -730,6 +834,7 @@ func _on_voxels_changed(from: Vector3i, to: Vector3i) -> void:
 		if lost <= 0:
 			continue
 		total_damage += lost
+		damage_by_name[asset.name] = int(damage_by_name.get(asset.name, 0)) + lost
 		asset_damaged.emit(id, lost, total_damage)
 		_pending_notes[id] = _pending_notes.get(id, 0) + lost
 
