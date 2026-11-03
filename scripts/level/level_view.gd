@@ -1,14 +1,17 @@
 class_name LevelView
 extends Node3D
-## Shows a level's objects. Light markers become real lights in both modes. In edit mode props are
+## Shows a level's objects. Light markers become real lights in both modes, and in play they follow
+## LevelPlay.power (facility lights off and emergency lights on during backup power), as do the lamp
+## and emergency voxels (the terrain shader's facility_power). In edit mode props are
 ## drawn as meshes (they're only stamped into the voxels for play) and markers as colored gizmos
 ## with their id, and the selection gets an outline.
+
+## How fast (per second) the voxel lamps fade between powered and emergency.
+const LAMP_FADE := 3.0
 
 @export var lab: Lab
 
 var mode := "play"
-## Facility power: powered lights on, emergency lights off (and the reverse when it's out).
-var power := true
 
 ## id -> Node3D (prop mesh or marker gizmo), edit mode only.
 var _nodes := {}
@@ -18,6 +21,8 @@ var _lights := {}
 var _prop_meshes := {}
 var _selection := MeshInstance3D.new()
 var _flicker_time := 0.0
+## The terrain shader's facility_power (1 = lamp voxels lit, 0 = emergency voxels lit), faded.
+var _lamp_power := 1.0
 
 
 func _ready() -> void:
@@ -88,12 +93,25 @@ func to_world(voxel: Vector3) -> Vector3:
 	return lab.world.global_position + voxel * lab.world.voxel_size
 
 
+## True when the level is on backup power (LevelPlay.power): facility lights go out and emergency
+## lights come on. Facility and restored power are the other way round; editing shows them all.
+func on_backup() -> bool:
+	return mode == "play" and lab.play != null and lab.play.active and lab.play.power == "backup"
+
+
 func _process(delta: float) -> void:
 	_flicker_time += delta
+	var backup := on_backup()
+	var lamp_target := 0.0 if backup else 1.0
+	if _lamp_power != lamp_target:
+		_lamp_power = move_toward(_lamp_power, lamp_target, delta * LAMP_FADE)
+		var shader := lab.world.material as ShaderMaterial
+		if shader:
+			shader.set_shader_parameter("facility_power", _lamp_power)
 	for light: Light3D in _lights.values():
 		var base: float = light.get_meta("energy")
 		var emergency: bool = light.get_meta("emergency")
-		var on := mode == "edit" or (power != emergency)
+		var on := mode == "edit" or (backup == emergency)
 		var energy := base if on else 0.0
 		match light.get_meta("flicker"):
 			"subtle":

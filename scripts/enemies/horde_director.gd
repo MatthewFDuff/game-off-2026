@@ -12,7 +12,8 @@ extends Node
 ## The trickle keeps going in every state.
 ##
 ## Triggers: a trigger marker's `activates` field (comma-separated) turns on spawners by id, or
-## starts a horde with "horde".
+## starts a horde with "horde". Prop triggers (a terminal's or the generator's `on_use`) can also name
+## a spawner or "horde" directly. The generator calls finale(its finale_seconds) itself.
 
 signal state_changed(state: String)
 ## The finale timer ran out with someone still standing.
@@ -116,7 +117,15 @@ func _set_state(new_state: String) -> void:
 	state_changed.emit(state)
 
 
+## A trigger fired: its `activates` list runs. Terminals and the generator fire their `on_use` id,
+## which can name a trigger marker (its list runs), a spawner directly, or "horde".
 func _on_triggered(id: String, _peer_id: int) -> void:
+	if id == "horde":
+		start_horde(horde_size)
+		return
+	if spawners.has(id):
+		set_spawner_active(id, true)
+		return
 	var object: Dictionary = lab.level.objects.get(id, {})
 	for part in str(object.get("activates", "")).split(",", false):
 		var target := part.strip_edges()

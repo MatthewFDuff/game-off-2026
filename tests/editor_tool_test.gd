@@ -92,6 +92,14 @@ func _run() -> void:
 	await _frames(2)
 	await _click(MOUSE_BUTTON_LEFT)
 	_check("LMB selects it", tool.selected == crate_id, tool.selected)
+	# The inspector shows the phase 5 prop fields, with a multi-line box for the text.
+	await _frames(2)
+	var hud = lab.get_node("EditorHud")
+	var labels: Array = hud._content.find_children("*", "Label", true, false).map(func(l) -> String: return l.text)
+	_check("inspector shows the use fields", "Use (E)" in labels and "Contents (pickups, comma-separated)" in labels
+			and "Door keycard (red, blue, ...; empty = none)" in labels, str(labels))
+	_check("inspector has a text box for notes", not hud._content.find_children("*", "TextEdit", true, false).is_empty())
+	_check("new props start with use fields", lab.level.objects[crate_id].get("use") == "none" and lab.level.objects[crate_id].get("charges") == 3)
 	await _key(KEY_R)
 	_check("R rotates it", lab.level.objects[crate_id].facing == 1)
 	await _key(KEY_X)

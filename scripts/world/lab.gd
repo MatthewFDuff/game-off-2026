@@ -331,17 +331,25 @@ func _on_local_died() -> void:
 	me.revive()
 
 
+## E in play: closes an open note, else uses the door or prop in view (LevelPlay.request_use; the
+## host decides). Refusals this peer can see coming ("Locked: needs red keycard") are shown here.
 func _on_local_interact() -> void:
 	if mode != "play":
 		return
-	var me := local_player()
-	var door := play.door_in_view(me.camera)
-	if door == "":
+	if play.reading != "":
+		play.close_reading()
 		return
-	if play.is_door_locked(door):
-		notify("It's locked.", false)
+	var me := local_player()
+	if me == null or me.is_dead:
+		return
+	var target := play.interactables.in_view(me.camera)
+	if target == "":
+		return
+	var refusal := play.interactables.local_refusal(target, me)
+	if refusal != "":
+		notify(refusal, false)
 	else:
-		play.request_toggle(door)
+		play.request_use(target)
 
 
 # --- Entering ------------------------------------------------------------------------------------

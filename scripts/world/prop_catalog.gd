@@ -49,6 +49,15 @@ static func entries() -> Array[Dictionary]:
 		add.call("corkboard_" + v, func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 16, 9, false))
 	add.call("corkboard_small", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 12, 8, false))
 	add.call("corkboard_tall", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 10, 12, false))
+	add.call("vent_grate", func(p: Props, o: Vector3i) -> void: p.vent_grate(o, P.NORTH))
+	add.call("vent_duct", func(p: Props, o: Vector3i) -> void: p.vent_duct(o, P.NORTH))
+	add.call("terminal", func(p: Props, o: Vector3i) -> void: p.terminal(o, P.NORTH))
+	add.call("cabinet", func(p: Props, o: Vector3i) -> void: p.cabinet(o, P.NORTH))
+	add.call("drawer_desk", func(p: Props, o: Vector3i) -> void: p.drawer_desk(o, P.NORTH))
+	add.call("medkit_station", func(p: Props, o: Vector3i) -> void: p.medkit_station(o, P.NORTH))
+	add.call("ammo_bench", func(p: Props, o: Vector3i) -> void: p.ammo_bench(o, P.NORTH))
+	add.call("generator", func(p: Props, o: Vector3i) -> void: p.generator(o, P.NORTH))
+	add.call("glass_case", func(p: Props, o: Vector3i) -> void: p.glass_case(o, P.NORTH))
 	return list
 
 
