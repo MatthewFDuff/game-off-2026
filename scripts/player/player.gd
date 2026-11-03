@@ -21,8 +21,7 @@ signal interacted
 @export var regen_rate := 8.0
 
 @export_group("Movement")
-@export var walk_speed := 4.5
-@export var sprint_speed := 7.5
+@export var walk_speed := 5.5
 @export var crouch_speed := 2.2
 @export var ground_acceleration := 60.0
 @export var air_acceleration := 10.0
@@ -299,8 +298,6 @@ func _walk(delta: float) -> void:
 	var speed := walk_speed
 	if crouching:
 		speed = crouch_speed
-	elif Input.is_action_pressed("sprint"):
-		speed = sprint_speed
 
 	_ladder_cooldown -= delta
 	var ladder := _ladder_direction() if _ladder_cooldown <= 0.0 else Vector3.ZERO
@@ -358,7 +355,7 @@ func _fly(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var up := float(Input.is_action_pressed("jump")) - float(Input.is_action_pressed("crouch"))
 	var wish := head.global_basis * Vector3(input.x, 0.0, input.y) + Vector3.UP * up
-	var speed := fly_speed * (3.0 if Input.is_action_pressed("sprint") else 1.0)
+	var speed := fly_speed * (3.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 1.0)
 	global_position += wish.normalized() * speed * delta
 	on_floor = false
 
