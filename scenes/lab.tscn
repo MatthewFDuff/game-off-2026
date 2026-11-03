@@ -1,10 +1,14 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/lab.gd" id="1_lab"]
 [ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
 [ext_resource type="Script" path="res://scripts/net/world_sync.gd" id="3_sync"]
 [ext_resource type="Script" path="res://scripts/voxel/voxel_debris.gd" id="4_debris"]
 [ext_resource type="Script" path="res://scripts/ui/lab_hud.gd" id="5_hud"]
+[ext_resource type="Script" path="res://scripts/level/level_edits.gd" id="6_edits"]
+[ext_resource type="Script" path="res://scripts/level/level_view.gd" id="7_view"]
+[ext_resource type="Script" path="res://scripts/level/level_play.gd" id="8_play"]
+[ext_resource type="Script" path="res://scripts/editor/editor_hud.gd" id="9_editor_hud"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
 resource_local_to_scene = true
@@ -27,13 +31,16 @@ fog_density = 0.02
 fog_height = 9.5
 fog_height_density = -0.25
 
-[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "lights", "players_root", "debris")]
+[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "players_root", "debris", "edits", "view", "play", "environment")]
 script = ExtResource("1_lab")
 world = NodePath("VoxelWorld")
 world_sync = NodePath("WorldSync")
-lights = NodePath("Lights")
 players_root = NodePath("Players")
 debris = NodePath("Debris")
+edits = NodePath("Edits")
+view = NodePath("View")
+play = NodePath("Play")
+environment = NodePath("WorldEnvironment")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_lab")
@@ -46,7 +53,17 @@ material = SubResource("ShaderMaterial_terrain")
 script = ExtResource("3_sync")
 world = NodePath("../VoxelWorld")
 
-[node name="Lights" type="Node3D" parent="."]
+[node name="Edits" type="Node" parent="." node_paths=PackedStringArray("lab")]
+script = ExtResource("6_edits")
+lab = NodePath("..")
+
+[node name="View" type="Node3D" parent="." node_paths=PackedStringArray("lab")]
+script = ExtResource("7_view")
+lab = NodePath("..")
+
+[node name="Play" type="Node" parent="." node_paths=PackedStringArray("lab")]
+script = ExtResource("8_play")
+lab = NodePath("..")
 
 [node name="Players" type="Node3D" parent="."]
 
@@ -56,4 +73,8 @@ world = NodePath("../VoxelWorld")
 
 [node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("lab")]
 script = ExtResource("5_hud")
+lab = NodePath("..")
+
+[node name="EditorHud" type="CanvasLayer" parent="." node_paths=PackedStringArray("lab")]
+script = ExtResource("9_editor_hud")
 lab = NodePath("..")

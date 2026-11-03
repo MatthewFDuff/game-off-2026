@@ -1,6 +1,6 @@
 # game-off-2026
 
-Underground mushroom-farming FPS for Game Off 2026 (theme: SHIFT). Godot 4.7, GL Compatibility, web target.
+Story-driven co-op voxel horror shooter for Game Off 2026 (theme: SHIFT). Godot 4.7, GL Compatibility. Desktop co-op, single-player web build.
 
 ## Layout
 
@@ -57,14 +57,45 @@ For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set t
 The main scene is `scenes/menu.tscn`: play solo, host, or join by address. Co-op runs on the desktop build over ENet; web builds are single-player. The host forwards **UDP 24680** on their router, and friends join the host's public IP (LAN players use the LAN address shown on the pause screen).
 
 - `scripts/net/net.gd` (`Net` autoload): hosting, joining, the player roster.
-- `scenes/lab.tscn` / `scripts/world/lab.gd`: the co-op level. Joiners get a compressed world snapshot, then each peer's player is spawned everywhere. Each peer simulates its own player and streams its movement; the host owns everything else.
+- `scenes/lab.tscn` / `scripts/world/lab.gd`: plays or edits a level. Joiners get the level and a compressed world snapshot, then each peer's player is spawned everywhere. Each peer simulates its own player and streams its movement; the host owns everything else.
 - `scripts/net/world_sync.gd`: every voxel edit goes through here. The host applies it and replays it on every peer in order, so worlds stay identical. Gameplay must not edit `VoxelWorld` directly.
 
-Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--join=1.2.3.4`, `--name=Zack`. Two copies on one machine: start one with `-- --host`, the other with `-- --join=127.0.0.1`.
+Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--join=1.2.3.4`, `--name=Zack`, plus `--edit` (open the level editor) and `--level=name`. Two copies on one machine: start one with `-- --host`, the other with `-- --join=127.0.0.1`.
 
 **Desktop build:** `godot --headless --path . --export-release Windows build/windows/Expendable.exe` (the `Windows` preset; needs the release DLL, built with `scons target=template_release` in `extension/`). Zip `build/windows/` (the exe plus `libvoxelcore...dll`) and send it. Windows Firewall asks the host to allow the game the first time they host; allow it.
 
-`tools/net_test.sh` runs a headless host and client against each other and checks their worlds end up byte-identical.
+`tools/net_test.sh` runs a headless host and client against each other and checks their worlds end up byte-identical; `tools/net_test.sh editor_test` does the same for a co-op editing session.
+
+## Levels and the level editor
+
+Levels live in `levels/<name>/` (`level.json`: settings, props and markers, readable and diffable; `voxels.bin`: the terrain and everything built, compressed). Props are stored as placements and stamped into the voxels when play starts. Run from the Godot editor, levels save into `levels/` (commit them); from an exported game they save to the user folder. The spec is `docs/level-editor.md`.
+
+In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
+
+Editor controls (fly with WASD, Space up, Ctrl down, Shift fast):
+
+| Key | |
+|---|---|
+| 1-7 | Box, Room, Brush, Replace, Prop, Marker, Select |
+| LMB / RMB | Use the tool (box: LMB two corners fills, RMB carves; brush: hold) |
+| Alt+LMB | Pick the material (or, with the prop tool, a placed prop's type) under the cursor |
+| Q | Cancel a half-drawn box or a move |
+| G | Grid snap 1 / 5 / 10 voxels (10 = 1 m) |
+| V | Free cursor in mid-air (Ctrl+wheel sets its distance), for carving into rock |
+| [ ] / B | Brush size / sphere or cube |
+| R | Rotate the prop being placed, or the selection |
+| M / Ctrl+D / X | Move / duplicate / delete the selection |
+| Ctrl+Z / Ctrl+Y | Undo / redo (your own edits) |
+| Ctrl+S | Save (the host saves for everyone) |
+| F5 | Play-test; F5 again returns to editing exactly as it was |
+| Wheel | Fly speed |
+| Tab | Free the mouse to use the side panel (materials, props, marker types, the selection's properties) |
+
+- **Markers**: player spawns (by player number), triggers (box volumes that fire for story scripts), intercom speakers, lights (omni / spot, color, energy, range, shadows, flicker, facility or emergency power), horde spawners, the clone vat (respawn point), kill zones, item spots. Each has an id that scripts use.
+- **Props** have an asset value (the payroll loses its share as the prop's voxels are destroyed in play) and can be made into doors (slide offset, speed, locked; E opens them in play).
+- **Room tool**: the corners mark the inside of the room. In rock levels the lining only recolors rock, so a new room opens into any room it touches.
+
+Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, HUD, prop thumbnails).
 
 ## Art: MagicaVoxel models
 
@@ -73,7 +104,7 @@ All voxel art lives in `assets/vox/` as MagicaVoxel `.vox` files, and the game r
 - `props/`: furniture and fittings. Levels place them by file name (`props.place("fridge", origin, facing)`).
 - `characters/`: the player's body and head.
 - `shrooms/`: growth stages `stage<0-4>_<variant>.vox`, plus `stage4_<variant>_eyes.vox` for grown hunters.
-- `pieces/`: the old build-mode scrap pieces (reference only for now).
+- `pieces/`: the old build-mode scrap pieces (reference only).
 - `_palette.vox`: one cube per game material. `PALETTE.md` lists them.
 
 The current files are generated placeholders, meant to be replaced or used as templates. Rules for editing:
@@ -85,28 +116,25 @@ The current files are generated placeholders, meant to be replaced or used as te
 
 **Live reload:** when the game runs from the Godot editor, saving a `.vox` in MagicaVoxel updates the running game within about a second. Edited props are swapped wherever they were placed: only the old model's voxels that are still intact are removed, so damage is kept. Characters and shrooms re-skin too. In co-op the host's files win and the host pushes prop changes to everyone. A save that doesn't parse keeps the old model. A toast in the bottom left confirms each reload. Exported builds don't watch files.
 
+**Pattern materials**: some palette materials (block wall, large tile, concrete panel, diamond plate, hazard stripes) take each voxel's color from a small image in `assets/patterns/` (up to 32x32, 1 pixel = 1 voxel), tiled across the world, so a wall painted with them in the level editor gets brickwork without coloring voxels by hand. Edit the PNGs freely (live reload covers them too). To add one, add a material with `pattern = "name"` in `scripts/voxel/voxel_materials.gd` and drop `assets/patterns/name.png` in. MagicaVoxel shows these materials as their plain color.
+
 Regenerating placeholders: `godot --headless --path . --script res://scripts/tools/export_vox.gd` writes only missing files, so edited ones are safe. `-- --force` overwrites everything. The generators are in `scripts/world/props.gd` and `scripts/world/prop_catalog.gd` (the name → generator list), plus `ShroomModels` and the export script itself.
 
-## Playing the prototype
+## Playing
 
-`scenes/facility.tscn` (the old single-player mushroom loop, no longer the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
+Movement: WASD, Space, Shift sprint, Ctrl crouch, E use (doors), arrow keys look (backup for remote desktop), T flashlight, LMB / RMB placeholder rifle / blast, Esc releases the mouse. Debug builds only: F fly.
 
-- **Day shift**: plant at least the quota of spores in the grow-hall beds (**E** on the substrate; extra spores pay more at night), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money; the bottom bar shows pieces and why a placement is refused), dig and blast (LMB rifle, RMB blast; 3 blast charges per shift, **B** buys one for $10 during the day). Then climb the ladder in the atrium (**W/S** on the ladder, Space to let go) and seal the hatch (**E**). The objective line under the phase title always says what to do next.
-- **Night shift**: the power dies, emergency lights come on, and the spores grow into shrooms that hunt you through the facility, digging through planks, dirt, sandbags and furniture (not metal, concrete or rock). Shrooms rear back before they bite. Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
-- Dawn shows the shift's earnings; **E** skips to the next day. Dying or missing the quota ends the run with a summary; **R** restarts.
+All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets).
 
-Movement: WASD, Space, Shift sprint, Ctrl crouch, arrow keys look (backup for remote desktop), T flashlight, Esc releases the mouse. Debug builds only: F fly, F3 stats.
-
-All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets); `AudioDirector` in the facility scene wires it to gameplay signals.
-
-`scenes/test_world.tscn` is the old gray-box sandbox, kept for the voxel core tests.
+`scenes/test_world.tscn` is a gray-box sandbox kept for the voxel core tests. The old mushroom-farming prototype was removed in the pivot (it's in git history).
 
 Tests (from the project root, with `godot` being the 4.7 editor binary):
 
 ```sh
-godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation (sandbox)
-godot --headless --path . --script res://tests/shift_loop_test.gd    # a full shift in the facility, ladder, hatch, breaching
-tools/net_test.sh                                                     # two-process co-op test (host + client)
+godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building pieces, navigation (sandbox)
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
-godot --path . --script res://tests/facility_screenshots.gd -- <dir> # room and night screenshots
+godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
+tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
+tools/net_test.sh editor_test                                         # two-process co-op editing, play-test, save
+godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)
 ```

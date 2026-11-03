@@ -231,6 +231,12 @@ public:
 	// Undoes a stamp: turns to air every voxel where the model has a voxel and the world still has
 	// that same material, so damage and anything built over it since are left alone.
 	int erase_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels);
+	// Every voxel in the box (from inclusive, to exclusive), indexed like stamp models; outside the
+	// world reads as air. set_box writes them all back (air included), for undo and restores.
+	PackedByteArray get_box(const Vector3i &from, const Vector3i &to) const;
+	int set_box(const Vector3i &from, const Vector3i &to, const PackedByteArray &voxels);
+	// How many of the model's solid voxels the world still has, unchanged, at origin.
+	int count_matching(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;
 	// Returns {free: model voxels over air, supported: model voxels touching or overlapping existing
 	// solid voxels}, so callers can reject pieces that would float or place nothing.
 	Dictionary check_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;

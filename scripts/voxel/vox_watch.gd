@@ -1,15 +1,15 @@
 extends Node
-## Live reload for MagicaVoxel art (`VoxWatch` autoload). Polls the .vox files under `roots` and
-## reports the ones that changed, once their modified time has held still for a poll, so a file
-## that's still being saved isn't read half-written. Only runs from the editor binary: exported
-## games can't have their files edited.
+## Live reload for MagicaVoxel art and pattern images (`VoxWatch` autoload). Polls the .vox and
+## .png files under `roots` and reports the ones that changed, once their modified time has held
+## still for a poll, so a file that's still being saved isn't read half-written. Only runs from
+## the editor binary: exported games can't have their files edited.
 
-## res:// paths of the .vox files that changed (or appeared) since the last report.
+## res:// paths of the files that changed (or appeared) since the last report.
 signal changed(paths: PackedStringArray)
 
 const POLL_SECONDS := 0.4
 
-var roots: PackedStringArray = ["res://assets/vox/"]
+var roots: PackedStringArray = ["res://assets/vox/", "res://assets/patterns/"]
 var enabled := OS.has_feature("editor")
 
 var _times := {}
@@ -61,7 +61,7 @@ func _scan(report: bool) -> void:
 func _files(dir: String) -> PackedStringArray:
 	var found := PackedStringArray()
 	for file in DirAccess.get_files_at(dir):
-		if file.get_extension() == "vox":
+		if file.get_extension() in ["vox", "png"]:
 			found.append(dir.path_join(file))
 	for sub in DirAccess.get_directories_at(dir):
 		found.append_array(_files(dir.path_join(sub)))

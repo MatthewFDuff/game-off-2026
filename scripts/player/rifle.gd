@@ -62,7 +62,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_cooldown -= delta
 	_update_effects(delta)
-	if not player.is_local or player.is_dead or not InputSetup.is_playing():
+	if not player.is_local or player.is_dead or player.editing or not InputSetup.is_playing():
 		return
 	if Input.is_action_pressed("fire") and _cooldown <= 0.0:
 		_cooldown = 1.0 / fire_rate

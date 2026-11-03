@@ -35,6 +35,8 @@ const LADDER_Z := 206
 
 var world: VoxelWorld
 var lights: Node3D
+## Off: props are only recorded in info.props.placements, not stamped (for level conversion).
+var stamp_props := true
 var props: Props
 var rng := RandomNumberGenerator.new()
 
@@ -48,6 +50,7 @@ func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Diction
 	lights = lights_parent
 	rng.seed = seed
 	props = Props.new(world, seed + 1)
+	props.stamp_into_world = stamp_props
 
 	_ground(seed)
 	var rooms := [ATRIUM, LAB, BREAK_ROOM, STORAGE, GROW_HALL]
@@ -85,12 +88,20 @@ func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Diction
 
 # --- Ground ---------------------------------------------------------------------------------------
 
+## Fills a whole world with the layered rock the facility is dug into (new "solid rock" levels).
+static func make_ground(voxel_world: VoxelWorld, seed: int) -> void:
+	var builder := FacilityBuilder.new()
+	builder.world = voxel_world
+	builder.rng.seed = seed
+	builder._ground(seed)
+
+
 func _ground(seed: int) -> void:
 	var size: Vector3i = world.get_size_in_voxels()
 	world.fill_all(M.ROCK)
 	var layers := PackedByteArray([M.BEDROCK, M.DEEP_STONE, M.ROCK, M.CLAY, M.ROCK, M.GRAVEL, M.ROCK, M.DIRT, M.ROCK])
 	var tops := PackedFloat32Array([5, 34, 66, 76, 108, 114, 150, 166, 200])
-	world.fill_layers(Vector3i.ZERO, Vector3i(size.x, 200, size.z), layers, tops, 7.0, 110.0, seed)
+	world.fill_layers(Vector3i.ZERO, Vector3i(size.x, mini(200, size.y), size.z), layers, tops, 7.0, 110.0, seed)
 
 	# Pockets of loose ground, clustered so they read as deposits rather than polka dots.
 	var hosts := PackedByteArray([M.ROCK, M.DEEP_STONE, M.CLAY])

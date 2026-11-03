@@ -48,6 +48,8 @@ static var missing: Array[String] = []
 
 ## Every place() call so far: [{name, origin, facing}], so live reload can swap edited props.
 var placements: Array[Dictionary] = []
+## Off: place() only records placements (converting generated layouts into level objects).
+var stamp_into_world := true
 
 
 ## Stamps the library prop `name` (assets/vox/props/<name>.vox) with its footprint's min corner at
@@ -57,7 +59,8 @@ func place(name: String, origin: Vector3i, facing := NORTH) -> Vector2i:
 	if model.is_empty():
 		return Vector2i.ZERO
 	var turned := orient(model, facing)
-	world.stamp(origin, turned.size, turned.voxels, false)
+	if stamp_into_world:
+		world.stamp(origin, turned.size, turned.voxels, false)
 	placements.append({name = name, origin = origin, facing = facing})
 	return Vector2i(turned.size.x, turned.size.z)
 

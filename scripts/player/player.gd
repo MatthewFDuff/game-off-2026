@@ -10,6 +10,8 @@ extends Node3D
 ## from is the attacker's world position.
 signal damaged(amount: float, from: Vector3)
 signal died
+## The interact key was pressed (local player, while playing).
+signal interacted
 
 @export var world: VoxelWorld
 
@@ -80,6 +82,8 @@ const REMOTE_DELAY := 0.1
 
 ## False on the copies of other peers' players.
 var is_local := true
+## Level editor: flying with no weapon or collision.
+var editing := false
 ## Peers to stream this player's state to. Set by the level; empty in single-player.
 var net_peers: Array[int] = []
 var display_name := ""
@@ -147,9 +151,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("toggle_fly") and OS.is_debug_build():
+	elif event.is_action_pressed("toggle_fly") and OS.is_debug_build() and not editing:
 		flying = not flying
 		velocity = Vector3.ZERO
+	elif event.is_action_pressed("interact") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		interacted.emit()
 	elif event.is_action_pressed("toggle_flashlight"):
 		flashlight.visible = not flashlight.visible
 
@@ -232,6 +238,20 @@ func take_damage(amount: float, from: Vector3) -> void:
 		health = 0.0
 		is_dead = true
 		died.emit()
+
+
+## Level editor on / off: editing flies through everything.
+func set_editing(on: bool) -> void:
+	editing = on
+	flying = on
+	velocity = Vector3.ZERO
+
+
+## Back to full health after dying.
+func revive() -> void:
+	health = max_health
+	is_dead = false
+	velocity = Vector3.ZERO
 
 
 ## Moves the player without the camera smoothing across the gap.

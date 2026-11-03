@@ -1,6 +1,11 @@
 class_name VoxelMaterials
 ## Material table for the voxel world. Ids are stored in one byte per voxel; 0 is air and 255 is
 ## reserved by VoxelWorld for the world boundary.
+##
+## Pattern materials: a material with `pattern` takes each voxel's color from a small image,
+## res://assets/patterns/<pattern>.png (up to 32x32, 1 pixel = 1 voxel), tiled across the world.
+## Painting a wall with one gives brickwork without coloring voxels by hand, and the pattern
+## carries on inside when it's shot. Its `color` is the plain stand-in (MagicaVoxel, debris).
 
 const AIR := 0
 # Ground
@@ -46,6 +51,16 @@ const SHROOM_STEM := 33
 const SHROOM_SPOT := 34
 const SHROOM_GILL := 35
 const SHROOM_EYE := 36
+# Patterned
+const BLOCK_WALL := 40
+const LARGE_TILE := 41
+const CONCRETE_PANEL := 42
+const DIAMOND_PLATE := 43
+const HAZARD_STRIPES := 44
+
+const PATTERN_DIR := "res://assets/patterns/"
+## Largest pattern per side (the shader's pattern layers are this big).
+const PATTERN_MAX := 32
 
 ## Emission groups: lamps on facility power go dark at night; emergency lights only glow then.
 const POWERED := 1
@@ -95,6 +110,12 @@ const DEFS := {
 	SHROOM_SPOT: {name = "Spot", color = Color(0.35, 1.00, 0.80), hardness = 1, emission = 1.0},
 	SHROOM_GILL: {name = "Gills", color = Color(0.30, 0.14, 0.34), hardness = 1, emission = 0.25},
 	SHROOM_EYE: {name = "Eye", color = Color(0.90, 1.00, 0.60), hardness = 1, emission = 1.5},
+
+	BLOCK_WALL: {name = "Block wall", color = Color(0.62, 0.36, 0.28), hardness = 5, pattern = "block_wall"},
+	LARGE_TILE: {name = "Large tile", color = Color(0.80, 0.82, 0.80), hardness = 3, pattern = "large_tile"},
+	CONCRETE_PANEL: {name = "Concrete panel", color = Color(0.56, 0.57, 0.55), hardness = 5, pattern = "concrete_panel"},
+	DIAMOND_PLATE: {name = "Diamond plate", color = Color(0.55, 0.57, 0.60), hardness = 6, pattern = "diamond_plate"},
+	HAZARD_STRIPES: {name = "Hazard stripes", color = Color(0.55, 0.45, 0.10), hardness = 5, pattern = "hazard_stripes"},
 }
 
 
@@ -116,20 +137,74 @@ static func build_hardness() -> PackedByteArray:
 	return hardness
 
 
-## 256x2 lookup texture for the terrain shader. Row 0: rgb albedo, alpha emission strength.
-## Row 1: r = on facility power, g = emergency light.
+## Materials that use a pattern, in a fixed order: their index + 1 is their pattern layer.
+static func patterned() -> Array[int]:
+	var ids: Array[int] = []
+	for id: int in DEFS:
+		if DEFS[id].has("pattern"):
+			ids.append(id)
+	ids.sort()
+	return ids
+
+
+## A pattern's image, read straight from its file (so live reload sees edits), or null.
+static func load_pattern(pattern: String) -> Image:
+	var path := PATTERN_DIR + pattern + ".png"
+	var image := Image.new()
+	if FileAccess.file_exists(path):
+		# The file itself when it's there (running from the project), so edits show up live.
+		image.load_png_from_buffer(FileAccess.get_file_as_bytes(path))
+	elif ResourceLoader.exists(path):
+		# Exported games only ship the imported texture.
+		image = (load(path) as Texture2D).get_image()
+		if image and image.is_compressed():
+			image.decompress()
+	if image == null or image.is_empty() or image.get_width() > PATTERN_MAX or image.get_height() > PATTERN_MAX:
+		push_warning("pattern %s must be a PNG of at most %dx%d" % [path, PATTERN_MAX, PATTERN_MAX])
+		return null
+	image.convert(Image.FORMAT_RGBA8)
+	return image
+
+
+## 256x3 lookup texture for the terrain shader. Row 0: rgb albedo, alpha emission strength.
+## Row 1: r = on facility power, g = emergency light, b = pattern layer + 1 (0 = none) / 255.
+## Row 2: pattern width and height / 255.
 static func build_palette() -> ImageTexture:
-	var image := Image.create(256, 2, false, Image.FORMAT_RGBA8)
+	var image := Image.create(256, 3, false, Image.FORMAT_RGBA8)
 	image.fill(Color(1, 0, 1, 0))
+	var patterns := patterned()
 	for id in DEFS:
 		var def: Dictionary = DEFS[id]
 		var c: Color = def.color
 		image.set_pixel(id, 0, Color(c.r, c.g, c.b, def.get("emission", 0.0)))
 		var group: int = def.get("group", 0)
-		image.set_pixel(id, 1, Color(1.0 if group == POWERED else 0.0, 1.0 if group == EMERGENCY_ONLY else 0.0, 0.0, 1.0))
+		var layer := 0
+		var pattern := load_pattern(def.pattern) if def.has("pattern") else null
+		if pattern:
+			layer = patterns.find(id) + 1
+			image.set_pixel(id, 2, Color8(pattern.get_width(), pattern.get_height(), 0, 255))
+		image.set_pixel(id, 1, Color(1.0 if group == POWERED else 0.0, 1.0 if group == EMERGENCY_ONLY else 0.0, layer / 255.0, 1.0))
 	image.set_pixel(255, 0, DEFS[BEDROCK].color)
 	image.set_pixel(255, 1, Color(0, 0, 0, 1))
 	return ImageTexture.create_from_image(image)
+
+
+## Every pattern as one layer (PATTERN_MAX square, image in the top-left corner), in patterned()
+## order. Always at least one layer, so the shader has something bound.
+static func build_patterns() -> Texture2DArray:
+	var layers: Array[Image] = []
+	for id in patterned():
+		var layer := Image.create(PATTERN_MAX, PATTERN_MAX, false, Image.FORMAT_RGBA8)
+		layer.fill(get_color(id))
+		var pattern := load_pattern(DEFS[id].pattern)
+		if pattern:
+			layer.blit_rect(pattern, Rect2i(Vector2i.ZERO, pattern.get_size()), Vector2i.ZERO)
+		layers.append(layer)
+	if layers.is_empty():
+		layers.append(Image.create(PATTERN_MAX, PATTERN_MAX, false, Image.FORMAT_RGBA8))
+	var texture := Texture2DArray.new()
+	texture.create_from_images(layers)
+	return texture
 
 
 static func apply_to(world: VoxelWorld) -> void:
@@ -137,4 +212,5 @@ static func apply_to(world: VoxelWorld) -> void:
 	var shader_material := world.material as ShaderMaterial
 	if shader_material:
 		shader_material.set_shader_parameter("palette", build_palette())
+		shader_material.set_shader_parameter("patterns", build_patterns())
 		shader_material.set_shader_parameter("voxel_size", world.voxel_size)

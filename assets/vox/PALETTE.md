@@ -5,43 +5,51 @@ paint with these slots and the game gives the voxel that material's hardness, gl
 Slots not listed here are dark purple and get mapped to the closest material on import, with a warning.
 Recoloring a listed slot also counts as unlisted. Change a material's color in `scripts/voxel/voxel_materials.gd` instead.
 
-| Index | Material | Hardness | Glows |
-|---|---|---|---|
-| 1 | Rock | 4 |  |
-| 2 | Dirt | 2 |  |
-| 3 | Concrete | 5 |  |
-| 4 | Sheet metal | 8 |  |
-| 5 | Plank | 1 |  |
-| 6 | Glow | 1 | yes |
-| 7 | Hatch | unbreakable |  |
-| 8 | Clay | 3 |  |
-| 9 | Sand | 1 |  |
-| 10 | Gravel | 2 |  |
-| 11 | Deep stone | 6 |  |
-| 12 | Tile | 3 |  |
-| 13 | Tile | 3 |  |
-| 14 | Painted wall | 5 |  |
-| 15 | Painted wall | 5 |  |
-| 16 | Wood | 1 |  |
-| 17 | Steel | 3 |  |
-| 18 | Plastic | 1 |  |
-| 19 | Glass | 1 |  |
-| 20 | Cloth | 1 |  |
-| 21 | Lamp | 1 | yes |
-| 22 | Sample | 1 | yes |
-| 23 | Sample | 1 | yes |
-| 24 | Sample | 1 | yes |
-| 25 | Water | 1 |  |
-| 26 | Substrate | 2 |  |
-| 27 | Ladder | 6 |  |
-| 28 | Warning paint | 5 |  |
-| 29 | Screen | 1 | yes |
-| 30 | Emergency light | 1 | yes |
-| 31 | Pipe | 3 |  |
-| 32 | Cap | 1 |  |
-| 33 | Stem | 1 |  |
-| 34 | Spot | 1 | yes |
-| 35 | Gills | 1 |  |
-| 36 | Eye | 1 | yes |
-| 37 | Rubber | 1 |  |
-| 254 | Bedrock | unbreakable |  |
+Pattern materials (marked below) show an image from `assets/patterns/` in the game, 1 pixel per voxel, tiled
+across the world. MagicaVoxel shows them as their plain color. Edit the PNGs (up to 32x32) to change them.
+
+| Index | Material | Hardness | Glows | Pattern |
+|---|---|---|---|---|
+| 1 | Rock | 4 |  |  |
+| 2 | Dirt | 2 |  |  |
+| 3 | Concrete | 5 |  |  |
+| 4 | Sheet metal | 8 |  |  |
+| 5 | Plank | 1 |  |  |
+| 6 | Glow | 1 | yes |  |
+| 7 | Hatch | unbreakable |  |  |
+| 8 | Clay | 3 |  |  |
+| 9 | Sand | 1 |  |  |
+| 10 | Gravel | 2 |  |  |
+| 11 | Deep stone | 6 |  |  |
+| 12 | Tile | 3 |  |  |
+| 13 | Tile | 3 |  |  |
+| 14 | Painted wall | 5 |  |  |
+| 15 | Painted wall | 5 |  |  |
+| 16 | Wood | 1 |  |  |
+| 17 | Steel | 3 |  |  |
+| 18 | Plastic | 1 |  |  |
+| 19 | Glass | 1 |  |  |
+| 20 | Cloth | 1 |  |  |
+| 21 | Lamp | 1 | yes |  |
+| 22 | Sample | 1 | yes |  |
+| 23 | Sample | 1 | yes |  |
+| 24 | Sample | 1 | yes |  |
+| 25 | Water | 1 |  |  |
+| 26 | Substrate | 2 |  |  |
+| 27 | Ladder | 6 |  |  |
+| 28 | Warning paint | 5 |  |  |
+| 29 | Screen | 1 | yes |  |
+| 30 | Emergency light | 1 | yes |  |
+| 31 | Pipe | 3 |  |  |
+| 32 | Cap | 1 |  |  |
+| 33 | Stem | 1 |  |  |
+| 34 | Spot | 1 | yes |  |
+| 35 | Gills | 1 |  |  |
+| 36 | Eye | 1 | yes |  |
+| 37 | Rubber | 1 |  |  |
+| 40 | Block wall | 5 |  | block_wall |
+| 41 | Large tile | 3 |  | large_tile |
+| 42 | Concrete panel | 5 |  | concrete_panel |
+| 43 | Diamond plate | 6 |  | diamond_plate |
+| 44 | Hazard stripes | 5 |  | hazard_stripes |
+| 254 | Bedrock | unbreakable |  |  |

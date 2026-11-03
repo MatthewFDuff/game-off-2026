@@ -57,7 +57,7 @@ func _host(net: Node) -> void:
 	var lab = await _wait_for_lab()
 	if lab == null:
 		return
-	var spawn: Vector3 = lab.info.spawn
+	var spawn: Vector3 = lab.spawn_point(0)
 	lab.world_sync.carve_sphere(spawn + Vector3(3.0, 0.0, 0.0), 1.0, 254)
 	print("READY") # The driver starts the client now.
 
@@ -101,8 +101,8 @@ func _client(net: Node) -> void:
 	_check("host avatar spawned", lab.players.has(1) and not lab.players[1].is_local)
 	var streaming := await _wait_until(func() -> bool: return me.net_peers == [1], 10.0)
 	_check("sends state to the host", streaming, str(me.net_peers))
-	me.teleport(lab.info.spawn + CLIENT_SPOT)
-	lab.world_sync.carve_sphere(lab.info.spawn + Vector3(0.0, 0.0, -3.0), 1.0, 254)
+	me.teleport(lab.spawn_point(0) + CLIENT_SPOT)
+	lab.world_sync.carve_sphere(lab.spawn_point(0) + Vector3(0.0, 0.0, -3.0), 1.0, 254)
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
 	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
 	await _wait_seconds(3.5)

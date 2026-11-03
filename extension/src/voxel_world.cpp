@@ -577,6 +577,73 @@ int VoxelWorld::stamp(const Vector3i &origin, const Vector3i &size, const Packed
 	return changed;
 }
 
+PackedByteArray VoxelWorld::get_box(const Vector3i &from, const Vector3i &to) const {
+	PackedByteArray out;
+	const Vector3i size = to - from;
+	ERR_FAIL_COND_V_MSG(size.x <= 0 || size.y <= 0 || size.z <= 0, out, "get_box: to must be greater than from on every axis.");
+	out.resize(int64_t(size.x) * size.y * size.z);
+	uint8_t *w = out.ptrw();
+	int64_t i = 0;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++) {
+				const Vector3i p = from + Vector3i(x, y, z);
+				// Outside the world reads as air so a restore never writes the boundary.
+				w[i++] = in_bounds(p.x, p.y, p.z) ? read(p.x, p.y, p.z) : 0;
+			}
+		}
+	}
+	return out;
+}
+
+int VoxelWorld::set_box(const Vector3i &from, const Vector3i &to, const PackedByteArray &voxels) {
+	const Vector3i size = to - from;
+	ERR_FAIL_COND_V_MSG(size.x <= 0 || size.y <= 0 || size.z <= 0, 0, "set_box: to must be greater than from on every axis.");
+	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "set_box: voxels.size() must match the box.");
+	const uint8_t *r = voxels.ptr();
+	int changed = 0;
+	Vector3i lo = to;
+	Vector3i hi = from;
+	int64_t i = 0;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++, i++) {
+				const Vector3i p = from + Vector3i(x, y, z);
+				const uint8_t value = r[i];
+				if (!in_bounds(p.x, p.y, p.z) || value == BOUNDARY_MATERIAL || read(p.x, p.y, p.z) == value) {
+					continue;
+				}
+				write(p.x, p.y, p.z, value);
+				lo = lo.min(p);
+				hi = hi.max(p);
+				changed++;
+			}
+		}
+	}
+	if (changed > 0) {
+		finish_edit(lo, hi);
+	}
+	return changed;
+}
+
+int VoxelWorld::count_matching(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const {
+	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "count_matching: voxels.size() must equal size.x * size.y * size.z.");
+	const uint8_t *r = voxels.ptr();
+	int count = 0;
+	int64_t i = 0;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++, i++) {
+				const Vector3i p = origin + Vector3i(x, y, z);
+				if (r[i] != 0 && in_bounds(p.x, p.y, p.z) && read(p.x, p.y, p.z) == r[i]) {
+					count++;
+				}
+			}
+		}
+	}
+	return count;
+}
+
 int VoxelWorld::erase_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) {
 	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "erase_stamp: voxels.size() must equal size.x * size.y * size.z.");
 	int changed = 0;
@@ -1099,6 +1166,9 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("check_stamp", "origin", "size", "voxels"), &VoxelWorld::check_stamp);
 	ClassDB::bind_method(D_METHOD("erase_stamp", "origin", "size", "voxels"), &VoxelWorld::erase_stamp);
+	ClassDB::bind_method(D_METHOD("get_box", "from", "to"), &VoxelWorld::get_box);
+	ClassDB::bind_method(D_METHOD("set_box", "from", "to", "voxels"), &VoxelWorld::set_box);
+	ClassDB::bind_method(D_METHOD("count_matching", "origin", "size", "voxels"), &VoxelWorld::count_matching);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("box_overlaps_solid", "box"), &VoxelWorld::box_overlaps_solid);

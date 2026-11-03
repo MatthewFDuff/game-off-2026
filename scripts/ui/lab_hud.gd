@@ -47,7 +47,7 @@ func _ready() -> void:
 	_toast.position += Vector2(16, -60)
 	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(_toast)
-	lab.assets_reloaded.connect(func(text: String) -> void:
+	lab.notice.connect(func(text: String) -> void:
 		_toast.text = text
 		_toast_time = 4.0)
 
@@ -62,7 +62,9 @@ func _process(delta: float) -> void:
 	_toast_time -= delta
 	_toast.visible = _toast_time > 0.0
 	var playing := InputSetup.is_playing()
-	_pause.visible = not playing and not _waiting.visible
+	var me := lab.local_player()
+	var editor: EditorTool = me.get_node_or_null("EditorTool") if me else null
+	_pause.visible = not playing and not _waiting.visible and not (editor and editor.panel_open)
 	_crosshair.visible = playing
 	if _waiting.visible and lab.local_player() != null:
 		_waiting.visible = false

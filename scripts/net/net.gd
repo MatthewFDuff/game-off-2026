@@ -2,10 +2,15 @@ extends Node
 ## Session autoload: hosting, joining and the player roster. The host is peer 1 and owns the
 ## world, enemies and story state; each peer owns its own player's movement.
 ##
+## A session is a level and a mode: "play", or "edit" (the co-op level editor). The host picks
+## both; joiners get them when accepted.
+##
 ## Command-line shortcuts skip the menu (pass them after `--`):
 ##   --solo            single-player
 ##   --host[=port]     host a co-op session
 ##   --join=addr[:port]
+##   --edit            with --solo / --host: open the level editor instead of playing
+##   --level=lab       which level (default lab)
 ##   --name=Zack
 
 signal players_changed
@@ -18,12 +23,15 @@ const DEFAULT_PORT := 24680
 const MAX_PLAYERS := 4
 const LEVEL_SCENE := "res://scenes/lab.tscn"
 const MENU_SCENE := "res://scenes/menu.tscn"
+const DEFAULT_LEVEL := "lab"
 const COLORS := [Color(0.95, 0.55, 0.2), Color(0.3, 0.65, 0.95), Color(0.45, 0.85, 0.4), Color(0.9, 0.4, 0.75)]
 
 var player_name := "Expendable"
 ## peer id -> {name: String, color: Color}
 var players := {}
 var in_session := false
+## {level: String, mode: "play" or "edit"}
+var session := {level = DEFAULT_LEVEL, mode = "play"}
 ## Why the last session ended, for the menu to show after it loads. Cleared once shown.
 var end_reason := ""
 
@@ -50,15 +58,17 @@ func local_id() -> int:
 	return multiplayer.get_unique_id()
 
 
-func start_solo() -> void:
+func start_solo(level := DEFAULT_LEVEL, mode := "play") -> void:
 	_reset()
+	session = {level = level, mode = mode}
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_add_player(1, player_name)
 	_begin()
 
 
-func host(port := DEFAULT_PORT) -> Error:
+func host(port := DEFAULT_PORT, level := DEFAULT_LEVEL, mode := "play") -> Error:
 	_reset()
+	session = {level = level, mode = mode}
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_server(port, MAX_PLAYERS - 1)
 	if error != OK:
@@ -146,13 +156,14 @@ func _register(display_name: String) -> void:
 		return
 	var sender := multiplayer.get_remote_sender_id()
 	_add_player(sender, display_name if display_name.strip_edges() != "" else "Expendable %d" % players.size())
-	_accepted.rpc_id(sender)
+	_accepted.rpc_id(sender, session)
 	_sync_players.rpc(players)
 	players_changed.emit()
 
 
 @rpc("authority", "reliable")
-func _accepted() -> void:
+func _accepted(host_session: Dictionary) -> void:
+	session = host_session
 	_begin()
 
 
@@ -164,15 +175,19 @@ func _sync_players(roster: Dictionary) -> void:
 
 func _handle_command_line() -> void:
 	var args := OS.get_cmdline_user_args()
+	var level := DEFAULT_LEVEL
+	var mode := "edit" if "--edit" in args else "play"
 	for arg in args:
 		if arg.begins_with("--name="):
 			player_name = arg.trim_prefix("--name=")
+		elif arg.begins_with("--level="):
+			level = arg.trim_prefix("--level=")
 	for arg in args:
 		if arg == "--solo":
-			start_solo()
+			start_solo(level, mode)
 		elif arg == "--host" or arg.begins_with("--host="):
 			var port := int(arg.trim_prefix("--host=")) if "=" in arg else DEFAULT_PORT
-			host(port)
+			host(port, level, mode)
 		elif arg.begins_with("--join="):
 			var target := arg.trim_prefix("--join=")
 			var port := DEFAULT_PORT
