@@ -41,26 +41,46 @@ func _run() -> void:
 			focusable.append(str(node.get_path()))
 	_check("no editor button takes keyboard focus", focusable.is_empty(), ", ".join(focusable))
 
-	# The wheel over a panel scrolls the panel, not the fly speed; over the world it still works.
+	# The wheel over a panel scrolls the panel, not the camera; over the world it zooms (builder
+	# view) or sets the fly speed (walk view).
 	root.notification(Node.NOTIFICATION_VP_MOUSE_ENTER) # Headless never says the mouse is in the window.
-	var speed: float = me.fly_speed
+	var camera = tool.camera
+	_check("starts in the builder view", tool.builder and camera.active and camera.camera.current)
+	var zoom: float = camera.distance
 	var over_drawer: Vector2 = hud._drawer.get_global_rect().get_center()
 	await _move_mouse(over_drawer)
 	_check("pointer over the catalog counts as over UI", EditorInput.pointer_over_ui())
+	_check("no cursor while over the catalog", not tool.has_cursor)
 	await _wheel(over_drawer)
-	_check("wheel over the catalog leaves fly speed alone", is_equal_approx(me.fly_speed, speed), "%.2f -> %.2f" % [speed, me.fly_speed])
+	_check("wheel over the catalog leaves the zoom alone", is_equal_approx(camera.distance, zoom), "%.2f -> %.2f" % [zoom, camera.distance])
 	var over_world: Vector2 = root.get_visible_rect().get_center()
 	await _move_mouse(over_world)
 	await _wheel(over_world)
-	_check("wheel over the world changes fly speed", not is_equal_approx(me.fly_speed, speed))
+	_check("wheel over the world zooms", camera.distance < zoom)
 
-	# Typing in the search box: movement keys don't move the player, Tab stays put, Esc lets go.
+	tool.set_view(false)
+	me.flying = true
+	await _frames(2)
+	var speed: float = me.fly_speed
+	await _move_mouse(over_drawer)
+	await _wheel(over_drawer)
+	_check("walk view: wheel over the catalog leaves fly speed alone", is_equal_approx(me.fly_speed, speed), "%.2f -> %.2f" % [speed, me.fly_speed])
+	await _move_mouse(over_world)
+	await _wheel(over_world)
+	_check("walk view: wheel over the world changes fly speed", not is_equal_approx(me.fly_speed, speed))
+	tool.set_view(true)
+	await _frames(2)
+
+	# Typing in the search box: movement keys don't move the player or the camera, Tab stays put,
+	# Esc lets go.
 	hud._search.grab_focus()
 	await _frames(1)
 	var start: Vector3 = me.global_position
+	var pivot: Vector3 = camera.pivot
 	await _hold(KEY_W, 10)
 	await _hold(KEY_SPACE, 10)
 	_check("typing doesn't move the player", me.global_position.distance_to(start) < 0.01, str(me.global_position - start))
+	_check("typing doesn't pan the camera", camera.pivot.distance_to(pivot) < 0.01, str(camera.pivot - pivot))
 	await _key(KEY_TAB)
 	_check("Tab doesn't move focus", root.gui_get_focus_owner() == hud._search)
 	var tool_before: int = tool.tool

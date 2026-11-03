@@ -37,7 +37,17 @@ const EDITOR_KEYS := {
 	editor_tool_marker = ["8"],
 	editor_rotate = ["R"],
 	editor_grid = ["G"],
-	editor_free_cursor = ["V"],
+	editor_free_cursor = ["N"],
+	editor_view = ["V"],
+	# Builder view camera (the walk view uses the same keys to move and fly).
+	editor_orbit_left = ["Q"],
+	editor_orbit_right = ["E"],
+	editor_frame = ["F"],
+	editor_frame_all = ["Home"],
+	editor_cut_up = ["PageUp"],
+	editor_cut_down = ["PageDown"],
+	editor_cut_mode = ["C"],
+	editor_fly = ["F"],
 	editor_brush_smaller = ["BracketLeft"],
 	editor_brush_bigger = ["BracketRight"],
 	editor_move = ["M"],
@@ -153,7 +163,8 @@ static func _key_event(spec: String) -> InputEventKey:
 static func describe(action: String) -> String:
 	var names: Array[String] = []
 	for spec: String in EDITOR_KEYS.get(action, []):
-		names.append(spec.replace("BracketLeft", "[").replace("BracketRight", "]").replace("Escape", "Esc"))
+		names.append(spec.replace("BracketLeft", "[").replace("BracketRight", "]").replace("Escape", "Esc")
+				.replace("PageUp", "PgUp").replace("PageDown", "PgDn"))
 	return " / ".join(names)
 
 

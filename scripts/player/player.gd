@@ -109,6 +109,8 @@ const REMOTE_DELAY := 0.1
 var is_local := true
 ## Level editor: flying with no weapon or collision.
 var editing := false
+## Level editor builder view (EditorCamera): the player stays put and leaves the mouse free.
+var builder_view := false
 ## Peers to stream this player's state to. Set by the level; empty in single-player.
 var net_peers: Array[int] = []
 var display_name := ""
@@ -179,7 +181,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			motion = event.relative
 		_look(motion * mouse_sensitivity)
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		if editing and not EditorInput.world_may_use(event):
+		if editing and (builder_view or not EditorInput.world_may_use(event)):
 			return
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().gui_release_focus() # A text field mustn't keep typing while we fly.
@@ -350,6 +352,8 @@ func _tick_statuses(delta: float) -> void:
 func set_editing(on: bool) -> void:
 	editing = on
 	flying = on
+	if not on:
+		builder_view = false
 	velocity = Vector3.ZERO
 
 
@@ -482,9 +486,10 @@ func _fly(delta: float) -> void:
 #region Networking
 
 # Polled input counts only while the mouse is captured (or headless) and no editor modal or text
-# field has the keys; otherwise typing or a menu would walk the player around.
+# field has the keys, and not under the editor's builder view (whose WASD pans the camera);
+# otherwise typing or a menu would walk the player around.
 func _input_live() -> bool:
-	return InputSetup.is_playing() and not EditorInput.blocks_keyboard()
+	return InputSetup.is_playing() and not builder_view and not EditorInput.blocks_keyboard()
 
 
 func _vector(negative_x: String, positive_x: String, negative_y: String, positive_y: String) -> Vector2:

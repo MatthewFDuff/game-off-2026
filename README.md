@@ -72,15 +72,21 @@ Levels live in `levels/<name>/` (`level.json`: settings, props and markers, read
 
 In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
 
-The editor is being redesigned (`docs/level-editor-v2.md`); step 1, the input rules and the paper UI, is in. Click the world to fly and aim (WASD, Space up, Ctrl down, Shift fast); **Esc** backs out one step at a time (a half-drawn box, then the selection, then frees the mouse to use the panels, then opens the menu). **F1** shows every key in the game. The keys are `EDITOR_KEYS` in `scripts/input_setup.gd`.
+The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules, paper UI) and 2 (builder view) are in. There are two views, and **V** switches between them:
+
+- **Builder view** (the default): an orbit camera from above with the mouse always free; the tools aim through the mouse. Right or middle drag orbits (a right click without dragging is the tool's RMB), Shift+middle drag or WASD pans (Shift fast), the wheel zooms, Q / E turn 45°, F frames the selection, Home the whole level. The **cutaway** hides everything above a height so you can see into rooms in rock: Auto cuts at the ceiling of the room you're looking at, Page Up / Down sets it by hand, C cycles Off / Auto / Manual. Cut rock shows as a darkened cross section.
+- **Walk view**: first person, for detail work and checking scale. You land where the mouse pointed, facing the same way, and walk with gravity; F toggles flying (Space up, Ctrl down). Click the world to aim with the crosshair.
+
+**Esc** backs out one step at a time (a half-drawn box, then the selection, then in the walk view frees the mouse for the panels, then opens the menu). **F1** shows every key in the game. The keys are `EDITOR_KEYS` in `scripts/input_setup.gd`.
 
 | Key | |
 |---|---|
 | 1-5, 7, 8 | Select, Room, Box, Brush, Replace, Prop, Marker (6 is kept for the coming Opening tool) |
-| LMB / RMB | Use the tool (box: LMB two corners fills, RMB carves; brush: hold). RMB backs out of other tools' steps |
+| LMB / RMB | Use the tool (box: LMB two corners fills, RMB carves; brush: hold, and in the builder view Shift+LMB carves since a right drag orbits). RMB backs out of other tools' steps |
 | Alt+LMB | Pick the material (or, with the prop tool, a placed prop's type) under the cursor |
 | G | Grid snap 1 / 5 / 10 voxels (10 = 1 m) |
-| V | Free cursor in mid-air (Ctrl+wheel sets its distance), for carving into rock |
+| V | Builder view / walk view |
+| N | Walk view: free cursor in mid-air (Ctrl+wheel sets its distance), for carving into rock |
 | [ ] | Brush size |
 | R | Rotate the prop being placed, or the selection |
 | M / Ctrl+D / Delete or X | Move / duplicate / delete the selection |
@@ -88,7 +94,7 @@ The editor is being redesigned (`docs/level-editor-v2.md`); step 1, the input ru
 | Ctrl+S | Save (the host saves for everyone) |
 | F5 | Play-test; F5 again returns to editing exactly as it was |
 | B | Show / hide the catalog (materials, props, markers) |
-| Wheel | Fly speed (over a panel it only scrolls the panel) |
+| Wheel | Builder view: zoom; walk view: fly speed (over a panel it only scrolls the panel) |
 
 The editor's UI uses the paper style from Puzzle Pals (`assets/ui/editor_theme.tres`, `scripts/editor/ui/`, accent recolored dark blue-gray); only the editor uses it. Its input rules are `scripts/editor/editor_input.gd`: buttons never take keyboard focus, Tab never moves focus, panels keep their clicks and the wheel, and while a modal or a text field has the keys, nothing in the world reads them.
 
@@ -98,7 +104,7 @@ The editor's UI uses the paper style from Puzzle Pals (`assets/ui/editor_theme.t
 - **Level settings**: `start_power` (`facility` or `backup`) in `level.json`'s settings, the power state play starts in. There's no panel for settings yet; edit the file.
 - **Room tool**: the corners mark the inside of the room. In rock levels the lining only recolors rock, so a new room opens into any room it touches.
 
-Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, input rules, HUD, paper widgets, prop thumbnails).
+Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, builder camera and cutaway, input rules, HUD, paper widgets, prop thumbnails).
 
 ### Interactables and power
 
@@ -253,6 +259,7 @@ godot --headless --path . --script res://tests/roster_b_test.gd      # mommy bro
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
 godot --headless --path . --script res://tests/editor_input_test.gd  # editor input rules: wheel over panels, typing, Tab, modals, Esc
+godot --headless --path . --script res://tests/editor_builder_test.gd # builder view: mouse aiming, orbit vs right click, pan, cutaway, walk view drop-in
 godot --headless --path . --script res://tests/interact_test.gd      # containers, notes, terminals, stations, keycards, glass, generator, power
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, play-test, save

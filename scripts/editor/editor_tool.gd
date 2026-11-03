@@ -1,13 +1,16 @@
 class_name EditorTool
 extends Node
 ## The level editor for the local player: aims a cursor, runs the tools and draws their previews.
-## Aims and clicks while the mouse is captured; shortcuts work either way unless the editor UI has
-## the keys (EditorInput). Esc backs out one step at a time: the tool step, then the selection, then
-## frees the mouse for the panels (EditorHud), then opens the menu. Every change goes through
-## LevelEdits, so it's shared and undoable.
+## Two views (V switches): the builder view (EditorCamera, the default) orbits from above with the
+## mouse free and aims through the mouse; the walk view is first person, aims from the crosshair
+## while the mouse is captured, and walks or flies (F). Shortcuts work in both unless the editor UI
+## has the keys (EditorInput). Esc backs out one step at a time: the tool step, then the selection,
+## then (walk view) frees the mouse for the panels (EditorHud), then opens the menu. Every change
+## goes through LevelEdits, so it's shared and undoable.
 ##
-## Keys are the editor_* actions in InputSetup.EDITOR_KEYS. Mouse: LMB / RMB use the tool, Alt+LMB
-## pick (material or prop), wheel fly speed, Ctrl+wheel free-cursor distance.
+## Keys are the editor_* actions in InputSetup.EDITOR_KEYS. Mouse: LMB / RMB use the tool (in the
+## builder view a right drag orbits instead, so Brush carves with Shift+LMB there), Alt+LMB picks a
+## material or prop type. Walk view: wheel fly speed, Ctrl+wheel free-cursor distance.
 
 ## Tool, material or selection changed (the HUD redraws its panel).
 signal changed
@@ -46,6 +49,9 @@ const DAB_INTERVAL := 0.06
 
 var lab: Lab
 var player: Player
+## The builder view (true) or the walk view.
+var builder := true
+var camera := EditorCamera.new()
 
 var tool := Tool.BOX
 var material := VoxelMaterials.CONCRETE
@@ -105,6 +111,10 @@ func _ready() -> void:
 		node.visible = false
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		lab.view.add_child.call_deferred(node)
+	camera.name = "EditorCamera"
+	camera.lab = lab
+	camera.right_clicked.connect(_on_right_click)
+	lab.view.add_child.call_deferred(camera)
 	lab.mode_changed.connect(func(_mode: String) -> void: cancel())
 	if lab.level:
 		_load_room_defaults()
@@ -121,7 +131,7 @@ func _load_room_defaults() -> void:
 
 
 func _exit_tree() -> void:
-	for node in [_cursor_lines, _volume, _ghost]:
+	for node in [_cursor_lines, _volume, _ghost, camera]:
 		if is_instance_valid(node):
 			node.queue_free()
 
@@ -146,6 +156,64 @@ func select(id: String) -> void:
 	changed.emit()
 
 
+## Switches between the builder view and the walk view. Into the walk view you land where the
+## mouse points (or under the camera), facing the camera's way; out of it the camera looks at you.
+func set_view(builder_view: bool) -> void:
+	cancel()
+	if builder_view == builder:
+		return
+	builder = builder_view
+	if is_active():
+		if builder:
+			camera.look_from(player.global_position, rad_to_deg(player.rotation.y))
+		else:
+			_drop_into_walk()
+		_apply_view()
+	changed.emit()
+
+
+func _drop_into_walk() -> void:
+	var ray := camera.mouse_ray()
+	var hit := camera.raycast(ray[0], ray[1])
+	var feet := camera.pivot
+	if hit.hit:
+		var landing: Vector3i = hit.voxel + Vector3i(hit.normal)
+		feet = lab.view.to_world(Vector3(landing) + Vector3(0.5, 0.0, 0.5))
+	player.teleport(feet)
+	player.rotation.y = deg_to_rad(camera.yaw)
+	player.head.rotation.x = 0.0
+	# Walk if there's room to stand; fly out of anything solid.
+	player.flying = lab.world.box_overlaps_solid(player.get_body_aabb())
+	player.velocity = Vector3.ZERO
+
+
+## Points the screen at the current view (also after play-testing, which uses the player's camera).
+func _apply_view() -> void:
+	var use_builder := builder and is_active()
+	player.builder_view = use_builder
+	camera.set_active(use_builder)
+	if use_builder:
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		player.camera.current = true
+		resume()
+
+
+## Back to the world after a panel button: the walk view takes the mouse again.
+func resume() -> void:
+	if is_active() and not builder and DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## The pointer aims the tools: over the world (not a panel) in the builder view, captured in the
+## walk view.
+func is_aiming() -> bool:
+	if builder:
+		return not EditorInput.pointer_over_ui() and not EditorInput.modal_open()
+	return InputSetup.is_playing()
+
+
 ## Drops the pending corner / move / stroke.
 func cancel() -> void:
 	_corner = null
@@ -162,14 +230,17 @@ func has_step() -> bool:
 
 
 func _process(delta: float) -> void:
+	if camera.active != (builder and is_active()):
+		_apply_view()
 	if not is_active():
 		for node in [_cursor_lines, _volume, _ghost]:
 			node.visible = false
 		return
 	if not selected.is_empty() and not lab.level.objects.has(selected):
 		select("") # Removed by someone else (or undone).
+	camera.cut_step = snap()
 	_update_cursor()
-	if _stroke != 0 and InputSetup.is_playing():
+	if _stroke != 0:
 		_dab_timer -= delta
 		if _dab_timer <= 0.0:
 			_dab_timer = DAB_INTERVAL
@@ -178,27 +249,36 @@ func _process(delta: float) -> void:
 
 
 func _update_cursor() -> void:
-	var camera := player.camera
-	var from := camera.global_position
-	var direction := -camera.global_basis.z
+	var from := player.camera.global_position
+	var direction := -player.camera.global_basis.z
+	if builder:
+		var ray := camera.mouse_ray()
+		from = ray[0]
+		direction = ray[1]
 	var world := lab.world
 	object_under = ""
+	if not is_aiming():
+		has_cursor = false
+		return
 	var object_distance := INF
+	var cutting := camera.is_cutting()
 	for object: Dictionary in lab.level.objects.values():
 		if object.id == _grab_id:
 			continue
 		var box := LevelSchema.box_of(object)
+		if cutting and box.position.y >= camera.cut_layer:
+			continue # Cut away with the voxels above the cut.
 		var hit = AABB(lab.view.to_world(box.position), box.size * world.voxel_size).intersects_ray(from, direction)
 		if hit != null and from.distance_to(hit) < object_distance:
 			object_distance = from.distance_to(hit)
 			object_under = object.id
 
-	if free_cursor:
+	if free_cursor and not builder:
 		has_cursor = true
 		cell = world.world_to_voxel(from + direction * free_distance)
 		solid_cell = cell
 		return
-	var hit: Dictionary = world.raycast(from, direction, REACH)
+	var hit: Dictionary = camera.raycast(from, direction) if builder else world.raycast(from, direction, REACH)
 	has_cursor = hit.hit or object_under != ""
 	if hit.hit:
 		solid_cell = hit.voxel
@@ -227,8 +307,16 @@ func _corner_cell(carve: bool) -> Vector3i:
 
 # --- Input ---------------------------------------------------------------------------------------
 
+## A stroke ends wherever the button comes up: over a panel too, which the GUI would otherwise eat.
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and not event.pressed and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+		_end_stroke()
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if not player.is_local or not EditorInput.world_may_use(event):
+	if not player.is_local:
+		return
+	if not EditorInput.world_may_use(event):
 		return
 	if InputSetup.pressed(event, "editor_playtest") and Net.session.mode == "edit":
 		lab.request_mode("play" if lab.mode == "edit" else "edit")
@@ -240,7 +328,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		back()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton:
-		if InputSetup.is_playing():
+		if is_aiming():
 			_mouse(event)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if _key(event):
@@ -261,6 +349,10 @@ func back() -> void:
 
 
 func _mouse(event: InputEventMouseButton) -> void:
+	# Builder view: the camera has the wheel and the right button (a right click comes back as
+	# right_clicked).
+	if builder and event.button_index != MOUSE_BUTTON_LEFT:
+		return
 	if event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and event.pressed:
 		var up := event.button_index == MOUSE_BUTTON_WHEEL_UP
 		if event.ctrl_pressed:
@@ -276,6 +368,9 @@ func _mouse(event: InputEventMouseButton) -> void:
 		return
 	if event.alt_pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_pick()
+	elif event.shift_pressed and event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.BRUSH:
+		if has_cursor:
+			_begin_stroke(2)
 	elif event.button_index == MOUSE_BUTTON_LEFT:
 		_primary()
 	else:
@@ -288,6 +383,21 @@ func _key(event: InputEventKey) -> bool:
 		if InputSetup.pressed(event, TOOL_ACTIONS[i]):
 			set_tool(i as Tool)
 			return true
+	# F frames the selection in the builder view and toggles flying in the walk view.
+	if InputSetup.pressed(event, "editor_view"):
+		set_view(not builder)
+		return true
+	if builder and InputSetup.pressed(event, "editor_frame"):
+		frame_selection()
+		return true
+	if builder and InputSetup.pressed(event, "editor_frame_all"):
+		camera.frame_world()
+		return true
+	if not builder and InputSetup.pressed(event, "editor_fly"):
+		player.flying = not player.flying
+		player.velocity = Vector3.ZERO
+		lab.notify("Flying" if player.flying else "Walking", false)
+		return true
 	var actions := {
 		editor_undo = func() -> void: lab.edits.undo(),
 		editor_redo = func() -> void: lab.edits.redo(),
@@ -307,6 +417,15 @@ func _key(event: InputEventKey) -> bool:
 			changed.emit()
 			return true
 	return false
+
+
+## Builder view: centers the camera on the selection, or on the cursor.
+func frame_selection() -> void:
+	if selected != "" and lab.level.objects.has(selected):
+		var box := LevelSchema.box_of(lab.level.objects[selected])
+		camera.frame(AABB(lab.view.to_world(box.position), box.size * lab.world.voxel_size))
+	elif has_cursor:
+		camera.pivot = lab.view.to_world(Vector3(cell) + Vector3(0.5, 0.0, 0.5))
 
 
 func _primary() -> void:
@@ -351,6 +470,16 @@ func _secondary() -> void:
 				cancel()
 		_:
 			cancel()
+
+
+## Builder view right click (no drag): the tool's RMB action; Brush carves a single dab.
+func _on_right_click() -> void:
+	if not is_aiming():
+		return
+	_secondary()
+	if _stroke != 0:
+		_dab()
+		_end_stroke()
 
 
 func _corner_click(carve: bool) -> void:
@@ -479,9 +608,9 @@ func _marker_position() -> Vector3:
 	return Vector3(snapped.x + s * 0.5, cell.y, snapped.z + s * 0.5) if s > 1 else Vector3(cell) + Vector3(0.5, 0.0, 0.5)
 
 
-## The player's view direction as a marker yaw, to 45 degrees.
+## The view direction as a marker yaw, to 45 degrees.
 func _view_yaw() -> float:
-	return snappedf(rad_to_deg(player.rotation.y), 45.0)
+	return snappedf(wrapf(camera.yaw if builder else rad_to_deg(player.rotation.y), -180.0, 180.0), 45.0)
 
 
 # --- Previews ------------------------------------------------------------------------------------

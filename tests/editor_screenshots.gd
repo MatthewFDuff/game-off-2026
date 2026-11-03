@@ -1,8 +1,8 @@
 extends SceneTree
 ## Screenshots of the level editor (needs a window, not --headless):
 ##   godot --path . --script res://tests/editor_screenshots.gd -- <output_dir>
-## Works on a scratch copy of the lab. Paints a strip of each pattern material on the atrium's west
-## wall, then shoots the box tool, the room tool, the prop browser, markers, the inspector and a
+## Works on a scratch copy of the lab. Shoots the builder view (auto cut, whole level, manual cut),
+## then paints a strip of each pattern material on the atrium's west wall and shoots the box tool, the room tool, the prop browser, markers, the inspector and a
 ## play-test view.
 ##
 ## Game types are left untyped (see editor_test.gd).
@@ -33,6 +33,29 @@ func _run() -> void:
 	var lab = current_scene
 	var me = lab.local_player()
 	var tool = me.get_node("EditorTool")
+	await _frames(10)
+
+	# Builder view: the atrium from above with the auto cut, then a low manual cut through the rock.
+	var camera = tool.camera
+	camera.look_from(Vector3(23.0, 4.0, 26.0), 30.0)
+	camera.pitch = 50.0
+	camera.distance = 22.0
+	camera.snap_to_target()
+	tool.set_tool(2)
+	await _frames(20)
+	await _shot("builder_auto_cut")
+	camera.frame_world()
+	camera.pitch = 70.0
+	camera.snap_to_target()
+	await _frames(10)
+	await _shot("builder_whole_level")
+	camera.move_cut(-15)
+	await _frames(10)
+	await _shot("builder_manual_cut")
+	camera.set_cut_mode(1)
+
+	tool.set_view(false) # First person: these aim from the crosshair (builder view: editor_builder_test).
+	me.flying = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	await _frames(10)
 

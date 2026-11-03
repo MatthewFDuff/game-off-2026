@@ -13,6 +13,9 @@ uniform float edge_darkening : hint_range(0.0, 0.5) = 0.08;
 uniform float emission_energy = 2.5;
 // 1 while the facility has power. Powered lamps fade out with it; emergency lights fade in.
 uniform float facility_power : hint_range(0.0, 1.0) = 1.0;
+// Level editor cutaway: nothing above this world height is drawn (EditorCamera sets it; the cut
+// face itself is EditorCamera's cap plane).
+uniform float cut_height = 1e9;
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -27,6 +30,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (world_position.y > cut_height) {
+		discard;
+	}
 	int id = int(round(COLOR.g * 255.0));
 	vec4 entry = texelFetch(palette, ivec2(id, 0), 0);
 	vec4 flags = texelFetch(palette, ivec2(id, 1), 0);

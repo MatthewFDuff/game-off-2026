@@ -6,7 +6,8 @@ extends CanvasLayer
 ## along the bottom (materials, props or marker types), a hint line, toasts, and the help and menu
 ## modals. Visible in edit mode.
 ##
-## Esc frees the mouse to use it; clicking the world takes the mouse back. Input rules are in
+## In the builder view the mouse is always free; in the walk view Esc frees it for the panels and
+## clicking the world takes it back. Input rules are in
 ## EditorInput: buttons never take keyboard focus, Tab never moves focus, panels keep their clicks
 ## and wheel, and modals keep everything.
 
@@ -33,6 +34,9 @@ var _inspector_title := Label.new()
 var _content := VBoxContainer.new()
 var _grid_buttons: Array[Button] = []
 var _free_cursor_button: Button
+var _view_buttons: Array[Button] = []
+var _cut_buttons: Array[Button] = []
+var _cut_row: HBoxContainer
 var _drawer: PanelContainer
 var _drawer_header := HBoxContainer.new()
 var _drawer_tabs := HBoxContainer.new()
@@ -115,6 +119,12 @@ func _process(delta: float) -> void:
 	for i in _grid_buttons.size():
 		_grid_buttons[i].set_pressed_no_signal(i == tool.snap_index)
 	_free_cursor_button.set_pressed_no_signal(tool.free_cursor)
+	_free_cursor_button.visible = not tool.builder
+	for i in _view_buttons.size():
+		_view_buttons[i].set_pressed_no_signal((i == 0) == tool.builder)
+	_cut_row.visible = tool.builder
+	for i in _cut_buttons.size():
+		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
 	_hint_label.text = _hint_text()
 	_toast_time -= delta
 	_toast.visible = _toast_time > 0.0
@@ -124,11 +134,22 @@ func _process(delta: float) -> void:
 
 
 func _hint_text() -> String:
+	var view := InputSetup.describe("editor_view")
+	if tool.builder:
+		var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap()]
+		var camera := tool.camera
+		if camera.is_cutting():
+			parts.append("Cut %.1f m (%s)" % [camera.cut_layer * lab.world.voxel_size, EditorCamera.CUT_NAMES[camera.cut_mode]])
+		parts.append("RMB drag orbit · WASD pan · wheel zoom")
+		parts.append("%s: walk" % view)
+		return "  ·  ".join(parts)
 	if not InputSetup.is_playing():
-		return "Click the world to fly and aim  ·  Esc: menu  ·  %s: help" % InputSetup.describe("editor_help")
-	var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap(), "Fly %.0f (wheel)" % tool.player.fly_speed]
+		return "Click the world to walk and aim  ·  %s: builder view  ·  Esc: menu  ·  %s: help" % [view, InputSetup.describe("editor_help")]
+	var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap(),
+			("Fly %.0f (wheel)" % tool.player.fly_speed) if tool.player.flying else "Walking (%s flies)" % InputSetup.describe("editor_fly")]
 	if tool.free_cursor:
 		parts.append("Free cursor %.1f m (Ctrl+wheel)" % tool.free_distance)
+	parts.append("%s: builder view" % view)
 	parts.append("Esc: use the panels")
 	return "  ·  ".join(parts)
 
@@ -340,6 +361,29 @@ func _build_inspector() -> void:
 	grid.add_child(_free_cursor_button)
 	column.add_child(grid)
 
+	var view := HBoxContainer.new()
+	view.add_theme_constant_override("separation", 4)
+	view.add_child(_label("View", "MutedLabel", 12))
+	for i in 2:
+		var chip := _button(["Builder", "Walk"][i], "ChipButton", ["Orbit from above with the mouse free", "First person: walk, or fly with %s" % InputSetup.describe("editor_fly")][i] + " (%s switches)" % InputSetup.describe("editor_view"),
+				func() -> void: tool.set_view(i == 0))
+		chip.toggle_mode = true
+		view.add_child(chip)
+		_view_buttons.append(chip)
+	column.add_child(view)
+
+	_cut_row = HBoxContainer.new()
+	_cut_row.add_theme_constant_override("separation", 4)
+	_cut_row.add_child(_label("Cut", "MutedLabel", 12))
+	var cut_tips := ["Show everything", "Cut at the ceiling of the room you're looking at", "Set the height with %s / %s" % [InputSetup.describe("editor_cut_up"), InputSetup.describe("editor_cut_down")]]
+	for i in EditorCamera.CUT_NAMES.size():
+		var chip := _button(EditorCamera.CUT_NAMES[i], "ChipButton", "%s (%s cycles)" % [cut_tips[i], InputSetup.describe("editor_cut_mode")],
+				func() -> void: tool.camera.set_cut_mode(i as EditorCamera.Cut))
+		chip.toggle_mode = true
+		_cut_row.add_child(chip)
+		_cut_buttons.append(chip)
+	column.add_child(_cut_row)
+
 
 func _build_drawer() -> void:
 	_drawer = _surface("PaperCard")
@@ -488,8 +532,12 @@ func _build_help() -> Control:
 			["Undo", "editor_undo"], ["Redo", "editor_redo"]]],
 		["Session", [["Save", "editor_save"], ["Play-test", "editor_playtest"], ["Catalog", "editor_catalog"],
 			["Help", "editor_help"], ["Back out / menu", "editor_back"],
-			["Use the tool", "LMB / RMB"], ["Pick material or prop", "Alt+LMB"], ["Fly speed", "Wheel"],
-			["Fly", "WASD, Space / Ctrl, Shift fast"]]],
+			["Use the tool", "LMB / RMB"], ["Pick material or prop", "Alt+LMB"]]],
+		["Builder view", [["Switch view", "editor_view"], ["Orbit", "RMB / MMB drag"], ["Pan", "WASD, Shift+MMB drag"],
+			["Zoom", "Wheel"], ["Turn 45°", "editor_orbit_left", "editor_orbit_right"], ["Frame selection", "editor_frame"],
+			["Whole level", "editor_frame_all"], ["Cut height", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
+			["Brush carve", "Shift+LMB"]]],
+		["Walk view", [["Move", "WASD, Space / Ctrl"], ["Fly on / off", "editor_fly"], ["Fly speed", "Wheel, Shift fast"]]],
 	]
 	for section: Array in sections:
 		var grid := GridContainer.new()
@@ -506,7 +554,7 @@ func _build_help() -> Control:
 			for key: String in row.slice(1):
 				keys.append(InputSetup.describe(key) if InputSetup.EDITOR_KEYS.has(key) else key)
 			grid.add_child(_label(" ".join(keys), "AccentLabel", 14))
-	body.add_child(_label("Esc frees the mouse to use the panels; click the world to fly again.", "MutedBody", 12))
+	body.add_child(_label("Walk view: Esc frees the mouse to use the panels; click the world to take it back.", "MutedBody", 12))
 	return modal
 
 
@@ -516,7 +564,7 @@ func _build_menu() -> Control:
 	body.custom_minimum_size.x = 320
 	body.add_child(_button("Back to editing", "PrimaryButton", "", func() -> void:
 		_set_modal(modal, false)
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED))
+		tool.resume()))
 	body.add_child(_button("Save", "Button", InputSetup.describe("editor_save"), lab.request_save))
 	body.add_child(_button("Keys and controls", "Button", InputSetup.describe("editor_help"), func() -> void: _set_modal(_help, true)))
 	_menu_info.theme_type_variation = "MutedBody"
@@ -636,7 +684,7 @@ func _selection() -> void:
 			["Delete", "DangerButton", "editor_delete", tool.delete_selected]]:
 		var button := _button(action[0], action[1], InputSetup.describe(action[2]), func() -> void:
 			action[3].call()
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+			tool.resume())
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buttons.add_child(button)
 	_content.add_child(buttons)

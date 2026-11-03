@@ -23,6 +23,11 @@ var _selection := MeshInstance3D.new()
 var _flicker_time := 0.0
 ## The terrain shader's facility_power (1 = lamp voxels lit, 0 = emergency voxels lit), faded.
 var _lamp_power := 1.0
+## Editor cutaway (EditorCamera): marker gizmos from this voxel layer up are hidden, like the voxels
+## and props there (which the terrain shader cuts).
+var _cut_layer := NO_CUT
+
+const NO_CUT := 1 << 30
 
 
 func _ready() -> void:
@@ -136,8 +141,22 @@ func _add(object: Dictionary) -> void:
 		node = mesh_instance
 	else:
 		node = _gizmo(object)
+		node.visible = LevelSchema.marker_box(object).position.y < _cut_layer
 	add_child(node)
 	_nodes[object.id] = node
+
+
+## Hides marker gizmos at or above a voxel layer (NO_CUT shows them all).
+func set_cut(layer: int) -> void:
+	if layer == _cut_layer:
+		return
+	_cut_layer = layer
+	if lab.level == null:
+		return
+	for id: String in _nodes:
+		var object: Dictionary = lab.level.objects.get(id, {})
+		if object.get("kind") == "marker":
+			_nodes[id].visible = LevelSchema.marker_box(object).position.y < layer
 
 
 func _remove(id: String) -> void:

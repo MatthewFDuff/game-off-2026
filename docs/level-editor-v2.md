@@ -12,7 +12,21 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   new HUD layout (top bar, tool rail, inspector, catalog drawer with prop categories and search,
   hint line, toasts, help and menu modals), scrubbable number fields, synthesized UI sounds.
   Tested headless (`editor_input_test`, `editor_tool_test`, `net_test.sh editor_test`) and in
-  screenshots; not yet play-tested by hand. Walk view is still the v1 fly cam until step 2.
+  screenshots; not yet play-tested by hand.
+- **Step 2 done (2026-11-03)**: `EditorCamera` (builder view: orbit / pan / zoom / Q E / frame,
+  mouse always free, tools aim through the mouse), cutaway (terrain shader `cut_height`, a cap plane
+  colored from the cut layer's voxels, aim ray starts at the cut, marker gizmos above it hidden;
+  Auto / Manual / Off), V switches views, walk view lands under the mouse and walks (F flies).
+  Choices made while building it: a right click without a drag is the tool's RMB, so the Brush
+  carves with Shift+LMB in the builder view; the free cursor moved from V to N (walk view only);
+  Auto keeps its last height while the pivot is over solid rock, so panning across walls doesn't
+  flash the roof back. Tested headless (`editor_builder_test`) and in screenshots.
+
+- **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
+  door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast
+  2.4x2.4, vent hatch 1.2x1.2) and a trigger / on_use `actions` field (power, lock / unlock / open /
+  close a door, turn off a spawner, replace a box's material). Its non-schema hooks (lab.gd,
+  horde_director.gd, scripts/tools) belong to that plan, not the editor.
 
 ## What the play-test told us
 

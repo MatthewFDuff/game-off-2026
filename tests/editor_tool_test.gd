@@ -31,6 +31,8 @@ func _run() -> void:
 	var me = lab.local_player()
 	var tool = me.get_node("EditorTool")
 	await _frames(5)
+	tool.set_view(false) # First person: these aim from the crosshair (builder view: editor_builder_test).
+	me.flying = true
 	_check("editing", lab.mode == "edit" and me.editing and me.flying)
 
 	# Look straight down at the atrium floor (y 40) from 2 m up.
