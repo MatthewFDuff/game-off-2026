@@ -195,6 +195,8 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Taken before acting: a key that ends the intro removes this node from the tree.
+	var viewport := get_viewport()
 	if _done:
 		return
 	if event is InputEventMouseMotion and state == State.SEATED:
@@ -240,7 +242,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_N:
 				if state == State.GO_BACK:
 					_finish(false)
-		get_viewport().set_input_as_handled()
+		if viewport:
+			viewport.set_input_as_handled()
 
 
 ## Click (or E) on the monitor: the camera moves onto its screen and the console takes over.

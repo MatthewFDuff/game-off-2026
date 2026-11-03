@@ -125,11 +125,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_PAGEUP: step = -_scroll.size.y
 	if step != 0.0:
 		_scroll.scroll_vertical += int(step)
-		get_viewport().set_input_as_handled()
+		var viewport := get_viewport()
+		if viewport:
+			viewport.set_input_as_handled()
 	elif event.is_action_pressed("cycle_ammo") and lab.play.reading != "" and str(lab.level.objects.get(lab.play.reading, {}).get("steps", "")) != "":
 		# SHIFT runs the next step of an experiment terminal (the host decides).
 		lab.play.request_step(lab.play.reading)
-		get_viewport().set_input_as_handled()
+		var viewport := get_viewport()
+		if viewport:
+			viewport.set_input_as_handled()
 
 
 func _on_reading_changed(id: String) -> void:
