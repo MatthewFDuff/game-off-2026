@@ -2,6 +2,10 @@ class_name Player
 extends Node3D
 ## First-person controller that collides directly against the voxel grid through
 ## VoxelWorld.move_box. The node's position is the player's feet (bottom center of the box).
+##
+## In co-op, each peer is the multiplayer authority of its own player and simulates it locally,
+## streaming its state to net_peers. Everyone else's copy is remote: no camera or input, just a
+## placeholder body that interpolates between the received states.
 
 ## from is the attacker's world position.
 signal damaged(amount: float, from: Vector3)
@@ -69,6 +73,22 @@ var _shake_noise := FastNoiseLite.new()
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
+## Movement states sent per second to the other peers.
+const NET_SEND_RATE := 30.0
+## Remote players are drawn this far in the past so there's always a newer state to blend toward.
+const REMOTE_DELAY := 0.1
+
+## False on the copies of other peers' players.
+var is_local := true
+## Peers to stream this player's state to. Set by the level; empty in single-player.
+var net_peers: Array[int] = []
+var display_name := ""
+
+var _send_timer := 0.0
+## Received [time, position, yaw, pitch], oldest first.
+var _remote_states: Array[Array] = []
+var _body: MeshInstance3D
+var _name_tag: Label3D
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
@@ -82,6 +102,21 @@ func _ready() -> void:
 	_previous_position = global_position
 	_shake_noise.frequency = 0.9
 	_shake_noise.seed = randi()
+	is_local = is_multiplayer_authority()
+	if not is_local:
+		camera.current = false
+		set_process_input(false)
+		set_process_unhandled_input(false)
+		head.position = Vector3(0.0, standing_height - eye_offset, 0.0)
+		_build_remote_body()
+
+
+## Name and color shown over remote players.
+func set_display(player_name: String, color: Color) -> void:
+	display_name = player_name
+	if _name_tag:
+		_name_tag.text = player_name
+		_name_tag.modulate = color
 
 
 func _notification(what: int) -> void:
@@ -116,7 +151,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if world == null:
+	if world == null or not is_local:
 		return
 	_previous_position = global_position
 	_since_damage += delta
@@ -132,9 +167,13 @@ func _physics_process(delta: float) -> void:
 	# Smooth the camera over step-ups instead of snapping it up a ledge.
 	_step_offset = move_toward(_step_offset, 0.0, maxf(absf(_step_offset) * 12.0, 1.0) * delta)
 	_eye_height = lerpf(_eye_height, _height - eye_offset, 1.0 - exp(-15.0 * delta))
+	_send_state(delta)
 
 
 func _process(delta: float) -> void:
+	if not is_local:
+		_interpolate_remote()
+		return
 	var key_look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
 	if key_look != Vector2.ZERO:
 		_look(key_look * key_look_speed * delta)
@@ -298,3 +337,97 @@ func _fly(delta: float) -> void:
 	var speed := fly_speed * (3.0 if Input.is_action_pressed("sprint") else 1.0)
 	global_position += wish.normalized() * speed * delta
 	on_floor = false
+
+
+#region Networking
+
+func _send_state(delta: float) -> void:
+	if net_peers.is_empty():
+		return
+	_send_timer -= delta
+	if _send_timer > 0.0:
+		return
+	_send_timer += 1.0 / NET_SEND_RATE
+	for peer_id in net_peers:
+		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if _remote_states.is_empty():
+		global_position = feet # First state: appear there instead of sliding in from the spawn.
+	_remote_states.append([now, feet, yaw, pitch])
+	if _remote_states.size() > 16:
+		_remote_states.pop_front()
+	if is_crouching != crouching:
+		crouching = is_crouching
+		_body.scale.y = crouching_height / standing_height if crouching else 1.0
+		head.position.y = (crouching_height if crouching else standing_height) - eye_offset
+	flashlight.visible = light_on
+
+
+func _interpolate_remote() -> void:
+	if _remote_states.is_empty():
+		return
+	var t := Time.get_ticks_msec() / 1000.0 - REMOTE_DELAY
+	var newest: Array = _remote_states.back()
+	var a: Array = newest
+	var b: Array = newest
+	for i in range(_remote_states.size() - 1, 0, -1):
+		if _remote_states[i - 1][0] <= t:
+			a = _remote_states[i - 1]
+			b = _remote_states[i]
+			break
+	var span: float = b[0] - a[0]
+	var f := clampf((t - a[0]) / span, 0.0, 1.0) if span > 0.0 else 1.0
+	global_position = (a[1] as Vector3).lerp(b[1], f)
+	rotation.y = lerp_angle(a[2], b[2], f)
+	head.rotation.x = lerpf(a[3], b[3], f)
+
+
+## Placeholder voxel figure for other players, until the real character model exists.
+func _build_remote_body() -> void:
+	const M := preload("res://scripts/voxel/voxel_materials.gd")
+	var body_size := Vector3i(6, 15, 4)
+	var voxels := PackedByteArray()
+	voxels.resize(body_size.x * body_size.y * body_size.z)
+	for z in body_size.z:
+		for y in body_size.y:
+			for x in body_size.x:
+				var id := M.CLOTH if y < 7 else M.WALL_PAINT
+				if y < 7 and x in [2, 3]:
+					id = M.AIR # Gap between the legs.
+				voxels[x + y * body_size.x + z * body_size.x * body_size.y] = id
+	_body = _model_instance(body_size, voxels, self)
+	_body.position = Vector3(-body_size.x, 0.0, -body_size.z) * 0.5 * world.voxel_size
+
+	var head_size := Vector3i(4, 4, 4)
+	var head_voxels := PackedByteArray()
+	head_voxels.resize(64)
+	head_voxels.fill(M.PLASTIC)
+	for x in [0, 3]:
+		head_voxels[x + 2 * 4] = M.GLASS # Eyes on the front (z = 0, facing -Z).
+	var head_mesh := _model_instance(head_size, head_voxels, head)
+	head_mesh.position = Vector3(-2.0, -1.5, -2.0) * world.voxel_size
+
+	_name_tag = Label3D.new()
+	_name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_name_tag.fixed_size = true
+	_name_tag.pixel_size = 0.0012
+	_name_tag.font_size = 24
+	_name_tag.outline_size = 8
+	_name_tag.no_depth_test = true
+	_name_tag.position = Vector3(0.0, standing_height + 0.35, 0.0)
+	_name_tag.text = display_name
+	add_child(_name_tag)
+
+
+func _model_instance(size: Vector3i, voxels: PackedByteArray, parent: Node3D) -> MeshInstance3D:
+	var instance := MeshInstance3D.new()
+	instance.mesh = world.build_model_mesh(size, voxels)
+	instance.material_override = world.material
+	parent.add_child(instance)
+	return instance
+
+#endregion

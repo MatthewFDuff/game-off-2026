@@ -203,6 +203,81 @@ void VoxelWorld::fill_all(int material_id) {
 	emit_signal("voxels_changed", Vector3i(), get_size_in_voxels() - Vector3i(1, 1, 1));
 }
 
+PackedByteArray VoxelWorld::get_data() const {
+	size_t total = 16;
+	for (const Chunk &c : chunks) {
+		total += c.data.empty() ? 2 : 1 + CHUNK_VOLUME;
+	}
+	PackedByteArray out;
+	out.resize(int64_t(total));
+	uint8_t *w = out.ptrw();
+	std::memcpy(w, "VXW1", 4);
+	const int32_t dims[3] = { size_in_chunks.x, size_in_chunks.y, size_in_chunks.z };
+	std::memcpy(w + 4, dims, sizeof(dims));
+	size_t at = 16;
+	for (const Chunk &c : chunks) {
+		if (c.data.empty()) {
+			w[at++] = 0;
+			w[at++] = c.uniform_value;
+		} else {
+			w[at++] = 1;
+			std::memcpy(w + at, c.data.data(), CHUNK_VOLUME);
+			at += CHUNK_VOLUME;
+		}
+	}
+	return out;
+}
+
+bool VoxelWorld::set_data(const PackedByteArray &data) {
+	const int64_t size = data.size();
+	const uint8_t *r = data.ptr();
+	if (size < 16 || std::memcmp(r, "VXW1", 4) != 0) {
+		return false;
+	}
+	int32_t dims[3];
+	std::memcpy(dims, r + 4, sizeof(dims));
+	if (dims[0] < 1 || dims[1] < 1 || dims[2] < 1) {
+		return false;
+	}
+	// Validate the whole payload before touching the world.
+	const int64_t count = int64_t(dims[0]) * dims[1] * dims[2];
+	int64_t at = 16;
+	for (int64_t i = 0; i < count; i++) {
+		if (at >= size) {
+			return false;
+		}
+		at += r[at] == 0 ? 2 : 1 + CHUNK_VOLUME;
+	}
+	if (at != size) {
+		return false;
+	}
+
+	const Vector3i dims_v(dims[0], dims[1], dims[2]);
+	if (dims_v != size_in_chunks) {
+		size_in_chunks = dims_v;
+		allocate();
+	}
+	at = 16;
+	for (int slot = 0; slot < int(chunks.size()); slot++) {
+		Chunk &c = chunks[slot];
+		if (r[at] == 0) {
+			std::vector<uint8_t>().swap(c.data);
+			c.uniform_value = r[at + 1];
+			at += 2;
+		} else {
+			c.data.assign(r + at + 1, r + at + 1 + CHUNK_VOLUME);
+			at += 1 + CHUNK_VOLUME;
+			try_compress(c);
+		}
+		mark_dirty(slot);
+		nav_rebuild_chunk(slot);
+	}
+	nav_hardness_stale = false;
+	nav_flow_target = -1;
+	emit_signal("voxels_changed", Vector3i(), get_size_in_voxels() - Vector3i(1, 1, 1));
+	return true;
+}
+
 int VoxelWorld::fill_box(const Vector3i &from, const Vector3i &to, int material_id, bool only_air) {
 	const uint8_t value = uint8_t(CLAMP(material_id, 0, 254));
 	const Vector3i size = get_size_in_voxels();
@@ -985,6 +1060,8 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_voxel", "voxel"), &VoxelWorld::get_voxel);
 	ClassDB::bind_method(D_METHOD("set_voxel", "voxel", "material_id"), &VoxelWorld::set_voxel);
 	ClassDB::bind_method(D_METHOD("fill_all", "material_id"), &VoxelWorld::fill_all);
+	ClassDB::bind_method(D_METHOD("get_data"), &VoxelWorld::get_data);
+	ClassDB::bind_method(D_METHOD("set_data", "data"), &VoxelWorld::set_data);
 	ClassDB::bind_method(D_METHOD("fill_box", "from", "to", "material_id", "only_air"), &VoxelWorld::fill_box, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("fill_sphere", "center", "radius", "material_id", "only_air"), &VoxelWorld::fill_sphere, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("carve_sphere", "center", "radius", "max_hardness"), &VoxelWorld::carve_sphere, DEFVAL(254));

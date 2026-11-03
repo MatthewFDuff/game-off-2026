@@ -1,0 +1,59 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/lab.gd" id="1_lab"]
+[ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
+[ext_resource type="Script" path="res://scripts/net/world_sync.gd" id="3_sync"]
+[ext_resource type="Script" path="res://scripts/voxel/voxel_debris.gd" id="4_debris"]
+[ext_resource type="Script" path="res://scripts/ui/lab_hud.gd" id="5_hud"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
+resource_local_to_scene = true
+shader = ExtResource("2_shader")
+
+[sub_resource type="Environment" id="Environment_lab"]
+resource_local_to_scene = true
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.5, 0.5, 0.56, 1)
+ambient_light_energy = 0.25
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.9
+glow_bloom = 0.1
+fog_enabled = true
+fog_light_color = Color(0.015, 0.015, 0.02, 1)
+fog_density = 0.02
+fog_height = 9.5
+fog_height_density = -0.25
+
+[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "lights", "players_root", "debris")]
+script = ExtResource("1_lab")
+world = NodePath("VoxelWorld")
+world_sync = NodePath("WorldSync")
+lights = NodePath("Lights")
+players_root = NodePath("Players")
+debris = NodePath("Debris")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_lab")
+
+[node name="VoxelWorld" type="VoxelWorld" parent="."]
+size_in_chunks = Vector3i(16, 10, 16)
+material = SubResource("ShaderMaterial_terrain")
+
+[node name="WorldSync" type="Node" parent="." node_paths=PackedStringArray("world")]
+script = ExtResource("3_sync")
+world = NodePath("../VoxelWorld")
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="Players" type="Node3D" parent="."]
+
+[node name="Debris" type="Node3D" parent="." node_paths=PackedStringArray("world")]
+script = ExtResource("4_debris")
+world = NodePath("../VoxelWorld")
+
+[node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("lab")]
+script = ExtResource("5_hud")
+lab = NodePath("..")

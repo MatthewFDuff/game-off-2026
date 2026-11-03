@@ -198,6 +198,11 @@ public:
 	void set_voxel(const Vector3i &voxel, int material_id);
 
 	void fill_all(int material_id);
+	// The whole volume as bytes: "VXW1", size_in_chunks (3 x int32), then per chunk a 0 byte and its
+	// uniform material, or a 1 byte and CHUNK_VOLUME materials. set_data resizes the world to match
+	// and returns false (leaving the world alone) if the bytes aren't valid.
+	PackedByteArray get_data() const;
+	bool set_data(const PackedByteArray &data);
 	// Voxel-space box, from inclusive, to exclusive.
 	int fill_box(const Vector3i &from, const Vector3i &to, int material_id, bool only_air);
 	int fill_sphere(const Vector3 &center, float radius, int material_id, bool only_air);

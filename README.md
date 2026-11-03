@@ -52,9 +52,21 @@ The `Web` preset in `export_presets.cfg` uses the no-threads variant with **Exte
 
 For itch.io: zip the contents of `build/web/`, upload as an HTML game, and set the viewport to 1280x720 with the fullscreen button enabled. The `index.side.wasm` engine module is ~44MB uncompressed; itch serves it compressed.
 
+## Co-op
+
+The main scene is `scenes/menu.tscn`: play solo, host, or join by address. Co-op runs on the desktop build over ENet; web builds are single-player. The host forwards **UDP 24680** on their router, and friends join the host's public IP (LAN players use the LAN address shown on the pause screen).
+
+- `scripts/net/net.gd` (`Net` autoload): hosting, joining, the player roster.
+- `scenes/lab.tscn` / `scripts/world/lab.gd`: the co-op level. Joiners get a compressed world snapshot, then each peer's player is spawned everywhere. Each peer simulates its own player and streams its movement; the host owns everything else.
+- `scripts/net/world_sync.gd`: every voxel edit goes through here. The host applies it and replays it on every peer in order, so worlds stay identical. Gameplay must not edit `VoxelWorld` directly.
+
+Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--join=1.2.3.4`, `--name=Zack`. Two copies on one machine: start one with `-- --host`, the other with `-- --join=127.0.0.1`.
+
+`tools/net_test.sh` runs a headless host and client against each other and checks their worlds end up byte-identical.
+
 ## Playing the prototype
 
-`scenes/facility.tscn` (the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
+`scenes/facility.tscn` (the old single-player mushroom loop, no longer the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
 
 - **Day shift**: plant at least the quota of spores in the grow-hall beds (**E** on the substrate; extra spores pay more at night), fortify with build mode (**Q**; 1-4 piece, R turn, LMB place, costs money; the bottom bar shows pieces and why a placement is refused), dig and blast (LMB rifle, RMB blast; 3 blast charges per shift, **B** buys one for $10 during the day). Then climb the ladder in the atrium (**W/S** on the ladder, Space to let go) and seal the hatch (**E**). The objective line under the phase title always says what to do next.
 - **Night shift**: the power dies, emergency lights come on, and the spores grow into shrooms that hunt you through the facility, digging through planks, dirt, sandbags and furniture (not metal, concrete or rock). Shrooms rear back before they bite. Harvest at least the quota before the timer runs out. Each harvest pays $15, surviving pays a bonus, and the quota grows every shift.
@@ -71,5 +83,6 @@ Tests (from the project root, with `godot` being the 4.7 editor binary):
 ```sh
 godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation (sandbox)
 godot --headless --path . --script res://tests/shift_loop_test.gd    # a full shift in the facility, ladder, hatch, breaching
+tools/net_test.sh                                                     # two-process co-op test (host + client)
 godot --path . --script res://tests/facility_screenshots.gd -- <dir> # room and night screenshots
 ```

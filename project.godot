@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="game-off-2026"
-run/main_scene="res://scenes/facility.tscn"
+run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -33,3 +33,4 @@ renderer/rendering_method.mobile="gl_compatibility"
 [autoload]
 
 SfxBank="*res://scripts/audio/sfx.gd"
+Net="*res://scripts/net/net.gd"
