@@ -546,16 +546,24 @@ func separation(enemy: Enemy) -> Vector3:
 	return push
 
 
+## Host: points the flow field at every living player now (the director ranks spawners by it
+## even when no enemy is alive to keep it fresh).
+func refresh_flow() -> void:
+	if not simulating:
+		return
+	_flow_timer = 1.0 / FLOW_RATE
+	var points := PackedVector3Array()
+	for player in targets():
+		points.append(player.global_position)
+	world.update_flow_field(points, FLOW_RANGE)
+
+
 func _physics_process(delta: float) -> void:
 	if not simulating or enemies.is_empty():
 		return
 	_flow_timer -= delta
 	if _flow_timer <= 0.0:
-		_flow_timer = 1.0 / FLOW_RATE
-		var points := PackedVector3Array()
-		for player in targets():
-			points.append(player.global_position)
-		world.update_flow_field(points, FLOW_RANGE)
+		refresh_flow()
 	_state_timer -= delta
 	var peers := _peers()
 	if _state_timer > 0.0 or peers.is_empty():

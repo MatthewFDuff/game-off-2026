@@ -14,11 +14,11 @@ const WEAPONS := ["shroom_shooter", "axe"]
 ## Every pickup with a placeholder (the item marker names these).
 const ITEMS := ["medkit", "ammo_shotgun", "ammo_flame", "ammo_explosive", "ammo_ricochet", "ammo_homing",
 		"ammo_poison", "flask_fire", "flask_poison", "flask_rage", "flask_freeze", "keycard_red", "keycard_blue",
-		"keycard_green"]
+		"keycard_green", "keycard_black"]
 const ITEM_COLORS := {
 	medkit = Color(1.0, 0.25, 0.25), flask_fire = Color(1.0, 0.5, 0.15), flask_poison = Color(0.45, 1.0, 0.3),
 	flask_rage = Color(1.0, 0.2, 0.3), flask_freeze = Color(0.55, 0.85, 1.0), keycard_red = Color(1.0, 0.2, 0.2),
-	keycard_blue = Color(0.25, 0.5, 1.0), keycard_green = Color(0.3, 1.0, 0.4),
+	keycard_blue = Color(0.25, 0.5, 1.0), keycard_green = Color(0.3, 1.0, 0.4), keycard_black = Color(0.12, 0.12, 0.14),
 }
 
 ## path -> model, loaded once and dropped on live reload.

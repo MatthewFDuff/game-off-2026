@@ -71,6 +71,7 @@ const MARKERS := {
 		{key = "repeat", type = "bool", default = false, label = "Fires every time"},
 		{key = "who", type = "enum", options = ["any", "all"], default = "any", label = "Players needed"},
 		{key = "activates", type = "string", default = "", label = "Activates (spawner ids, or horde)"},
+		{key = "actions", type = "string", default = "", label = "Actions (power=backup, lock=<door>, ...)"},
 	]},
 	speaker = {label = "Intercom speaker", color = Color(0.4, 0.75, 1.0), fields = []},
 	light = {label = "Light", color = Color(1.0, 0.95, 0.7), fields = [
@@ -91,6 +92,7 @@ const MARKERS := {
 		{key = "active", type = "bool", default = true, label = "Active from the start"},
 		{key = "radius", type = "float", min = 0.0, max = 10.0, default = 1.5, label = "Spawn radius (m)"},
 		{key = "on_ceiling", type = "bool", default = false, label = "Spawns on the ceiling (ceiling_cloud)"},
+		{key = "on_dead", type = "string", default = "", label = "Fires trigger when its last enemy dies (bosses: max 1 or rate 0)"},
 	]},
 	clone_vat = {label = "Clone vat", color = Color(0.4, 1.0, 0.8), fields = []},
 	kill_zone = {label = "Kill zone", color = Color(1.0, 0.2, 0.6), fields = [

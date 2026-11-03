@@ -15,6 +15,12 @@ All seven phases are implemented on the `mechanics` branch and covered by headle
 each system. Nothing has been play-tested by hand in a window yet. Where the build differs from
 the plan below:
 
+- Level hooks for the laboratory (2026-11-03, `lab_hooks_test`): trigger markers have an
+  `actions` field (`power=`, `lock=`, `unlock=`, `open=`, `close=`, `on=`, `off=`, `horde`) that runs
+  whenever their id fires, including "finale_survived" / "finale_failed"; spawners have `on_dead`
+  (a trigger fired when a placed boss dies); hordes pick spawners by walking distance; the party
+  respawns at the last clone vat reached (`LevelPlay.checkpoint`); spawner rates and caps scale
+  with the player count around a two-player baseline (`HordeDirector.scale_per_player`).
 - Ammo types are a code table (`AmmoType.by_name`), not `.tres` resources.
 - Flasks fly as their item model and use the projectile system; clouds are host-owned `Cloud`
   nodes with a `spore` type added for the spore shroom.

@@ -12,7 +12,19 @@ extends Node
 ##
 ## Triggers: a trigger marker's `activates` field (comma-separated) turns on spawners by id, or
 ## starts a horde with "horde". Prop triggers (a terminal's or the generator's `on_use`) can also name
-## a spawner or "horde" directly. The generator calls finale(its finale_seconds) itself.
+## a spawner or "horde" directly. The generator calls finale(its finale_seconds) itself. A trigger
+## marker's `actions` (LevelPlay) can also turn spawners on and off (`on=` / `off=`).
+##
+## Hordes come from the spawners nearest the players by walking distance (the flow field), so a
+## spawner on the floor above never counts as near through the slab; spawners with no path go
+## last.
+##
+## A spawner's `on_dead` names a trigger id fired (once per play) when its last enemy dies: for
+## placed bosses, so it only fires when the spawner can't just spawn another, i.e. it is inactive,
+## its rate is 0 or its max_alive is 1.
+##
+## Player count: the level's rates and caps are tuned for two players; with scale_per_player > 0
+## they scale by (1 - s + s x players) / (1 + s), so one player gets less and four get more.
 ##
 ## Finale: every spawner turns on, trickle rates ramp to finale_rate_multiplier x over the timer, a
 ## burst fires every finale_burst_interval seconds (horde_size, x finale_burst_growth each time) and
@@ -48,11 +60,13 @@ signal finale_event(kind: String)
 @export var finale_burst_growth := 1.5
 ## max_alive caps are multiplied by this during the finale.
 @export var finale_alive_multiplier := 2.0
+## How much each player beyond the second adds to rates and caps (0: no scaling). See the top.
+@export var scale_per_player := 0.25
 
 var state := "calm"
 var running := false
 ## id -> {object, active: bool, budget: float (spawns owed), alive: Array[int] (enemy ids),
-## rate_mult, alive_mult (finale scaling)}
+## rate_mult, alive_mult (finale scaling), spawned (ever), dead_fired (on_dead went)}
 var spawners := {}
 ## Every peer: the finale is running, and how many seconds are left (replicated each second).
 var finale_active := false
@@ -91,7 +105,8 @@ func start() -> void:
 	_horde_ids.clear()
 	for object: Dictionary in lab.level.objects.values():
 		if object.kind == "marker" and object.type == "horde":
-			spawners[object.id] = {object = object, active = bool(object.get("active", true)), budget = 0.0, alive = [], rate_mult = 1.0, alive_mult = 1.0}
+			spawners[object.id] = {object = object, active = bool(object.get("active", true)), budget = 0.0, alive = [],
+					rate_mult = 1.0, alive_mult = 1.0, spawned = false, dead_fired = false}
 	_set_state("calm")
 
 
@@ -242,7 +257,10 @@ func _physics_process(delta: float) -> void:
 		return
 	for id: String in spawners:
 		var spawner: Dictionary = spawners[id]
+		var had: bool = not spawner.alive.is_empty()
 		spawner.alive = spawner.alive.filter(func(e: int) -> bool: return enemies.enemies.has(e))
+		if had and spawner.alive.is_empty():
+			_on_spawner_empty(id, spawner)
 		_trickle(id, spawner, delta)
 	_horde_ids.assign(_horde_ids.filter(func(e: int) -> bool: return enemies.enemies.has(e)))
 
@@ -286,6 +304,37 @@ func _tick_finale(delta: float) -> void:
 		_end_finale("survived")
 
 
+## Host: a spawner's last enemy went. Fires its `on_dead` trigger once if it's a placed boss
+## (inactive, rate 0 or max_alive 1), not a trickle that will just spawn another.
+func _on_spawner_empty(id: String, spawner: Dictionary) -> void:
+	var object: Dictionary = spawner.object
+	var target := str(object.get("on_dead", "")).strip_edges()
+	if target == "" or spawner.dead_fired or not spawner.spawned:
+		return
+	var boss: bool = not spawner.active or float(object.get("rate", 6.0)) <= 0.0 or int(object.get("max_alive", 4)) <= 1
+	if not boss:
+		return
+	spawner.dead_fired = true
+	lab.play.triggered.emit(target, 1)
+
+
+## Rates and caps are tuned for two players; this is the multiplier for the players in the level.
+func player_factor() -> float:
+	if scale_per_player <= 0.0:
+		return 1.0
+	var count := maxi(lab.players.size(), 1)
+	return (1.0 - scale_per_player + scale_per_player * count) / (1.0 + scale_per_player)
+
+
+## A spawner's cap right now: max_alive x finale multiplier x player factor, never below 1 when
+## it has any.
+func alive_cap(spawner: Dictionary) -> int:
+	var base := int(spawner.object.get("max_alive", 4))
+	if base <= 0:
+		return 0
+	return maxi(1, roundi(base * float(spawner.alive_mult) * player_factor()))
+
+
 ## Players are in the level and none of them is alive.
 func _everyone_dead() -> bool:
 	var any := false
@@ -300,11 +349,11 @@ func _everyone_dead() -> bool:
 ## Calm spawning: rate per minute while active, never more than max_alive of its own at once.
 func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 	var object: Dictionary = spawner.object
-	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult)
+	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * player_factor()
 	if not spawner.active or rate <= 0.0:
 		return
 	spawner.budget = minf(spawner.budget + rate / 60.0 * delta, 1.0)
-	if spawner.budget < 1.0 or spawner.alive.size() >= int(int(object.get("max_alive", 4)) * float(spawner.alive_mult)):
+	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner):
 		return
 	spawner.budget -= 1.0
 	_spawn_from(id)
@@ -322,6 +371,7 @@ func _spawn_from(id: String) -> Enemy:
 	var enemy := enemies.spawn(kind, _spawn_point(object))
 	if enemy:
 		spawner.alive.append(enemy.id)
+		spawner.spawned = true
 	return enemy
 
 
@@ -348,13 +398,21 @@ func _spawn_point(object: Dictionary) -> Vector3:
 	return base + Vector3.UP * 0.05
 
 
-## Spawner ids, nearest to any target player first.
+## Spawner ids, nearest to any target player first: by walking distance (the flow field, which
+## reaches FLOW_RANGE m around the players), unreached ones last, straight-line as the tie-break.
 func _spawners_by_distance() -> Array[String]:
 	var ids: Array[String] = []
-	var distance := {}
+	var walk := {}
+	var straight := {}
+	enemies.refresh_flow()
 	for id: String in spawners:
 		var at := lab.view.to_world(spawners[id].object.position)
-		distance[id] = enemies.nearest_player_distance(at)
+		straight[id] = enemies.nearest_player_distance(at)
+		var flow: Dictionary = lab.world.get_flow(at + Vector3.UP * 0.05)
+		walk[id] = float(flow.distance) if flow.get("valid", false) else INF
 		ids.append(id)
-	ids.sort_custom(func(a: String, b: String) -> bool: return distance[a] < distance[b])
+	ids.sort_custom(func(a: String, b: String) -> bool:
+		if walk[a] != walk[b]:
+			return walk[a] < walk[b]
+		return straight[a] < straight[b])
 	return ids

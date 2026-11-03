@@ -34,6 +34,7 @@ func _run() -> void:
 	var me = lab.local_player()
 	var play = lab.play
 	var director = lab.director
+	director.scale_per_player = 0.0 # Raw spawner numbers (the data here isn't tuned for two players).
 	var enemies = lab.enemies
 	me.max_health = 100000.0
 	me.health = 100000.0

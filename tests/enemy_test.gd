@@ -42,6 +42,7 @@ func _run() -> void:
 	var enemies = lab.enemies
 	var combat = load("res://scripts/combat/combat.gd") # Not by name: see the note at the top.
 	await _frames(10)
+	lab.director.scale_per_player = 0.0 # Raw spawner numbers (the data here isn't tuned for two players).
 	_check("playing", lab.mode == "play" and enemies.simulating and lab.director.running)
 	_check("spawner read with its fields", lab.director.spawners.has("horde_test") and not lab.director.spawners.horde_test.active)
 

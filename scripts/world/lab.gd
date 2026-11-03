@@ -330,10 +330,14 @@ func _on_local_died() -> void:
 	var me := local_player()
 	if me == null or not me.is_dead or mode != "play":
 		return
+	# The checkpoint vat (the last one the party reached), else the first vat, else a spawn.
 	var vats := level.objects.values().filter(func(o: Dictionary) -> bool: return o.kind == "marker" and o.type == "clone_vat")
+	var vat: Dictionary = level.objects.get(play.checkpoint, {})
+	if vat.get("type") != "clone_vat":
+		vat = vats[0] if not vats.is_empty() else {}
 	var index := _player_index(multiplayer.get_unique_id())
-	me.teleport(view.to_world(vats[0].position) if not vats.is_empty() else spawn_point(index))
-	me.rotation.y = deg_to_rad(vats[0].yaw) if not vats.is_empty() else spawn_yaw(index)
+	me.teleport(view.to_world(vat.position) if not vat.is_empty() else spawn_point(index))
+	me.rotation.y = deg_to_rad(vat.yaw) if not vat.is_empty() else spawn_yaw(index)
 	me.revive()
 
 

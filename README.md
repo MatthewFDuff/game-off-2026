@@ -72,6 +72,8 @@ Levels live in `levels/<name>/` (`level.json`: settings, props and markers, read
 
 In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
 
+`levels/laboratory` is the game's lab (`docs/lab-design.md`): six floors from the surface gatehouse down to the dig and the generator, generated from `scripts/tools/lab_layout.gd` (the plan as data: rooms on a 7 x 7 grid of 6 m cells, doors, openings, props, markers) by `godot --headless --path . --script res://scripts/tools/build_laboratory.gd -- --force` (`scripts/tools/lab_builder.gd` does the work). Rooms and openings come out as editor objects, so the level can be dressed and reshaped in the editor afterwards; regenerating overwrites those changes, so edit the layout script for structural changes and the level for dressing.
+
 The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules, paper UI), 2 (builder view), 3 (three-click volumes), 4 (rooms as objects, openings), 5 (props that sit on things), 6 (seeing each other) and the 8 polish pass are in (7, the movement, is under Playing). There are two views, and **V** switches between them:
 
 - **Builder view** (the default): an orbit camera from above with the mouse always free; the tools aim through the mouse. Right or middle drag orbits (a right click without dragging is the tool's RMB), Shift+middle drag or WASD pans (Shift fast), the wheel zooms, Q / E turn 45°, F frames the selection, Home the whole level. The **cutaway** hides everything above a height so you can see into rooms in rock: Auto cuts at the ceiling of the room you're looking at, Page Up / Down sets it by hand, C cycles Off / Auto / Manual. Cut rock shows as a darkened cross section. **H** (or the Walls chip) puts the walls down: above knee height, whatever stands between the camera and the room you're looking at is hidden, so you can look in from a low angle, and the cursor aims through it. A faint grid at the snap size shows on the floor under the cursor.
@@ -278,7 +280,11 @@ godot --headless --path . --script res://tests/editor_room_test.gd    # rooms an
 godot --headless --path . --script res://tests/editor_room_tool_test.gd # room tools by mouse: select, handles, Opening tool, move with contents, Room from space
 godot --headless --path . --script res://tests/editor_prop_test.gd    # props sit on things: mounts, push-out, red ghosts, level check, a door's doorway and pocket in play
 godot --headless --path . --script res://tests/interact_test.gd      # containers, notes, terminals, stations, keycards, glass, generator, power
+godot --headless --path . --script res://tests/lab_hooks_test.gd     # trigger actions, on_dead, hordes by walking distance, checkpoint vats, player scaling
+godot --headless --path . --script res://tests/laboratory_test.gd    # builds the laboratory into a scratch folder and walks it: doors, props, keys before gates, every vat and pickup (slow, ~5 min)
+godot --headless --path . --script res://tests/laboratory_play_test.gd # plays the laboratory: outbreak, keycards, checkpoint vat, generator finale, elevator
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, rooms, presence and locks, play-test, save
 godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)
+godot --path . --script res://tests/laboratory_shots.gd -- <dir>     # the laboratory's floor plans and a few views (needs a window)
 ```

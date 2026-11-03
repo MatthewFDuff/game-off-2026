@@ -12,6 +12,15 @@ extends Node
 ## sends it to everyone, late joiners included. Keycards are party-wide: one player picking a
 ## keycard up opens its doors for everyone. Power is "facility" (normal), "backup" (emergency lights
 ## only; terminals that need power and powered doors refuse) or "restored" (the generator ran).
+##
+## Trigger actions: a trigger marker's `actions` field runs whenever its id fires (its volume, a
+## terminal's or the generator's `on_use`, the director's "finale_survived" / "finale_failed", a
+## spawner's `on_dead`), comma-separated: `power=facility|backup|restored`, `lock=<door>`,
+## `unlock=<door>`, `open=<door>`, `close=<door>` (story moves, locks ignored), `on=<spawner>`,
+## `off=<spawner>`, `horde`. The host runs them; the results replicate as usual.
+##
+## Checkpoint: the clone vat the party reached last (any living player within CHECKPOINT_REACH of
+## its marker); Lab respawns the dead there. The host decides and tells everyone.
 
 ## Host: a trigger fired. peer_id is the player who set it off (for "all", the last one in). Also
 ## fired by terminals and the generator with their `on_use` id.
@@ -29,6 +38,8 @@ signal reading_changed(id: String)
 
 ## How close (meters) a player must be to use a door or prop.
 const DOOR_REACH := 3.0
+## Meters from a clone vat marker that makes it the checkpoint.
+const CHECKPOINT_REACH := 3.0
 const POWER_STATES := ["facility", "backup", "restored"]
 ## Rounds an ammo bench gives per use.
 const STATION_AMMO := 20
@@ -47,6 +58,8 @@ var keycards: Array[String] = []
 var prop_state := {}
 ## This peer: the note or terminal on screen, or "".
 var reading := ""
+## Every peer (the host decides): the clone vat marker id the party respawns at, or "" (the first).
+var checkpoint := ""
 ## Finds what the local player is looking at and words the prompt.
 var interactables := Interactables.new(self)
 
@@ -68,6 +81,7 @@ var _note_timer := 0.0
 
 func _ready() -> void:
 	lab.peer_entered.connect(_send_state)
+	triggered.connect(_run_actions)
 	if lab.items:
 		lab.items.picked.connect(_on_picked)
 
@@ -84,6 +98,7 @@ func start() -> void:
 	_inside.clear()
 	prop_state.clear()
 	keycards.clear()
+	checkpoint = ""
 	close_reading()
 	var start_power := str(lab.level.settings.get("start_power", "facility"))
 	power = start_power if start_power in POWER_STATES else "facility"
@@ -570,20 +585,78 @@ func _apply_power(state: String, quiet := false) -> void:
 	power_changed.emit(state)
 
 
-## Host: a late joiner gets the power, keycards, prop states, door locks and where doors are.
+## Host: the party's checkpoint changed (a player reached a clone vat).
+func set_checkpoint(id: String) -> void:
+	if not multiplayer.is_server() or id == checkpoint:
+		return
+	checkpoint = id
+	for peer_id in _peers():
+		_checkpoint_changed.rpc_id(peer_id, id)
+	lab.notify("Checkpoint: clone vat ready")
+
+
+@rpc("authority", "reliable")
+func _checkpoint_changed(id: String) -> void:
+	checkpoint = id
+
+
+## Host: a trigger id fired; if it names a trigger marker, its `actions` run (see the top).
+func _run_actions(id: String, _peer_id: int) -> void:
+	if not active or not multiplayer.is_server():
+		return
+	var object: Dictionary = lab.level.objects.get(id, {})
+	if object.get("kind") != "marker" or object.get("type") != "trigger":
+		return
+	for part in str(object.get("actions", "")).split(",", false):
+		var item := part.strip_edges()
+		if item == "":
+			continue
+		var key := item.get_slice("=", 0).strip_edges()
+		var value := item.get_slice("=", 1).strip_edges() if item.contains("=") else ""
+		match key:
+			"power":
+				if value in POWER_STATES:
+					set_power(value)
+				else:
+					push_warning("trigger %s: unknown power state '%s'" % [id, value])
+			"lock", "unlock":
+				if _doors.has(value):
+					set_door_locked(value, key == "lock")
+				else:
+					push_warning("trigger %s: '%s' isn't a door" % [id, value])
+			"open", "close":
+				if _doors.has(value):
+					set_door(value, key == "open")
+				else:
+					push_warning("trigger %s: '%s' isn't a door" % [id, value])
+			"on", "off":
+				if lab.director and lab.director.spawners.has(value):
+					lab.director.set_spawner_active(value, key == "on")
+				else:
+					push_warning("trigger %s: '%s' isn't a spawner" % [id, value])
+			"horde":
+				if lab.director:
+					lab.director.start_horde(lab.director.horde_size)
+			_:
+				push_warning("trigger %s: unknown action '%s'" % [id, item])
+
+
+## Host: a late joiner gets the power, keycards, prop states, door locks, where doors are, and
+## the checkpoint.
 func _send_state(peer_id: int) -> void:
 	if not multiplayer.is_server() or not active:
 		return
 	var doors := {}
 	for id: String in _doors:
 		doors[id] = [_doors[id].origin, _doors[id].open, _doors[id].object.door_locked]
-	_full_state.rpc_id(peer_id, power, keycards, prop_state, doors)
+	_full_state.rpc_id(peer_id, power, keycards, prop_state, doors, checkpoint)
 
 
 @rpc("authority", "reliable")
-func _full_state(state: String, cards: Array, props: Dictionary, doors: Dictionary) -> void:
+func _full_state(state: String, cards: Array, props: Dictionary, doors: Dictionary, vat: String) -> void:
 	_apply_power(state, true)
 	keycards.assign(cards)
+	checkpoint = vat
 	prop_state = props.duplicate(true)
 	for id: String in doors:
 		if _doors.has(id):
@@ -598,7 +671,17 @@ func _physics_process(_delta: float) -> void:
 	if not active or not multiplayer.is_server():
 		return
 	for object: Dictionary in lab.level.objects.values():
-		if object.kind != "marker" or not object.type in ["trigger", "kill_zone"]:
+		if object.kind != "marker":
+			continue
+		if object.type == "clone_vat":
+			if object.id != checkpoint:
+				var at := lab.view.to_world(object.position)
+				for player: Player in lab.players.values():
+					if not player.is_dead and player.global_position.distance_to(at) <= CHECKPOINT_REACH:
+						set_checkpoint(object.id)
+						break
+			continue
+		if not object.type in ["trigger", "kill_zone"]:
 			continue
 		var box := LevelSchema.marker_box(object)
 		var world_box := AABB(lab.view.to_world(box.position), box.size * lab.world.voxel_size)
