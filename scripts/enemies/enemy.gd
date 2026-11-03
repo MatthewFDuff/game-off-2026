@@ -9,12 +9,42 @@ extends Node3D
 ## Subclasses (one per kind, see EnemyManager.KINDS) change the stats in _init and override
 ## _setup_hit_zones, _attack or _think for their behavior. The body is the kind's .vox model
 ## (EnemyModels), live-reloaded.
+##
+## Status effects (apply_status, host): `statuses` maps a name to seconds left, ticked here.
+##   burning   BURN_DPS damage, spreads to enemies within SPREAD_RANGE every TICK (for half the
+##             time left), orange tint and embers
+##   poisoned  POISON_DPS damage, green tint
+##   frozen    stopped for FREEZE_STOP seconds, then half speed; takes FROZEN_DAMAGE x damage; blue
+##   raging    goes for the nearest other enemy instead of players (its normal attack, through
+##             EnemyManager.damage), RAGE_SPEED x speed, red tint
+## The host tells every peer the active set (EnemyManager.statuses_changed), so all of them tint it.
 
 const GROUP := "enemies"
 ## Peers draw enemies this far in the past, so there's always a newer state to blend toward.
 const REMOTE_DELAY := 0.15
 ## Below this height (meters) an enemy has fallen out of the level and is removed.
 const KILL_HEIGHT := -20.0
+
+## Status ticks (damage, spreading) every this many seconds.
+const STATUS_TICK := 0.5
+const BURN_DPS := 6.0
+const POISON_DPS := 2.0
+## Meters (body to body) burning jumps across.
+const SPREAD_RANGE := 1.0
+## A spread fire lasts this fraction of the source's time left; shorter than this, it won't spread.
+const SPREAD_SHARE := 0.5
+const MIN_SPREAD := 0.75
+const FREEZE_STOP := 2.0
+const FREEZE_SLOW := 0.5
+const FROZEN_DAMAGE := 1.5
+const RAGE_SPEED := 1.5
+## Raging enemies look for another enemy this far away (else they go for players as usual).
+const RAGE_RANGE := 20.0
+## Tint per status, strongest first (the first active one shows).
+const STATUS_TINTS := {
+	frozen = Color(0.45, 0.75, 1.0, 0.45), burning = Color(1.0, 0.45, 0.1, 0.4),
+	raging = Color(1.0, 0.12, 0.12, 0.38), poisoned = Color(0.35, 1.0, 0.25, 0.35),
+}
 
 @export var kind := "basic"
 @export var max_health := 30.0
@@ -63,9 +93,10 @@ var on_floor := false
 ## Named parts that take extra damage: name -> {box: AABB (local: feet at the origin, facing -Z),
 ## crit: float}. Anything else inside bounds is the "body" (crit 1).
 var hit_zones := {}
-## Host: status name -> seconds, as last applied (apply_status). Phase 3 ticks them and adds
-## their effects.
+## Host: status name -> seconds left (apply_status).
 var statuses := {}
+## Every peer: the active statuses as the host last sent them, sorted (for the tint).
+var shown_statuses := PackedStringArray()
 ## The model's box in local space.
 var bounds := AABB(Vector3(-0.35, 0.0, -0.35), Vector3(0.7, 1.2, 0.7))
 
@@ -82,10 +113,16 @@ var _stuck_time := 0.0
 var _remote_states: Array[Array] = []
 var _last_position := Vector3.ZERO
 var _move_speed := 0.0
+## Host: status name -> its full time when last (re)applied, so frozen knows how long it's been.
+var _status_total := {}
+var _status_tick := 0.0
+var _embers: CPUParticles3D
 
 ## "kind:variant" -> ArrayMesh, shared by every enemy wearing that model.
 static var _meshes := {}
 static var _flash_material: StandardMaterial3D
+## status -> overlay material, shared.
+static var _tint_materials := {}
 
 
 func _ready() -> void:
@@ -217,24 +254,94 @@ func apply_hit(amount: float, push: Vector3) -> void:
 	_squash = 1.0
 
 
-## Host: a status effect ("burning", "poisoned", "frozen", "raging") for seconds. A stub for
-## phase 3, which gives them effects; for now it only records them.
+## Host: a status effect ("burning", "poisoned", "frozen", "raging", see the top) for seconds. A
+## longer time than what's left replaces it (frozen starts its stop again); shorter does nothing.
 func apply_status(status: String, seconds: float) -> void:
-	statuses[status] = maxf(float(statuses.get(status, 0.0)), seconds)
+	if not STATUS_TINTS.has(status) or seconds <= 0.0 or not alive:
+		return
+	var had := statuses.has(status)
+	if seconds <= float(statuses.get(status, 0.0)):
+		return
+	statuses[status] = seconds
+	_status_total[status] = seconds
+	if not had and manager:
+		manager.statuses_changed(self)
+
+
+func has_status(status: String) -> bool:
+	return statuses.has(status)
+
+
+## Host: the speed multiplier from statuses (frozen: 0, then FREEZE_SLOW; raging: RAGE_SPEED).
+func status_speed() -> float:
+	var factor := 1.0
+	if statuses.has("frozen"):
+		var elapsed := float(_status_total.get("frozen", 0.0)) - float(statuses.frozen)
+		factor *= 0.0 if elapsed < FREEZE_STOP else FREEZE_SLOW
+	if statuses.has("raging"):
+		factor *= RAGE_SPEED
+	return factor
+
+
+## Host: damage multiplier for hits on it (frozen enemies shatter easier).
+func damage_taken() -> float:
+	return FROZEN_DAMAGE if statuses.has("frozen") else 1.0
+
+
+## Host: counts statuses down, deals their damage and spreads fire, every STATUS_TICK.
+func _tick_statuses(delta: float) -> void:
+	if statuses.is_empty():
+		_status_tick = 0.0
+		return
+	var changed := false
+	for status: String in statuses.keys():
+		statuses[status] = float(statuses[status]) - delta
+		if statuses[status] <= 0.0:
+			statuses.erase(status)
+			_status_total.erase(status)
+			changed = true
+	if changed:
+		manager.statuses_changed(self)
+	_status_tick += delta
+	if _status_tick < STATUS_TICK:
+		return
+	_status_tick -= STATUS_TICK
+	if statuses.has("burning"):
+		var share := float(statuses.burning) * SPREAD_SHARE
+		if share >= MIN_SPREAD:
+			var reach := maxf(bounds.size.x, bounds.size.z) * 0.5 + SPREAD_RANGE
+			for other in Combat.sphere_hit(get_center(), reach):
+				if other != self and other.manager == manager:
+					other.apply_status("burning", share)
+	var amount := 0.0
+	if statuses.has("burning"):
+		amount += BURN_DPS * STATUS_TICK
+	if statuses.has("poisoned"):
+		amount += POISON_DPS * STATUS_TICK
+	if amount > 0.0:
+		manager.damage(id, amount, get_center(), "status", false)
 
 
 func _physics_process(delta: float) -> void:
 	if not alive or manager == null or not manager.simulating:
 		return
+	_tick_statuses(delta)
+	if not alive:
+		return
 	_attack_timer -= delta
 	_breach_timer -= delta
-	var think := _think(delta)
+	var factor := status_speed()
+	var think := {direction = Vector3.ZERO, facing = Vector3.ZERO, breach = false}
+	if factor > 0.0:
+		think = _think_raging(delta) if statuses.has("raging") else _think(delta)
+	else:
+		_windup = 0.0 # Frozen solid: no thinking, no attacks.
 	var direction: Vector3 = think.direction
 	direction += manager.separation(self) * 0.8
 	if direction.length() > 1.0:
 		direction = direction.normalized()
 
-	var horizontal := Vector3(velocity.x, 0.0, velocity.z).move_toward(direction * speed, acceleration * delta)
+	var horizontal := Vector3(velocity.x, 0.0, velocity.z).move_toward(direction * speed * factor, acceleration * delta)
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 	velocity.y -= gravity * delta
@@ -256,7 +363,7 @@ func _physics_process(delta: float) -> void:
 		var actual := (global_position - start) / delta
 		velocity.x = actual.x
 		velocity.z = actual.z
-	if (_stuck_time > stuck_threshold or (think.breach and result.hit_wall)) and _breach_timer <= 0.0:
+	if factor > 0.0 and (_stuck_time > stuck_threshold or (think.breach and result.hit_wall)) and _breach_timer <= 0.0:
 		_breach(direction)
 
 	var facing: Vector3 = think.facing
@@ -304,11 +411,45 @@ func _think(delta: float) -> Dictionary:
 	return out
 
 
+## Host, raging: like _think, but after the nearest other enemy (straight at it, no flow field),
+## or players as usual when there's none near.
+func _think_raging(delta: float) -> Dictionary:
+	var target := manager.nearest_enemy(self, RAGE_RANGE)
+	if target == null:
+		return _think(delta)
+	var out := {direction = Vector3.ZERO, facing = Vector3.ZERO, breach = false}
+	var to_target := target.global_position - global_position
+	var flat := Vector2(to_target.x, to_target.z).length()
+	# Bodies can't overlap (separation), so reach is measured to the other's edge.
+	var reach := attack_range + maxf(target.bounds.size.x, target.bounds.size.z) * 0.5
+	out.facing = Vector3(to_target.x, 0.0, to_target.z)
+	if _windup > 0.0:
+		_windup -= delta
+		if _windup <= 0.0:
+			_windup = 0.0
+			_attack_timer = attack_cooldown
+			_attack_enemy(target, flat < reach * 1.25 and absf(to_target.y) < 1.6)
+		return out
+	if flat < reach and absf(to_target.y) < 1.6:
+		if _attack_timer <= 0.0:
+			_windup = attack_windup
+		return out
+	out.direction = out.facing.normalized() if flat > 0.01 else Vector3.ZERO
+	return out
+
+
 ## Host: the wind-up finished. connects is false when the target got out of reach in time.
 func _attack(target: Player, connects: bool) -> void:
 	manager.enemy_attacked(self)
 	if connects:
 		manager.damage_player(target, damage, global_position)
+
+
+## Host, raging: the same attack on another enemy.
+func _attack_enemy(target: Enemy, connects: bool) -> void:
+	manager.enemy_attacked(self)
+	if connects:
+		manager.damage(target.id, damage, global_position, "enemy")
 
 
 ## Host: digs a body-sized hole ahead (through WorldSync, so every peer's world agrees).
@@ -378,6 +519,63 @@ func flash() -> void:
 		_mesh.material_overlay = _flash_material
 
 
+## Every peer: the active statuses changed (from the host); tint the body and light the embers.
+func show_statuses(names: PackedStringArray) -> void:
+	shown_statuses = names
+	if _flash <= 0.0 and _mesh:
+		_mesh.material_overlay = tint_material()
+	var burning := "burning" in names
+	if burning and _embers == null:
+		_embers = _make_embers()
+		_visual.add_child(_embers)
+	if _embers:
+		_embers.emitting = burning
+
+
+## The overlay for the strongest shown status (STATUS_TINTS order), or null.
+func tint_material() -> StandardMaterial3D:
+	for status: String in STATUS_TINTS:
+		if status in shown_statuses:
+			if not _tint_materials.has(status):
+				var material := StandardMaterial3D.new()
+				material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				material.albedo_color = STATUS_TINTS[status]
+				_tint_materials[status] = material
+			return _tint_materials[status]
+	return null
+
+
+func _make_embers() -> CPUParticles3D:
+	var embers := CPUParticles3D.new()
+	embers.name = "Embers"
+	embers.amount = 16
+	embers.lifetime = 0.8
+	embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	embers.emission_box_extents = bounds.size * Vector3(0.4, 0.4, 0.4)
+	embers.position = Vector3(0.0, bounds.size.y * 0.5, 0.0)
+	embers.direction = Vector3.UP
+	embers.spread = 20.0
+	embers.initial_velocity_min = 0.6
+	embers.initial_velocity_max = 1.4
+	embers.gravity = Vector3(0.0, 1.0, 0.0)
+	embers.scale_amount_min = 0.5
+	embers.scale_amount_max = 1.0
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 0.8, 0.3, 1.0))
+	ramp.set_color(1, Color(0.9, 0.2, 0.05, 0.0))
+	embers.color_ramp = ramp
+	var spark := BoxMesh.new()
+	spark.size = Vector3.ONE * 0.05
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spark.material = material
+	embers.mesh = spark
+	return embers
+
+
 ## Every peer: the attack lands (sound, lunge).
 func play_attack() -> void:
 	_strike = 1.0
@@ -427,4 +625,4 @@ func _animate(delta: float) -> void:
 	if _flash > 0.0:
 		_flash -= delta
 		if _flash <= 0.0 and _mesh:
-			_mesh.material_overlay = null
+			_mesh.material_overlay = tint_material()

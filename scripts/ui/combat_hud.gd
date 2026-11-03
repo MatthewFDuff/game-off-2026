@@ -2,14 +2,18 @@ class_name CombatHud
 extends Control
 ## Play-mode combat feedback for the local player: a health bar in the bottom left, the ammo
 ## readout in the bottom right (loaded type in its color, rounds or infinity, the type Shift loads
-## next), a toast with the type's name when it changes, a hit marker on the crosshair when one of
-## this peer's shots lands on an enemy, and a red screen flash when the player takes damage. Hidden
-## while editing. Added by LabHud.
+## next), the selected flask left of it (its name in its color and the count, Q to cycle), a toast
+## with the type's name when it changes, a hit marker on the crosshair when one of this peer's
+## shots lands on an enemy, a red screen flash when the player takes damage, and a vignette while
+## a status is on the player (green poisoned, orange burning). Hidden while editing. Added by
+## LabHud.
 
 const BAR_SIZE := Vector2(220, 14)
 const HIT_MARKER_TIME := 0.12
 const DAMAGE_FLASH_TIME := 0.4
 const AMMO_TOAST_TIME := 1.5
+## Player status -> vignette color, strongest first.
+const STATUS_VIGNETTES := {burning = Color(1.0, 0.45, 0.1), poisoned = Color(0.35, 0.95, 0.25)}
 
 var lab: Lab
 
@@ -29,6 +33,10 @@ var _ammo_next := Label.new()
 var _ammo_toast := Label.new()
 var _ammo_toast_time := 0.0
 var _last_ammo := ""
+var _flask_box := VBoxContainer.new()
+var _flask_name := Label.new()
+var _flask_count := Label.new()
+var _vignette := TextureRect.new()
 
 
 static func create(level: Lab) -> CombatHud:
@@ -40,6 +48,25 @@ static func create(level: Lab) -> CombatHud:
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var vignette := GradientTexture2D.new()
+	vignette.fill = GradientTexture2D.FILL_RADIAL
+	vignette.fill_from = Vector2(0.5, 0.5)
+	vignette.fill_to = Vector2(1.0, 0.5)
+	vignette.width = 256
+	vignette.height = 256
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1.0, 1.0, 1.0, 0.0))
+	ramp.set_color(1, Color(1.0, 1.0, 1.0, 0.85))
+	ramp.add_point(0.55, Color(1.0, 1.0, 1.0, 0.0))
+	vignette.gradient = ramp
+	_vignette.texture = vignette
+	_vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.visible = false
+	add_child(_vignette)
 
 	_flash.color = Color(0.8, 0.0, 0.0, 0.0)
 	_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -99,6 +126,8 @@ func _process(delta: float) -> void:
 	_hit_time = maxf(0.0, _hit_time - delta)
 	_hit_marker.visible = _hit_time > 0.0
 	_update_ammo(me, delta)
+	_update_flask(me)
+	_update_vignette(me)
 
 
 func _build_ammo() -> void:
@@ -115,6 +144,26 @@ func _build_ammo() -> void:
 	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ammo_box.add_child(row)
+	_flask_box.alignment = BoxContainer.ALIGNMENT_END
+	_flask_box.add_theme_constant_override("separation", 0)
+	_flask_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_flask_box)
+	var flask_row := HBoxContainer.new()
+	flask_row.add_theme_constant_override("separation", 6)
+	flask_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flask_box.add_child(flask_row)
+	_flask_name.label_settings = LabHud._settings(16)
+	flask_row.add_child(_flask_name)
+	_flask_count.label_settings = LabHud._settings(20)
+	flask_row.add_child(_flask_count)
+	var flask_hint := Label.new()
+	flask_hint.text = "Q / RMB"
+	flask_hint.label_settings = LabHud._settings(10, Color(0.75, 0.75, 0.75))
+	_flask_box.add_child(flask_hint)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(18, 0)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(gap)
 	_ammo_name.label_settings = LabHud._settings(20)
 	row.add_child(_ammo_name)
 	_ammo_count.label_settings = LabHud._settings(26)
@@ -153,3 +202,26 @@ func _update_ammo(me: Player, delta: float) -> void:
 	_ammo_toast_time = maxf(0.0, _ammo_toast_time - delta)
 	_ammo_toast.visible = _ammo_toast_time > 0.0
 	_ammo_toast.modulate.a = clampf(_ammo_toast_time / 0.4, 0.0, 1.0)
+
+
+## The selected flask's name in its color and how many; hidden when none is carried.
+func _update_flask(me: Player) -> void:
+	var weapon: Weapon = me.weapon
+	var type := AmmoType.flask_type(weapon.flask) if weapon and weapon.flask != "" else null
+	_flask_box.visible = type != null and me.inventory != null
+	if not _flask_box.visible:
+		return
+	_flask_name.text = "%s FLASK" % type.label.to_upper()
+	_flask_name.label_settings.font_color = type.color
+	_flask_count.text = "x%d" % me.inventory.flask_count(weapon.flask)
+
+
+## A pulsing edge glow in the color of the strongest status on the player.
+func _update_vignette(me: Player) -> void:
+	_vignette.visible = false
+	for status: String in STATUS_VIGNETTES:
+		if me.statuses.has(status):
+			var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.006)
+			_vignette.modulate = Color(STATUS_VIGNETTES[status], 0.8 * pulse)
+			_vignette.visible = true
+			return

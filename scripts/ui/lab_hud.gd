@@ -53,6 +53,7 @@ func _ready() -> void:
 		_toast_time = 4.0)
 
 	add_child(CombatHud.create(lab))
+	add_child(InteractPrompt.create(lab))
 	_build_pause()
 	if lab.mode != "edit":
 		add_child(ControlsOverlay.new())

@@ -21,6 +21,13 @@ extends SceneTree
 ## copy of its player must show the ammo it loaded, and the blast must reach both worlds, which
 ## the world hashes check), and the host walks into a pickup, which must disappear on the client.
 ##
+## Interactables: the client opens the break room fridge (a container the host filled), both must
+## see it opened and its pickups, then the host switches to backup power, which the client follows.
+##
+## Statuses and clouds: the host throws a fire flask (the client must see a fire cloud, drawn only)
+## and freezes the last enemy (the client must tint it); both hash the shown statuses once the
+## cloud has burned out.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -71,6 +78,10 @@ func _host(net: Node) -> void:
 	var first = _spawn_frozen(lab, spawn + Vector3(1.5, 0.0, 4.0))
 	_check("host spawns an enemy", first != null)
 	var first_id: int = first.id if first else -1
+	var fridge_id := _fridge_id(lab)
+	_check("the break room fridge is a container", lab.level.objects.get(fridge_id, {}).get("use") == "container")
+	if fridge_id != "":
+		lab.level.objects[fridge_id].contents = "flask_fire,ammo_homing" # The client opens it.
 	print("READY") # The driver starts the client now.
 
 	# Generous: a cold Godot start alone can take half a minute on Windows.
@@ -115,10 +126,27 @@ func _host(net: Node) -> void:
 	var taken := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id), 5.0)
 	_check("host takes the pickup", taken and host_player.inventory.count("shotgun") == 12, str(host_player.inventory.ammo))
 
+	# Interactables: the client opens the fridge; then the host cuts the power.
+	var opened := await _wait_until(func() -> bool: return lab.play.state_of(fridge_id).used, 30.0)
+	_check("the client's use opens the container on the host", opened)
+	_check("the host drops its contents", _items_named(lab, ["flask_fire", "ammo_homing"]) == 2)
+	lab.play.set_power("backup")
+	_check("host sets backup power", lab.play.power == "backup")
+
+	# Statuses and clouds: the host throws a fire flask away from everyone and freezes the enemy
+	# that's left; the client must see the cloud and the tint. The cloud must burn out before the
+	# worlds are hashed (it burns shroom voxels through WorldSync while it lasts).
+	await _throw_fire_flask(lab, host_player, spawn)
+	lab.enemies.request_status(first_id, "frozen", 30.0)
+	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
+	_check("the host's fire cloud burns out", burned_out)
+
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
 	print("HASH ", _enemy_hash(lab))
 	print("HASH ", _item_hash(lab))
+	print("HASH ", _interact_hash(lab))
+	print("HASH ", _status_hash(lab))
 	await _wait_seconds(5.0) # Stay up until the client has hashed too.
 
 
@@ -162,10 +190,39 @@ func _client(net: Node) -> void:
 	var gone := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id[0]), 10.0)
 	_check("a pickup taken on the host disappears on the client", appeared and gone)
 	_check("the client didn't get the host's pickup", me.inventory.count("shotgun") == 0)
+
+	# Interactables: open the fridge by request; the host's power cut must reach us.
+	var fridge_id := _fridge_id(lab)
+	lab.play.request_use(fridge_id)
+	var opened := await _wait_until(func() -> bool: return lab.play.state_of(fridge_id).used, 10.0)
+	_check("the client sees the container opened", opened)
+	var dropped := await _wait_until(func() -> bool: return _items_named(lab, ["flask_fire", "ammo_homing"]) == 2, 10.0)
+	_check("the client sees its contents", dropped)
+	var cut := await _wait_until(func() -> bool: return lab.play.power == "backup", 20.0)
+	_check("the host's power cut reaches the client", cut, lab.play.power)
+
+	# Statuses and clouds: the host's fire flask shows up here as a fire cloud (drawn, not run), and
+	# the enemy it freezes is tinted blue here too.
+	var fire_clouds := []
+	for cloud in lab.enemies.clouds.values():
+		fire_clouds.append(cloud)
+	lab.enemies.cloud_spawned.connect(func(cloud) -> void: fire_clouds.append(cloud))
+	var cloud_seen := await _wait_until(func() -> bool:
+		return fire_clouds.any(func(cloud) -> bool: return is_instance_valid(cloud) and cloud.type == "fire" and not cloud.authoritative), 20.0)
+	_check("the client sees the host's fire cloud", cloud_seen, str(fire_clouds))
+	var tinted := await _wait_until(func() -> bool:
+		var survivor = enemies.get_enemy(1)
+		return survivor != null and "frozen" in survivor.shown_statuses and survivor.tint_material() != null \
+				and survivor._mesh.material_overlay == survivor.tint_material(), 20.0)
+	_check("the frozen enemy is tinted on the client", tinted)
+	var burned_out := await _wait_until(func() -> bool: return lab.enemies.clouds.is_empty(), 15.0)
+	_check("the fire cloud ends on the client", burned_out)
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
 	print("HASH ", _enemy_hash(lab))
 	print("HASH ", _item_hash(lab))
+	print("HASH ", _interact_hash(lab))
+	print("HASH ", _status_hash(lab))
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))
@@ -225,6 +282,63 @@ func _fire_explosive(lab, me) -> void:
 				return true
 		return false, 10.0)
 	_check("the client's explosive carves the wall through the host", blasted, "%d impacts, %d carves" % [impacts.size(), blasts.size()])
+
+
+## Host: throws a fire flask at the floor in the direction with the most room that leads away
+## from the enemies and the client (they stand on the +Z side of the spawn).
+func _throw_fire_flask(lab, me, spawn: Vector3) -> void:
+	var eye: Vector3 = me.camera.global_position
+	var others: Vector3 = spawn + Vector3(0.0, 0.0, 3.5)
+	var best := Vector3.ZERO
+	var best_score := -INF
+	for i in 16:
+		var direction := Vector3.FORWARD.rotated(Vector3.UP, i * TAU / 16.0)
+		var wall: Dictionary = lab.world.raycast(eye, direction, 12.0)
+		var reach: float = wall.distance if wall.hit else 12.0
+		var landing: Vector3 = eye + direction * minf(reach, 8.0)
+		if reach < 5.0 or landing.distance_to(others) < 7.0:
+			continue
+		var score: float = landing.distance_to(others)
+		if score > best_score:
+			best = direction
+			best_score = score
+	_check("found room to throw a flask", best != Vector3.ZERO)
+	if best == Vector3.ZERO:
+		return
+	me.inventory.add("flask_fire")
+	me.weapon._flask_cooldown = 0.0
+	_check("host has a fire flask selected", me.weapon.flask == "fire", me.weapon.flask)
+	_check("host throws a fire flask", me.weapon.throw_flask(best + Vector3.DOWN * 0.2))
+	var landed := await _wait_until(func() -> bool:
+		return lab.enemies.clouds.values().any(func(cloud) -> bool: return cloud.type == "fire"), 5.0)
+	_check("the flask shatters into a fire cloud on the host", landed)
+
+
+## Enemy ids and their shown statuses (the tints), sorted.
+func _status_hash(lab) -> String:
+	var ids: Array = lab.enemies.enemies.keys()
+	ids.sort()
+	return "statuses " + " ".join(ids.map(func(id: int) -> String: return "%d:%s" % [id, ",".join(lab.enemies.enemies[id].shown_statuses)]))
+
+
+## The power state and the used props, sorted.
+func _interact_hash(lab) -> String:
+	var used: Array = lab.play.prop_state.keys().filter(func(id: String) -> bool: return lab.play.prop_state[id].used)
+	used.sort()
+	return "interact %s %s" % [lab.play.power, " ".join(used)]
+
+
+## The break room fridge (the first fridge prop).
+func _fridge_id(lab) -> String:
+	var ids: Array = lab.level.objects.keys().filter(func(id: String) -> bool:
+		return lab.level.objects[id].kind == "prop" and lab.level.objects[id].name == "fridge")
+	ids.sort()
+	return ids[0] if not ids.is_empty() else ""
+
+
+## How many pickups there are of these items.
+func _items_named(lab, items: Array) -> int:
+	return lab.items.pickups.values().filter(func(p) -> bool: return p.item in items).size()
 
 
 ## Pickup ids and items, sorted.

@@ -64,7 +64,7 @@ Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--jo
 
 **Desktop build:** `godot --headless --path . --export-release Windows build/windows/Expendable.exe` (the `Windows` preset; needs the release DLL, built with `scons target=template_release` in `extension/`). Zip `build/windows/` (the exe plus `libvoxelcore...dll`) and send it. Windows Firewall asks the host to allow the game the first time they host; allow it.
 
-`tools/net_test.sh` runs a headless host and client against each other and checks their worlds (and enemies and pickups) end up identical, including a client's explosive shot; `tools/net_test.sh editor_test` does the same for a co-op editing session.
+`tools/net_test.sh` runs a headless host and client against each other and checks their worlds (and enemies and pickups) end up identical, including a client's explosive shot, a client opening a container and the host cutting the power; `tools/net_test.sh editor_test` does the same for a co-op editing session.
 
 ## Levels and the level editor
 
@@ -92,10 +92,46 @@ Editor controls (fly with WASD, Space up, Ctrl down, Shift fast):
 | Tab | Free the mouse to use the side panel (materials, props, marker types, the selection's properties) |
 
 - **Markers**: player spawns (by player number), triggers (box volumes that fire for story scripts), intercom speakers, lights (omni / spot, color, energy, range, shadows, flicker, facility or emergency power), horde spawners (see Enemies), the clone vat (respawn point), kill zones, item spots. Each has an id that scripts use.
-- **Props** have an asset value (the payroll loses its share as the prop's voxels are destroyed in play) and can be made into doors (slide offset, speed, locked; E opens them in play).
+- **Props** have an asset value (the payroll loses its share as the prop's voxels are destroyed in play) and can be made into doors (slide offset, speed, locked; E opens them in play). Doors can also need a keycard (`door_key`: `red`, `blue`, ...) or power (`door_power`: refuses on backup power).
+- **Using props** (E in play, see Interactables below): a prop's `use` field makes it a container, terminal, note, station, generator or glass case. New props start with a sensible `use` for their name.
+- **Level settings**: `start_power` (`facility` or `backup`) in `level.json`'s settings, the power state play starts in. There's no panel for settings yet; edit the file.
 - **Room tool**: the corners mark the inside of the room. In rock levels the lining only recolors rock, so a new room opens into any room it touches.
 
 Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, HUD, prop thumbnails).
+
+### Interactables and power
+
+E uses the nearest door or usable prop within 3 m that the crosshair is on; the prompt under the crosshair says what will happen ("[E] Open", "Locked: needs red keycard", "No power"). Any peer asks the host (`LevelPlay.request_use(id)`), which checks and applies it and sends the result to everyone (late joiners too). Code: `scripts/level/level_play.gd` (behaviors, power, keycards), `scripts/interact/interactables.gd` (what's in view, prompts), `scripts/ui/interact_prompt.gd` (prompt and the reader panel).
+
+Prop fields (inspector):
+
+| Field | |
+|---|---|
+| `use` | `none`, `container`, `terminal`, `note`, `station_medkit`, `station_ammo`, `generator`, `glass_case` |
+| `contents` | pickups, comma-separated (`ammo_shotgun,flask_fire,keycard_red`); containers and glass cases |
+| `text` | what a terminal or note shows (multi-line) |
+| `on_use` | a trigger id fired the first time a terminal is used, or when the generator starts. It can name a trigger marker (its `activates` runs), a spawner, or `horde` |
+| `needs_power` | terminal refuses on backup power |
+| `charges` | uses a station has (default 3) |
+| `station_ammo_type` | ammo bench type (`homing`); empty gives the user's loaded type |
+| `finale_seconds` | how long the generator's finale lasts (default 120) |
+| `door_key`, `door_power` | see Props above |
+
+| `use` | E does |
+|---|---|
+| `container` | opens once (`drawer_open`), drops its contents on the floor in front. Default for cabinets, drawer desks, fridges, water coolers, lockers |
+| `note` | shows its text (E, Esc or walking away closes it) |
+| `terminal` | shows its text (`terminal_beep`) and fires `on_use` once |
+| `station_medkit` | heals the user to full, one charge |
+| `station_ammo` | 20 rounds of its type, one charge |
+| `generator` | on backup power: power goes to `restored`, fires `on_use`, starts `HordeDirector.finale(finale_seconds)` |
+| `glass_case` | breaking any of its glass voxels (shooting it) drops its contents once (`glass_break`); E smashes it |
+
+Keycards are party-wide: when anyone picks one up, every door needing it opens for everyone.
+
+**Power** (`LevelPlay.power`): `facility` (normal), `backup` (facility lights and lamp voxels off, emergency lights on; powered doors and terminals refuse) or `restored` (the generator ran; like facility). The host changes it with `LevelPlay.set_power(state)` (`power_changed` on every peer, `power_down` / `power_up` sounds). Levels start on their `start_power` setting.
+
+New props: `terminal`, `cabinet`, `drawer_desk`, `medkit_station` (wall box), `ammo_bench`, `generator`, `glass_case` (wall case), `vent_grate` (soft plastic slats: enemies dig through it, a few shots break it) and `vent_duct` (2 m of metal duct, 1 m wide and 1.2 m tall inside, enough to crouch through).
 
 ## Art: MagicaVoxel models
 
@@ -131,7 +167,8 @@ Code is in `scripts/enemies/` and `scripts/combat/`. Enemies exist only in play 
 - `BasicShroom` (`basic_shroom.gd`, `scenes/enemies/basic.tscn`): slow (2.5 m/s), 30 health, a 10-damage bite every second. Silent until it's within 6 m of a player, then it chitters.
 - `EnemyManager` (the `Enemies` node in `scenes/lab.tscn`): spawns and kills (host), replicates to peers (late joiners get the roster), applies hits from any peer (`request_hit(id, damage, point, kind)`, shooter-authoritative), and sends enemy attacks to the bitten player's own peer. New kinds go in its `KINDS` list (kind -> scene) plus a placeholder generator in `EnemyModels`.
 - `Combat`: `ray_hit` (nearest voxel or enemy along a ray), `sphere_hit`, `box_hit`. The shroom shooter uses it (see Weapons and items).
-- Status effects: `EnemyManager.request_status(id, name, seconds)` -> `Enemy.apply_status` on the host. For now it only records them in `Enemy.statuses` (phase 3 gives them effects).
+- Status effects: `EnemyManager.request_status(id, name, seconds)` (any peer) -> `Enemy.apply_status(name, seconds)` on the host, which ticks `Enemy.statuses` (name -> seconds left) and sends the active set to every peer so all of them tint the body (hit flashes still show on top). **Burning**: 6 damage/s, jumps to enemies within 1 m every 0.5 s for half the time left, orange with embers. **Poisoned**: 2 damage/s, green. **Frozen**: stopped for 2 s then half speed, takes 1.5x damage, blue. **Raging**: goes for the nearest other enemy instead of players (its normal attack, through the host-side `EnemyManager.damage(id, amount, from)`), 1.5x speed, red.
+- `Cloud` (`scripts/weapons/cloud.gd`, `scenes/cloud.tscn`): an area effect, `Cloud.spawn(type, at, radius, seconds)` from any peer (radius / seconds -1 for the type's own). The host owns it and gives its status to the enemies inside every 0.25 s (and, for fire and poison, to the players inside, on their own peer); the other peers only draw it. Types: `fire` (burning pool, 6 s; also burns `SHROOM_*` voxels away through `WorldSync`), `poison` (8 s), `rage` (4 s), `freeze` (an instant burst: frozen 5 s).
 - `HordeDirector` (the `Director` node): spawns from **horde spawner** markers. Calm: active spawners trickle in enemies. Horde: `start_horde(count)` bursts from the spawners nearest the players. Finale: `finale(duration)` is a stub that ramps a horde and emits `finale_survived` (phase 6 fills it in).
 
 Horde spawner marker fields (level editor inspector):
@@ -166,15 +203,19 @@ Code is in `scripts/weapons/` and `scripts/items/`.
 | Explosive | projectile with a slight arc, blast crater | 20 hit + 40 blast | 4 |
 | Ricochet | projectile, bounces off voxels 4 times, pierces enemies | 18 each | 15 |
 | Homing | projectile, steers to the nearest enemy within 30 degrees | 20 | 10 |
-| Poison | projectile with an arc, a puff that sets Poisoned within 2 m (a real cloud in phase 3) | 10 | 6 |
+| Poison | projectile with an arc, leaves a 2 m poison cloud for 5 s | 10 | 6 |
 
-Item spot names (the marker's `item` field): `medkit` (+50 health), `ammo_shotgun`, `ammo_flame`, `ammo_explosive`, `ammo_ricochet`, `ammo_homing`, `ammo_poison`, `flask_fire`, `flask_poison`, `flask_rage`, `flask_freeze`, `keycard_red`, `keycard_blue`, `keycard_green`. Flasks and keycards go in the inventory but do nothing yet (phases 3 and 5). Models come from `assets/vox/weapons/` and `assets/vox/items/`.
+- **Melee** (MMB): an axe swing (`assets/vox/weapons/axe.vox`, held lower left while the gun stays) every 0.6 s. A beat into the swing, every enemy in a 1.2 x 1.6 m box reaching 1.6 m ahead takes 35 with a strong knockback, and the voxel you're looking at within reach is chipped (glass and planks break, concrete doesn't). Partners see the swing.
+- **Flasks** (RMB throws, **Q** cycles among the types you carry): thrown in an arc (an `AmmoType` named `flask_<type>`, a `Projectile` drawn with the flask's model), every 0.8 s. They shatter into the matching `Cloud`: fire, poison, rage (shrooms fight each other) or freeze.
+- Player statuses: standing in a poison cloud poisons you (2 damage/s), in a fire pool burns you (6 damage/s for 3 s); a green / orange vignette shows it. Respawning clears them.
 
-The HUD shows the loaded ammo and its count in the bottom right, with the type Shift loads next below it.
+Item spot names (the marker's `item` field): `medkit` (+50 health), `ammo_shotgun`, `ammo_flame`, `ammo_explosive`, `ammo_ricochet`, `ammo_homing`, `ammo_poison`, `flask_fire`, `flask_poison`, `flask_rage`, `flask_freeze`, `keycard_red`, `keycard_blue`, `keycard_green`. Keycards open doors for the whole party (see Interactables and power). Models come from `assets/vox/weapons/` and `assets/vox/items/`.
+
+The HUD shows the loaded ammo and its count in the bottom right, with the type Shift loads next below it, and the selected flask and its count to the left of it.
 
 ## Playing
 
-Movement: WASD, Space jump, Ctrl crouch (no sprint), E use (doors), arrow keys look (backup for remote desktop), T flashlight. Combat: LMB shoot the shroom shooter, Shift change ammo (or 1-4), MMB melee and RMB throw flask (phase 3), Q cycle flask. F1 shows the controls. Esc releases the mouse (and pauses in solo play). Debug builds only: F fly.
+Movement: WASD, Space jump, Ctrl crouch (no sprint), E use (doors and props; closes notes), arrow keys look (backup for remote desktop), T flashlight. Combat: LMB shoot the shroom shooter, Shift change ammo (or 1-4), MMB melee (axe), RMB throw the selected flask, Q cycle flask. Fire, poison, freeze and rage clouds put statuses on shrooms (and fire / poison on you: watch for the vignette). F1 shows the controls. Esc releases the mouse (and pauses in solo play). Debug builds only: F fly.
 
 All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets).
 
@@ -185,9 +226,11 @@ Tests (from the project root, with `godot` being the 4.7 editor binary):
 ```sh
 godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building pieces, navigation (sandbox)
 godot --headless --path . --script res://tests/enemy_test.gd         # enemies: pathing through a door, bites, hits, death, spawners, hordes
-godot --headless --path . --script res://tests/weapon_test.gd        # every ammo type, ricochet, blast carving, homing, Shift cycling, pickups
+godot --headless --path . --script res://tests/weapon_test.gd        # every ammo type, ricochet, blast carving, homing, Shift cycling, pickups, melee, flasks
+godot --headless --path . --script res://tests/status_test.gd        # burning / frozen / raging / poisoned, clouds, fire burning shroom voxels
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
+godot --headless --path . --script res://tests/interact_test.gd      # containers, notes, terminals, stations, keycards, glass, generator, power
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, play-test, save
 godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)

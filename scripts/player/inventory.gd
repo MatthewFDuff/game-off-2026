@@ -1,6 +1,6 @@
 class_name Inventory
 extends Node
-## What a player carries: ammo per type (basic is infinite), flasks per type (thrown in phase 3)
+## What a player carries: ammo per type (basic is infinite), flasks per type (Weapon throws them)
 ## and keycards (doors check them in phase 5). Each peer keeps its own player's inventory; pickups
 ## reach it through ItemManager, which the host runs.
 ##
@@ -77,6 +77,20 @@ func add(item_name: String, amount := -1) -> bool:
 		changed.emit()
 		return true
 	return false
+
+
+## Flasks of a type (FLASKS) carried.
+func flask_count(flask: String) -> int:
+	return int(flasks.get(flask, 0))
+
+
+## Spends one flask; false (nothing spent) when there's none.
+func use_flask(flask: String) -> bool:
+	if flask_count(flask) <= 0:
+		return false
+	flasks[flask] = flask_count(flask) - 1
+	changed.emit()
+	return true
 
 
 func has_keycard(color: String) -> bool:

@@ -227,6 +227,8 @@ func _synthesize_all() -> int:
 		"build_place", "build_denied", "amb_day", "amb_night",
 		"sting_night", "sting_quota", "sting_gameover", "sting_dawn",
 		"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
+		"melee_swing", "melee_hit", "flask_throw", "flask_break",
+		"drawer_open", "terminal_beep", "station_use", "glass_break",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
@@ -299,6 +301,44 @@ func _make_ammo_shift() -> AudioStreamWAV:
 	_add_tone(buf, RATE, 0.02, 0.12, 300.0, 700.0, 0.18, 0.0, Shape.SAW, 0.01, 0.03)
 	_add_noise(buf, RATE, 0.14, 0.04, 0.8, 0.008, 0.0, 2500.0)
 	_add_tone(buf, RATE, 0.14, 0.05, 1500.0, 1200.0, 0.15, 0.015, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Melee swing: a fast whoosh of band-passed air that rises and falls.
+func _make_melee_swing() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.28)
+	_add_noise(buf, RATE, 0.0, 0.28, 0.5, 0.0, 2200.0, 500.0, 0.09, 0.15)
+	_add_noise(buf, RATE, 0.05, 0.15, 0.25, 0.05, 4500.0, 1800.0, 0.03, 0.08)
+	return _to_wav(buf, RATE)
+
+
+## Melee hit: a heavy chop, a meaty thud under a short wet crack.
+func _make_melee_hit() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.18, 180.0, 60.0, 0.7, 0.06)
+	_add_noise(buf, RATE, 0.0, 0.12, 0.6, 0.025, 3500.0)
+	_add_noise(buf, RATE, 0.01, 0.25, 0.4, 0.08, 900.0)
+	return _to_wav(buf, RATE)
+
+
+## Flask throw: a short soft whoosh with a slosh of liquid.
+func _make_flask_throw() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_noise(buf, RATE, 0.0, 0.25, 0.35, 0.0, 1500.0, 300.0, 0.05, 0.12)
+	for i in 3:
+		var f := 300.0 + _rng.randf() * 250.0
+		_add_tone(buf, RATE, 0.04 + i * 0.06, 0.06, f, f * 1.5, 0.12, 0.025)
+	return _to_wav(buf, RATE)
+
+
+## Flask break: bright glass tinkles over a crunchy shatter and a splash.
+func _make_flask_break() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.6)
+	_add_noise(buf, RATE, 0.0, 0.3, 0.7, 0.04, 0.0, 3000.0)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.35, 0.12, 1200.0, 200.0)
+	for i in 6:
+		var f := 2500.0 + _rng.randf() * 3000.0
+		_add_tone(buf, RATE, 0.02 + _rng.randf() * 0.3, 0.12, f, f * 0.97, 0.12, 0.04, Shape.TRIANGLE)
 	return _to_wav(buf, RATE)
 
 
@@ -418,6 +458,45 @@ func _make_hatch_servo() -> AudioStreamWAV:
 	_add_tone(buf, LOW_RATE, 1.8, 0.3, 95.0, 40.0, 0.6, 0.08)
 	_add_noise(buf, LOW_RATE, 1.8, 0.2, 0.5, 0.035, 2500.0)
 	return _to_wav(buf, LOW_RATE)
+
+
+## Drawer / cabinet opening: a low wooden scrape and a latch click.
+func _make_drawer_open() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.45)
+	_add_noise(buf, RATE, 0.0, 0.32, 0.45, 0.0, 900.0, 120.0, 0.02, 0.06, 23.0, 0.5)
+	_add_tone(buf, RATE, 0.0, 0.3, 140.0, 110.0, 0.12, 0.0, Shape.SAW, 0.02, 0.06, 23.0, 0.5)
+	_add_noise(buf, RATE, 0.33, 0.05, 0.7, 0.01, 0.0, 2500.0)
+	_add_tone(buf, RATE, 0.33, 0.06, 1700.0, 1400.0, 0.18, 0.015, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Terminal: a short two-note square beep.
+func _make_terminal_beep() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.22)
+	_add_tone(buf, RATE, 0.0, 0.08, 1046.5, 1046.5, 0.16, 0.0, Shape.SQUARE, 0.003, 0.01)
+	_add_tone(buf, RATE, 0.1, 0.1, 1568.0, 1568.0, 0.16, 0.0, Shape.SQUARE, 0.003, 0.02)
+	return _to_wav(buf, RATE)
+
+
+## Station: a hiss of air and a rising confirmation chime.
+func _make_station_use() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.6)
+	_add_noise(buf, RATE, 0.0, 0.35, 0.35, 0.12, 0.0, 1800.0)
+	_add_tone(buf, RATE, 0.05, 0.25, 660.0, 660.0, 0.2, 0.1, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.18, 0.4, 990.0, 990.0, 0.2, 0.14, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Glass breaking: a bright crack and a shower of high, ringing shards.
+func _make_glass_break() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.8)
+	_add_noise(buf, RATE, 0.0, 0.15, 0.9, 0.04, 0.0, 3000.0)
+	for i in 7:
+		var t := 0.03 + i * 0.07 + _rng.randf() * 0.04
+		var f := _rng.randf_range(2500.0, 5200.0)
+		_add_tone(buf, RATE, t, 0.25, f, f * 0.97, 0.12, 0.05, Shape.TRIANGLE)
+		_add_noise(buf, RATE, t, 0.04, 0.3, 0.01, 0.0, 4000.0)
+	return _to_wav(buf, RATE)
 
 
 ## Power cut: a heavy breaker thunk, then the mains hum (saw and sine) sagging in pitch and fading.

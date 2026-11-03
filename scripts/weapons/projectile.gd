@@ -1,6 +1,6 @@
 class_name Projectile
 extends Node3D
-## A shot that travels (explosive, ricochet, homing, poison; flasks in phase 3). Moved every
+## A shot that travels (explosive, ricochet, homing, poison, thrown flasks). Moved every
 ## physics tick by casting over the whole step (Combat.ray_hit on the shooter, world.raycast on
 ## the others), so it never tunnels through voxels or enemies however fast it goes.
 ##
@@ -33,6 +33,8 @@ var age := 0.0
 var done := false
 ## Enemies already hit (piercing shots damage each once).
 var pierced: Array = []
+## Flasks: the item model, tumbling in flight.
+var _model: Node3D
 
 @onready var _mesh: MeshInstance3D = $Mesh
 @onready var _light: OmniLight3D = $Light
@@ -55,8 +57,19 @@ func _ready() -> void:
 	_mesh.material_override = material
 	if ammo:
 		_light.light_color = ammo.color
+	if ammo and ammo.flask and world:
+		var item := GearModels.item(ammo.name)
+		_model = GearModels.build(world, item, ammo.color, 0.03, Vector3(item.get("size", Vector3i.ZERO)) * 0.5)
+		add_child(_model)
+		_mesh.visible = false
+		_light.light_energy = 0.6
 	global_position = position
 	_face()
+
+
+func _process(delta: float) -> void:
+	if _model and not done:
+		_model.rotate_x(-delta * 9.0)
 
 
 func _physics_process(delta: float) -> void:

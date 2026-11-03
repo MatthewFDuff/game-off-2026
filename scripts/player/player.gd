@@ -61,6 +61,9 @@ var flying := false
 var on_ladder := false
 var health := max_health
 var is_dead := false
+## Status effects on this player (local player only): name -> seconds left. Clouds give them
+## through EnemyManager.status_player; cleared on revive. See STATUS_DPS.
+var statuses := {}
 
 var _since_damage := 0.0
 var _ladder_cooldown := 0.0
@@ -71,6 +74,12 @@ var _previous_position := Vector3.ZERO
 var _trauma := 0.0
 var _recoil := 0.0
 var _shake_noise := FastNoiseLite.new()
+
+## Damage per second of each player status.
+const STATUS_DPS := {poisoned = 2.0, burning = 6.0}
+## Status damage lands in steps this many seconds apart.
+const STATUS_TICK := 0.5
+var _status_tick := 0.0
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
@@ -170,6 +179,7 @@ func _physics_process(delta: float) -> void:
 	_since_damage += delta
 	if not is_dead and _since_damage > regen_delay:
 		health = minf(max_health, health + regen_rate * delta)
+	_tick_statuses(delta)
 	if is_dead:
 		velocity = Vector3.ZERO
 	elif flying:
@@ -230,17 +240,46 @@ func _apply_shake(delta: float) -> void:
 func take_damage(amount: float, from: Vector3) -> void:
 	if is_dead:
 		return
-	health -= amount
-	_since_damage = 0.0
 	var push := global_position - from
 	push.y = 0.0
 	velocity += push.normalized() * 4.0 + Vector3.UP * 2.0
 	add_shake(hurt_shake)
+	_lose_health(amount, from)
+
+
+func _lose_health(amount: float, from: Vector3) -> void:
+	health -= amount
+	_since_damage = 0.0
 	damaged.emit(amount, from)
 	if health <= 0.0:
 		health = 0.0
 		is_dead = true
 		died.emit()
+
+
+## A status ("poisoned", "burning": STATUS_DPS) for seconds; a longer time replaces what's left.
+func apply_status(status: String, seconds: float) -> void:
+	if STATUS_DPS.has(status) and not is_dead:
+		statuses[status] = maxf(float(statuses.get(status, 0.0)), seconds)
+
+
+func _tick_statuses(delta: float) -> void:
+	if statuses.is_empty() or is_dead:
+		_status_tick = 0.0
+		return
+	var amount := 0.0
+	_status_tick += delta
+	var ticked := _status_tick >= STATUS_TICK
+	if ticked:
+		_status_tick -= STATUS_TICK
+	for status: String in statuses.keys():
+		if ticked:
+			amount += float(STATUS_DPS[status]) * STATUS_TICK
+		statuses[status] = float(statuses[status]) - delta
+		if statuses[status] <= 0.0:
+			statuses.erase(status)
+	if amount > 0.0:
+		_lose_health(amount, global_position) # No knockback or shake: the HUD vignette shows it.
 
 
 ## Level editor on / off: editing flies through everything.
@@ -255,6 +294,7 @@ func revive() -> void:
 	health = max_health
 	is_dead = false
 	velocity = Vector3.ZERO
+	statuses.clear()
 
 
 ## Moves the player without the camera smoothing across the gap.

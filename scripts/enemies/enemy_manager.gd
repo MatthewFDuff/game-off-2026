@@ -10,6 +10,10 @@ extends Node3D
 ##
 ## The host also keeps the world's flow field pointed at every living player (a multi-target
 ## field, so each enemy heads for its nearest player), and streams positions at STATE_RATE.
+##
+## Status effects (Enemy.apply_status) run on the host; each change of an enemy's active set goes
+## to the peers (_statuses) so every peer tints it. Clouds (Cloud) are children here too ("C<id>"):
+## the host owns them and applies their effects, the peers get a spawn message and draw them.
 
 signal enemy_spawned(enemy: Enemy)
 ## Host: a hit landed. amount includes the crit multiplier; zone is the hit zone name.
@@ -18,6 +22,14 @@ signal enemy_damaged(enemy: Enemy, amount: float, zone: String)
 signal enemy_died(enemy: Enemy)
 ## This peer: one of its own shots hit an enemy (the HUD's hit marker).
 signal local_hit(enemy: Enemy, point: Vector3)
+## Every peer: a cloud appeared (on the host, with its effects; elsewhere, its looks).
+signal cloud_spawned(cloud: Cloud)
+
+## The manager's node group (Cloud.spawn finds it through this).
+const GROUP := "enemy_manager"
+const CLOUD_SCENE := preload("res://scenes/cloud.tscn")
+## Most clouds at once; the oldest goes first.
+const MAX_CLOUDS := 24
 
 ## kind -> scene. Spawner markers name kinds from here.
 const KINDS := {basic = "res://scenes/enemies/basic.tscn"}
@@ -33,7 +45,7 @@ const FLOW_RANGE := 80.0
 const MAX_DAMAGE := 1000.0
 ## Knockback speed (m/s) by damage kind.
 const KNOCKBACK := {rifle = 1.2, shotgun = 2.5, flame = 0.0, blast = 7.0, ricochet = 1.5, homing = 2.0,
-		poison = 0.5, melee = 5.0}
+		poison = 0.5, melee = 6.0, flask = 0.5, enemy = 2.0, status = 0.0}
 ## Longest status (seconds) a peer can ask for.
 const MAX_STATUS := 30.0
 
@@ -48,14 +60,18 @@ var active := false
 var simulating := false
 ## id -> Enemy
 var enemies := {}
+## id -> Cloud
+var clouds := {}
 
 var _next_id := 1
+var _next_cloud := 1
 var _flow_timer := 0.0
 var _state_timer := 0.0
 var _scenes := {}
 
 
 func _ready() -> void:
+	add_to_group(GROUP)
 	lab.mode_changed.connect(func(mode: String) -> void:
 		if mode == "play":
 			start()
@@ -80,13 +96,16 @@ func stop() -> void:
 	clear()
 
 
-## Removes every enemy on this peer, no effects.
+## Removes every enemy and cloud on this peer, no effects.
 func clear() -> void:
 	for enemy: Enemy in enemies.values():
 		enemy.alive = false
 		enemy.remove_from_group(Enemy.GROUP)
 		enemy.queue_free()
 	enemies.clear()
+	for cloud: Cloud in clouds.values():
+		cloud.queue_free()
+	clouds.clear()
 
 
 func get_enemy(id: int) -> Enemy:
@@ -184,6 +203,11 @@ func _send_roster(peer_id: int) -> void:
 	for enemy: Enemy in enemies.values():
 		if enemy.alive:
 			_spawned.rpc_id(peer_id, enemy.id, enemy.kind, enemy.global_position, enemy.rotation.y)
+			if not enemy.shown_statuses.is_empty():
+				_statuses.rpc_id(peer_id, enemy.id, enemy.shown_statuses)
+	for cloud: Cloud in clouds.values():
+		if cloud.age < cloud.seconds:
+			_cloud_spawned.rpc_id(peer_id, cloud.id, cloud.type, cloud.global_position, cloud.radius, cloud.seconds - cloud.age)
 
 
 @rpc("authority", "reliable")
@@ -231,17 +255,33 @@ func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 		return
 	var zone := enemy.zone_at(point)
 	var crit: float = enemy.hit_zones[zone].get("crit", 1.0) if enemy.hit_zones.has(zone) else 1.0
-	var amount := clampf(damage, 0.0, MAX_DAMAGE) * crit
+	_damage(enemy, clampf(damage, 0.0, MAX_DAMAGE) * crit, point, kind, zone, true)
+
+
+## Host: damages enemy id directly (statuses, enemies fighting each other). from is where it came
+## from, for knockback by kind (KNOCKBACK); fx is the hit flash and sound on every peer. Frozen
+## enemies take more (Enemy.damage_taken), as they do from request_hit.
+func damage(id: int, amount: float, from: Vector3, kind := "enemy", fx := true) -> void:
+	var enemy: Enemy = enemies.get(id)
+	if enemy == null or not enemy.alive or not simulating:
+		return
+	_damage(enemy, clampf(amount, 0.0, MAX_DAMAGE), from, kind, "body", fx)
+
+
+func _damage(enemy: Enemy, amount: float, point: Vector3, kind: String, zone: String, fx: bool) -> void:
+	amount *= enemy.damage_taken()
 	var away := enemy.get_center() - point
 	away.y = 0.0
-	var push := away.normalized() * float(KNOCKBACK.get(kind, 1.0)) + Vector3.UP * float(KNOCKBACK.get(kind, 1.0)) * 0.3
+	var strength := float(KNOCKBACK.get(kind, 1.0))
+	var push := away.normalized() * strength + Vector3.UP * strength * 0.3
 	enemy.apply_hit(amount, push)
 	enemy_damaged.emit(enemy, amount, zone)
-	_hit_fx(id, point)
-	for peer_id in _peers():
-		_hit_fx.rpc_id(peer_id, id, point)
+	if fx:
+		_hit_fx(enemy.id, point)
+		for peer_id in _peers():
+			_hit_fx.rpc_id(peer_id, enemy.id, point)
 	if enemy.health <= 0.0:
-		kill(id)
+		kill(enemy.id)
 
 
 ## Any peer: this peer's attack gave enemy id a status ("burning", "poisoned", ...) for seconds.
@@ -263,6 +303,22 @@ func _apply_status(id: int, status: String, seconds: float) -> void:
 	var enemy: Enemy = enemies.get(id)
 	if enemy and enemy.alive and simulating:
 		enemy.apply_status(status, clampf(seconds, 0.0, MAX_STATUS))
+
+
+## Host: an enemy's set of active statuses changed; every peer tints it.
+func statuses_changed(enemy: Enemy) -> void:
+	var names := PackedStringArray(enemy.statuses.keys())
+	names.sort()
+	enemy.show_statuses(names)
+	for peer_id in _peers():
+		_statuses.rpc_id(peer_id, enemy.id, names)
+
+
+@rpc("authority", "reliable")
+func _statuses(id: int, names: PackedStringArray) -> void:
+	var enemy: Enemy = enemies.get(id)
+	if enemy:
+		enemy.show_statuses(names)
 
 
 ## Every peer: hit flash and sound.
@@ -289,6 +345,78 @@ func _hurt(amount: float, from: Vector3) -> void:
 	var me := lab.local_player()
 	if me:
 		me.take_damage(amount, from)
+
+
+## Host: gives a player a status (clouds: "poisoned", "burning"). Like damage, it runs on the
+## player's own peer (Player.apply_status).
+func status_player(player: Player, status: String, seconds: float) -> void:
+	var peer_id := player.get_multiplayer_authority()
+	if peer_id == multiplayer.get_unique_id():
+		player.apply_status(status, seconds)
+	else:
+		_player_status.rpc_id(peer_id, status, seconds)
+
+
+@rpc("authority", "reliable")
+func _player_status(status: String, seconds: float) -> void:
+	var me := lab.local_player()
+	if me:
+		me.apply_status(status, clampf(seconds, 0.0, MAX_STATUS))
+
+
+# --- Clouds --------------------------------------------------------------------------------------
+
+## Any peer: a cloud of type (Cloud.TYPES) at a world point; radius and seconds below zero take the
+## type's defaults. The host creates it and tells the peers. Returns it on the host, else null.
+func request_cloud(type: String, at: Vector3, radius := -1.0, seconds := -1.0) -> Cloud:
+	if not active or not Cloud.TYPES.has(type):
+		return null
+	if multiplayer.is_server():
+		return _spawn_cloud(type, at, radius, seconds)
+	_request_cloud.rpc_id(1, type, at, radius, seconds)
+	return null
+
+
+@rpc("any_peer", "reliable")
+func _request_cloud(type: String, at: Vector3, radius: float, seconds: float) -> void:
+	if multiplayer.is_server() and active and Cloud.TYPES.has(type):
+		_spawn_cloud(type, at, minf(radius, 8.0), minf(seconds, MAX_STATUS))
+
+
+func _spawn_cloud(type: String, at: Vector3, radius: float, seconds: float) -> Cloud:
+	if clouds.size() >= MAX_CLOUDS:
+		var oldest: int = clouds.keys().min()
+		clouds[oldest].queue_free()
+		clouds.erase(oldest)
+	var id := _next_cloud
+	_next_cloud += 1
+	var cloud := _create_cloud(id, type, at, radius, seconds, true)
+	for peer_id in _peers():
+		_cloud_spawned.rpc_id(peer_id, id, type, at, cloud.radius, cloud.seconds)
+	return cloud
+
+
+func _create_cloud(id: int, type: String, at: Vector3, radius: float, seconds: float, host: bool) -> Cloud:
+	var cloud: Cloud = CLOUD_SCENE.instantiate()
+	cloud.name = "C%d" % id
+	cloud.manager = self
+	cloud.setup(id, type, at, radius, seconds, host)
+	clouds[id] = cloud
+	add_child(cloud)
+	cloud_spawned.emit(cloud)
+	return cloud
+
+
+@rpc("authority", "reliable")
+func _cloud_spawned(id: int, type: String, at: Vector3, radius: float, seconds: float) -> void:
+	if active and not clouds.has(id) and Cloud.TYPES.has(type):
+		_create_cloud(id, type, at, radius, seconds, false)
+
+
+## Every peer: a cloud ran out (each peer frees its own on its own timer).
+func cloud_ended(cloud: Cloud) -> void:
+	if clouds.get(cloud.id) == cloud:
+		clouds.erase(cloud.id)
 
 
 ## Host: an enemy attacked (hit or miss), for its sound and lunge everywhere.
@@ -333,6 +461,20 @@ func nearest_player(at: Vector3) -> Player:
 func nearest_player_distance(at: Vector3) -> float:
 	var best := nearest_player(at)
 	return best.global_position.distance_to(at) if best else INF
+
+
+## The nearest other living enemy within max_range of enemy (raging targets), or null.
+func nearest_enemy(enemy: Enemy, max_range := 20.0) -> Enemy:
+	var best: Enemy = null
+	var best_distance := max_range * max_range
+	for other: Enemy in enemies.values():
+		if other == enemy or not other.alive:
+			continue
+		var distance := other.global_position.distance_squared_to(enemy.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = other
+	return best
 
 
 ## Push away from nearby enemies so a crowd spreads out instead of stacking.

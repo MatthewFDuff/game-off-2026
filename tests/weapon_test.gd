@@ -9,6 +9,9 @@ extends SceneTree
 ## the medkit heals, enemies drop ammo, and the item spots' pickups appear at play start and are
 ## cleared on the way back to edit.
 ##
+## Phase 3: melee hits an enemy in front and not one behind and chips a glass voxel (not concrete),
+## a thrown flask uses one and shatters into its cloud, and Q (cycle_flask) skips empty types.
+##
 ## Game types are left unnamed (see editor_test.gd): naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -61,10 +64,13 @@ func _run() -> void:
 	await _homing()
 	await _cycling()
 	await _pickups()
+	await _melee()
+	await _flasks()
 
 	lab.request_mode("edit")
 	await _frames(3)
 	_check("back to edit clears the pickups", _all_queued(), str(items.pickups.keys()))
+	_check("back to edit clears the clouds", enemies.clouds.is_empty())
 
 	print("weapon test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -99,9 +105,10 @@ func _each_ammo_type() -> void:
 		if ammo_name == "shotgun":
 			_check("shotgun pellets add up", _damage.get(enemy.id, 0.0) >= 14.0, str(_damage.get(enemy.id, 0.0)))
 		if ammo_name == "flame" and is_instance_valid(enemy):
-			_check("flame sets it burning (status stub)", enemy.statuses.has("burning"), str(enemy.statuses))
+			_check("flame sets it burning", enemy.statuses.has("burning"), str(enemy.statuses))
 		if ammo_name == "poison" and is_instance_valid(enemy):
-			_check("poison cloud poisons it (status stub)", enemy.statuses.has("poisoned"), str(enemy.statuses))
+			_check("poison leaves a poison cloud that poisons it", enemy.statuses.has("poisoned") and _clouds("poison") == 1,
+					"%s, %d clouds" % [enemy.statuses, enemies.clouds.size()])
 		_clear_enemies()
 		await _frames(2)
 
@@ -239,6 +246,87 @@ func _pickups() -> void:
 	items.drop_chance = 0.0
 
 
+## Melee: the box in front hits, behind doesn't; the swing chips glass but not concrete.
+func _melee() -> void:
+	_clear_enemies()
+	await _frames(2)
+	var front = _target(Vector3(0.0, 0.0, -1.1))
+	var behind = _target(Vector3(0.0, 0.0, 1.1))
+	weapon._melee_cooldown = 0.0
+	var swings := []
+	var on_melee := func(hits: int) -> void: swings.append(hits)
+	weapon.meleed.connect(on_melee)
+	await _press("melee")
+	_check("MMB swings", weapon._swing > 0.0 or not swings.is_empty())
+	var landed := await _wait_until(func() -> bool: return not swings.is_empty(), 1.0)
+	_check("melee hits the enemy in front", landed and _damage.get(front.id, 0.0) == 35.0, "damage %s" % _damage.get(front.id, 0.0))
+	_check("melee misses the enemy behind", _damage.get(behind.id, 0.0) == 0.0, "damage %s" % _damage.get(behind.id, 0.0))
+	_check("melee has a cooldown", not weapon.melee())
+	_clear_enemies()
+	await _frames(2)
+
+	# A pane of glass across the view at arm's length, and a concrete one further along.
+	var eye: Vector3 = me.camera.global_position
+	var aim: Vector3 = -me.camera.global_basis.z
+	var glass: Vector3i = lab.world.world_to_voxel(eye + aim * 1.0)
+	lab.world.fill_box(glass - Vector3i(4, 4, 0), glass + Vector3i(5, 5, 1), M.GLASS, false)
+	await _wait_seconds(0.7)
+	_check("glass placed", lab.world.get_voxel(glass) == M.GLASS)
+	weapon.melee()
+	await _wait_until(func() -> bool: return lab.world.get_voxel(glass) != M.GLASS, 1.0)
+	_check("melee breaks glass", lab.world.get_voxel(glass) == M.AIR, str(lab.world.get_voxel(glass)))
+	lab.world.fill_box(glass - Vector3i(4, 4, 0), glass + Vector3i(5, 5, 1), M.CONCRETE, false)
+	await _wait_seconds(0.7)
+	weapon.melee()
+	await _wait_seconds(0.3)
+	_check("melee doesn't break concrete", lab.world.get_voxel(glass) == M.CONCRETE, str(lab.world.get_voxel(glass)))
+	lab.world.fill_box(glass - Vector3i(4, 4, 0), glass + Vector3i(5, 5, 1), M.AIR, false)
+	weapon.meleed.disconnect(on_melee)
+
+
+## Flasks: Q cycles the carried types, RMB throws one, which breaks into its cloud.
+func _flasks() -> void:
+	me.inventory.clear()
+	await _frames(2)
+	_check("no flasks, none selected", weapon.flask == "", weapon.flask)
+	_check("nothing to throw", not weapon.throw_flask())
+	me.inventory.add("flask_fire")
+	me.inventory.add("flask_freeze", 2)
+	await _frames(1)
+	_check("a picked-up flask is selected", weapon.flask == "fire", weapon.flask)
+	var seen: Array[String] = []
+	for i in 3:
+		await _press("cycle_flask")
+		seen.append(weapon.flask)
+	_check("Q skips flask types there are none of", seen == ["freeze", "fire", "freeze"], str(seen))
+
+	await _press("cycle_flask") # Back to fire.
+	var shots := []
+	var watch := func(shot) -> void: shots.append(shot)
+	weapon.projectile_spawned.connect(watch)
+	weapon._flask_cooldown = 0.0
+	# At the floor a few meters ahead (the flask arcs, so aim low).
+	var feet: Vector3 = me.global_position
+	var aim: Vector3 = (feet + Vector3(0.0, 0.0, -5.0)) - me.camera.global_position
+	_check("RMB throws the selected flask", weapon.throw_flask(aim))
+	weapon.projectile_spawned.disconnect(watch)
+	_check("throw cooldown", not weapon.throw_flask(aim))
+	_check("throwing uses one flask", me.inventory.flask_count("fire") == 0, str(me.inventory.flasks))
+	_check("the flask flies as a projectile with its model", shots.size() == 1 and shots[0].ammo.name == "flask_fire" and shots[0]._model != null, str(shots))
+	var cloud := await _wait_until(func() -> bool: return _clouds("fire") == 1, 4.0)
+	_check("the flask shatters into a fire cloud", cloud, "%d clouds" % enemies.clouds.size())
+	_check("out of fire flasks, freeze is selected", weapon.flask == "freeze", weapon.flask)
+
+
+## Clouds of a type that are still up.
+func _clouds(type: String) -> int:
+	var n := 0
+	for cloud in enemies.clouds.values():
+		if cloud.type == type and not cloud.is_queued_for_deletion():
+			n += 1
+	return n
+
+
 # --- Helpers -------------------------------------------------------------------------------------
 
 ## A frozen enemy at offset (meters) from the player's feet, on the floor.
@@ -253,9 +341,13 @@ func _target(offset: Vector3):
 	return enemy
 
 
+## Removes every enemy and cloud (so a lingering cloud doesn't add to the next test's damage).
 func _clear_enemies() -> void:
 	for id: int in enemies.enemies.keys():
 		enemies.despawn(id)
+	for cloud in enemies.clouds.values():
+		cloud.queue_free()
+	enemies.clouds.clear()
 
 
 ## Loads an ammo type with plenty of ammo and no cooldown.

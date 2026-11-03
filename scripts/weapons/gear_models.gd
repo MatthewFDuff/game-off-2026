@@ -10,7 +10,7 @@ class_name GearModels
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 const WEAPON_DIR := "res://assets/vox/weapons/"
 const ITEM_DIR := "res://assets/vox/items/"
-const WEAPONS := ["shroom_shooter"]
+const WEAPONS := ["shroom_shooter", "axe"]
 ## Every pickup with a placeholder (the item marker names these).
 const ITEMS := ["medkit", "ammo_shotgun", "ammo_flame", "ammo_explosive", "ammo_ricochet", "ammo_homing",
 		"ammo_poison", "flask_fire", "flask_poison", "flask_rage", "flask_freeze", "keycard_red", "keycard_blue",
@@ -127,6 +127,8 @@ static func muzzle(model: Dictionary) -> Vector3:
 static func generate(model_name: String) -> Dictionary:
 	if model_name == "shroom_shooter":
 		return _shroom_shooter()
+	if model_name == "axe":
+		return _axe()
 	if model_name == "medkit":
 		return _medkit()
 	if model_name == "ammo_flame":
@@ -163,6 +165,23 @@ static func _shroom_shooter() -> Dictionary:
 				if d <= (4.2 if y == 10 else 3.0):
 					var spot := (x + z * 3 + y) % 5 == 0
 					_put(model, x, y, z, M.SHROOM_SPOT if spot and y == 11 else (M.SHROOM_GILL if y == 10 and d > 3.2 else M.SHROOM_CAP))
+	return model
+
+
+## The fire axe (melee): a wooden haft standing up the Y axis with a rubber grip at the bottom, a
+## steel head at the top whose blade faces -Z, and a red-painted cheek. The grip is the model's
+## handle (Weapon holds it at AXE_GRIP).
+static func _axe() -> Dictionary:
+	var model := _empty(Vector3i(3, 22, 10))
+	_box(model, Vector3i(1, 0, 7), Vector3i(2, 22, 8), M.WOOD) # Haft.
+	_box(model, Vector3i(0, 1, 6), Vector3i(3, 6, 9), M.RUBBER) # Grip.
+	_box(model, Vector3i(0, 16, 6), Vector3i(3, 21, 10), M.STEEL) # Eye of the head, poll behind.
+	for y in range(14, 22):
+		var depth := 6 - mini(absi(y - 18), 3) # The blade flares toward its edge.
+		_box(model, Vector3i(1, y, 6 - depth), Vector3i(2, y + 1, 6), M.STEEL)
+		_put(model, 1, y, 6 - depth, M.METAL) # Edge.
+	_box(model, Vector3i(0, 17, 3), Vector3i(3, 20, 6), M.WARNING) # Painted cheeks.
+	_box(model, Vector3i(1, 17, 3), Vector3i(2, 20, 6), M.STEEL)
 	return model
 
 
