@@ -25,6 +25,7 @@ var _new_size := OptionButton.new()
 var _new_fill := OptionButton.new()
 var _skip_intro := CheckBox.new()
 var _column: VBoxContainer
+var _background := ColorRect.new()
 var _intro: Intro
 
 
@@ -33,10 +34,9 @@ func _ready() -> void:
 	var settings := ConfigFile.new()
 	settings.load(SETTINGS_PATH)
 
-	var background := ColorRect.new()
-	background.color = Color(0.04, 0.045, 0.05)
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(background)
+	_background.color = Color(0.04, 0.045, 0.05)
+	_background.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_background)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -174,19 +174,22 @@ func _remember() -> void:
 
 # --- The story -------------------------------------------------------------------------------------
 
-## Plays the cubicle intro (unless skipped), then calls `then` if the job was accepted; declining
-## and refusing to go back returns to the menu.
+## Plays the cubicle intro (unless skipped by the checkbox or the `--skip-intro` launch flag; F9
+## skips inside it), then calls `then` if the job was accepted; declining and refusing to go back
+## returns to the menu. The intro is a 3D scene, so the menu's background hides while it plays.
 func _play_intro(then: Callable) -> void:
 	_remember()
-	if _skip_intro.button_pressed:
+	if _skip_intro.button_pressed or "--skip-intro" in OS.get_cmdline_user_args():
 		then.call()
 		return
 	_column.visible = false
+	_background.visible = false
 	_intro = INTRO_SCENE.instantiate()
 	_intro.finished.connect(func(accepted: bool) -> void:
 		_intro.queue_free()
 		_intro = null
 		_column.visible = true
+		_background.visible = true
 		if accepted:
 			then.call()
 		else:

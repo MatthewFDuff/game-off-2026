@@ -1,7 +1,8 @@
 extends SceneTree
 ## Screenshots of the cubicle intro (needs a window, not --headless):
 ##   godot --path . --script res://tests/intro_shots.gd -- <output_dir>
-## The console with three lines shown and the SHIFT prompt, the email, and the dying vignette.
+## The seated view with the use prompt, the zoomed monitor with the idle console, the monitor with
+## three log lines and the SHIFT prompt, the email, and the dying vignette.
 
 var _out := ""
 
@@ -17,6 +18,12 @@ func _run() -> void:
 	var intro = load("res://scenes/intro.tscn").instantiate()
 	intro.pause_scale = 0.0
 	root.add_child(intro)
+	await _frames(20)
+	await _shot("intro_seated")
+	intro.use_monitor()
+	await _frames(10)
+	await _shot("intro_monitor_idle")
+	intro.press_shift()
 	await _frames(5)
 	for i in 3:
 		intro._pause_left = 0.0
@@ -25,7 +32,7 @@ func _run() -> void:
 	await _frames(5)
 	intro._prompt.text = "[SHIFT]"
 	intro._prompt.visible = true
-	await _shot("intro_console")
+	await _shot("intro_monitor_log")
 	intro._pause_left = 0.0
 	intro.press_shift()
 	intro.open_email()

@@ -1,12 +1,17 @@
 extends SceneTree
 ## Headless checks for the cubicle intro (scripts/story/intro.gd):
 ##   godot --headless --path . --script res://tests/intro_test.gd
-## With the pauses shrunk: SHIFT does nothing while a line is thinking and shows the next line once
-## it stops; the email arrives after the fourth line; Decline runs the log out, dies, shows the
-## trash-bag scene and the go-back prompt; Yes returns to the email; Accept ends with finished(true);
-## the skip prompt ends with finished(true) too.
+## Builds the cubicle into a scratch folder and plays the intro with the pauses shrunk: it starts
+## seated with the monitor in view; using the monitor zooms the camera onto the screen and shows
+## the idle console; SHIFT begins the session; SHIFT does nothing while a line is thinking and shows
+## the next line once it stops; the email arrives after the fourth line; Decline runs the log out,
+## dies, shows the trash-bag scene and the go-back prompt; Yes returns to the email; Accept ends
+## with finished(true); the skip prompt and F9 end with finished(true) too; No ends declined.
 ##
 ## Game types are left untyped (see editor_test.gd).
+
+const SCRATCH := "user://intro_test_levels/"
+const Builder := preload("res://scripts/tools/build_cubicle.gd")
 
 var _failures := 0
 
@@ -16,26 +21,42 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	LevelData.save_dir_override = SCRATCH
+	var built: Dictionary = Builder.build(root)
+	_check("the cubicle builds", built.error == OK and built.level.objects.has("monitor") and built.level.objects.has("chair"))
+	built.world.free()
+
 	var intro = load("res://scenes/intro.tscn").instantiate()
 	intro.pause_scale = 0.02
 	root.add_child(intro)
 	var result := []
 	intro.finished.connect(func(accepted: bool) -> void: result.append(accepted))
+	await _frames(3)
+	_check("starts seated in the cubicle", intro.state == intro.State.SEATED and intro.level != null and intro._world != null)
+	_check("the monitor's screen was found", intro._screen_center != Vector3.ZERO and intro._monitor_box.size != Vector3.ZERO)
 	await _frames(2)
-
-	_check("starts on the log with nothing shown", intro.state == intro.State.LOG and intro.shown == 0)
+	_check("looking straight ahead aims at the monitor", intro._aiming_at_monitor() and intro._use_prompt.visible)
+	intro.press_shift()
+	_check("SHIFT does nothing while seated", intro.state == intro.State.SEATED and intro.shown == 0)
+	intro.use_monitor()
+	var idle := await _wait_until(func() -> bool: return intro.state == intro.State.IDLE, 2.0)
+	_check("using the monitor zooms onto the screen and idles the console", idle and intro._prompt.text == intro.IDLE_PROMPT, str(intro.state))
+	var eye: Vector3 = intro._camera.global_position
+	_check("the camera sits in front of the screen", eye.distance_to(intro._screen_center) < intro.SCREEN_DISTANCE + 0.05, str(eye.distance_to(intro._screen_center)))
+	intro.press_shift()
+	_check("SHIFT begins the session", intro.state == intro.State.LOG and intro.shown == 0 and intro._header.text == intro.SESSION_STARTED)
 	intro._pause_left = 10.0 # Still thinking, whatever the frame timing.
 	intro.press_shift()
 	_check("SHIFT while thinking shows nothing", intro.shown == 0 and intro._prompt.text == "not yet")
 	intro._pause_left = 0.0
 	intro.press_shift()
-	_check("SHIFT after the pause shows a line", intro.shown == 1)
+	_check("SHIFT after the pause shows a line", intro.shown == 1 and intro._log.get_child_count() == 1)
 	_check("the next line is thinking again", intro._pause_left > 0.0)
 	for i in 3:
 		await _wait_until(func() -> bool: return intro._pause_left <= 0.0, 2.0)
 		intro.press_shift()
 	_check("four lines in", intro.shown == 4)
-	_check("the email arrives after line 4", intro.email_sent and intro._notification.visible)
+	_check("the email arrives after line 4, on the monitor", intro.email_sent and intro._notification.visible)
 	intro.open_email()
 	_check("the email opens", intro.email_open and intro._email.visible)
 
@@ -73,23 +94,38 @@ func _run() -> void:
 	second._enter(second.State.SKIP)
 	_check("Esc shows the skip prompt", second._skip_panel.visible)
 	second._leave_skip()
-	_check("Esc again keeps watching", not second._skip_panel.visible and second.state == second.State.LOG)
+	_check("Esc again keeps watching, still seated", not second._skip_panel.visible and second.state == second.State.SEATED)
 	second._enter(second.State.SKIP)
 	second._finish(true)
 	_check("skipping finishes accepted", skipped == [true])
 	second.free()
 
-	# A declined intro that refuses to go back finishes declined.
+	# F9 skips at once, from any state.
 	var third = load("res://scenes/intro.tscn").instantiate()
 	third.pause_scale = 0.02
 	root.add_child(third)
-	var declined := []
-	third.finished.connect(func(accepted: bool) -> void: declined.append(accepted))
+	var dev := []
+	third.finished.connect(func(accepted: bool) -> void: dev.append(accepted))
 	await _frames(2)
-	third._enter(third.State.GO_BACK)
-	third._finish(false)
-	_check("No finishes declined", declined == [false])
+	_check("the F9 hint shows at the start", third._hint.visible and third._hint.text == third.SKIP_HINT)
+	var f9 := InputEventKey.new()
+	f9.keycode = KEY_F9
+	f9.pressed = true
+	third._unhandled_input(f9)
+	_check("F9 finishes accepted with no prompt", dev == [true] and not third._skip_panel.visible)
 	third.free()
+
+	# A declined intro that refuses to go back finishes declined.
+	var fourth = load("res://scenes/intro.tscn").instantiate()
+	fourth.pause_scale = 0.02
+	root.add_child(fourth)
+	var declined := []
+	fourth.finished.connect(func(accepted: bool) -> void: declined.append(accepted))
+	await _frames(2)
+	fourth._enter(fourth.State.GO_BACK)
+	fourth._finish(false)
+	_check("No finishes declined", declined == [false])
+	fourth.free()
 
 	print("intro_test: %d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)

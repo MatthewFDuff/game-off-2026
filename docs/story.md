@@ -28,9 +28,13 @@ triggers and systems are the part to build against.
 
 ### The cubicle
 
-A tiny cubicle, a monitor, a "Hang in there" poster, a coffee mug, a sticky note: "PRESS SHIFT
-WHEN IT STOPS. DO NOT READ IT. - mgmt". The monitor shows the LLM OPERATOR CONSOLE: a thought log
-that stops after each line with a blinking `[SHIFT]`.
+A tiny voxel cubicle (`levels/cubicle`): the player sits in the chair in front of an actual
+monitor, a "Hang in there" poster, a coffee mug, a sticky note: "PRESS SHIFT WHEN IT STOPS. DO NOT
+READ IT. - mgmt". They can look around a little; clicking the monitor zooms the camera into it. The
+screen shows, in pixel text, the LLM OPERATOR CONSOLE: "Press SHIFT to begin session", then a
+thought log where each line is preceded by an animated `thinking...` and ends with a blinking
+`[SHIFT]`. Decided 2026-11-03 (replaces the first 2D console). Developer skip: F9 during the
+intro, the `--skip-intro` launch flag, or the menu's "Skip the intro" checkbox.
 
 Thought log, one line per press (the model that ends up in the mushrooms; it should be funny):
 
