@@ -67,7 +67,7 @@ func _birth() -> void:
 ## Every peer: a birth (from enemy_attacked): a big squash instead of a lunge.
 func play_attack() -> void:
 	_squash = 1.0
-	Sfx.play_at(attack_sound, get_center(), 0.0, 0.1)
+	play_sound(attack_sound, get_center(), 0.0, 0.1)
 
 
 ## Every peer: dies; on the host, its whole brood pops with it.

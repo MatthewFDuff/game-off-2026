@@ -33,6 +33,8 @@ signal meleed(hits: int)
 const PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
 const MODEL := "shroom_shooter"
 const TRACERS := 16
+## Most cubes in one tracer (longer shots space them out).
+const TRACER_CUBES := 96
 ## Homing projectiles: position corrections per second to the other peers.
 const SYNC_RATE := 10.0
 ## Seconds the flame keeps showing after its last cone check.
@@ -80,7 +82,9 @@ const FLASK_COOLDOWN := 0.8
 @export_group("Feedback")
 @export var muzzle_flash_time := 0.05
 @export var tracer_time := 0.08
-@export var tracer_width := 0.012
+## Tracers are a dotted line of cubes this big (meters), at least tracer_gap apart.
+@export var tracer_width := 0.05
+@export var tracer_gap := 0.12
 
 var player: Player
 var inventory: Inventory
@@ -106,7 +110,7 @@ var _flame_time := 0.0
 var _flame_ignites := 0
 var _kick := 0.0
 var _sync_timer := 0.0
-var _tracers: Array[MeshInstance3D] = []
+var _tracers: Array[MultiMeshInstance3D] = []
 var _tracer_life: Array[float] = []
 var _tracer_colors: Array[Color] = []
 var _next_tracer := 0
@@ -474,11 +478,15 @@ func _impact_fx(type: AmmoType, at: Vector3) -> void:
 		"blast":
 			Sfx.play_at("blast", at)
 			_light_burst(at, type.color, 8.0, 0.3)
+			VoxelFx.blast(self, at, maxf(type.blast_radius, 0.8), type.color)
 		"cloud":
 			if type.flask:
 				Sfx.play_at("flask_break", at, 0.0, 0.1)
+				# Glass shards and a splash of the contents.
+				VoxelFx.burst(self, at, [Color(0.85, 0.95, 1.0), Color(0.6, 0.75, 0.85, 0.7)], 14, 3.0, 0.05, 0.5, Vector3(0.0, -9.0, 0.0))
 			else:
 				Sfx.play_at("poison_shot", at, -2.0, 0.1, 0.6)
+			VoxelFx.burst(self, at, [type.color.lightened(0.3), type.color, type.color.darkened(0.3)], 14, 2.5, 0.1, 0.4, Vector3(0.0, -4.0, 0.0), 3.0)
 			_light_burst(at, type.color, 5.0, 0.25)
 
 
@@ -652,23 +660,24 @@ func _build_model() -> void:
 		player.head.add_child(_axe_pivot)
 	_rebuild_axe()
 
-	var flash_box := BoxMesh.new()
-	flash_box.size = Vector3(0.06, 0.06, 0.03)
+	# Muzzle flash: a blocky star of a few cubes, turned a quarter at random each shot.
+	var flash_cells := [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0),
+			Vector3i(0, -1, 0), Vector3i(0, 0, -1), Vector3i(2, 1, 0), Vector3i(-1, -2, 0)]
 	var flash_material := StandardMaterial3D.new()
 	flash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_flash_mesh = MeshInstance3D.new()
-	_flash_mesh.mesh = flash_box
+	_flash_mesh.mesh = VoxelFx.cluster(flash_cells, 0.025)
 	_flash_mesh.material_override = flash_material
 	_flash_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_flash_mesh.position = Vector3(0.0, 0.0, -0.02)
 	_flash_mesh.visible = false
 	_pivot.add_child(_flash_mesh)
 
-	_flame = CPUParticles3D.new()
-	_flame.emitting = false
+	# The flame cone: 0.1 m cubes on the effect grid, hot white -> orange -> red -> a dithered wisp.
+	_flame = VoxelFx.particles(0.1, [Color(1.0, 0.95, 0.6), Color(1.0, 0.7, 0.2), Color(1.0, 0.4, 0.08),
+			Color(0.75, 0.15, 0.05, 0.6)], 0.45)
 	_flame.amount = 48
 	_flame.lifetime = 0.35
-	_flame.local_coords = false
 	_flame.direction = Vector3.FORWARD
 	_flame.spread = 12.0
 	_flame.initial_velocity_min = 7.0
@@ -676,20 +685,6 @@ func _build_model() -> void:
 	_flame.gravity = Vector3(0.0, 2.0, 0.0)
 	_flame.damping_min = 6.0
 	_flame.damping_max = 9.0
-	_flame.scale_amount_min = 0.6
-	_flame.scale_amount_max = 1.6
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.85, 0.4, 0.9))
-	ramp.set_color(1, Color(0.8, 0.15, 0.05, 0.0))
-	_flame.color_ramp = ramp
-	var puff := BoxMesh.new()
-	puff.size = Vector3.ONE * 0.12
-	var puff_material := StandardMaterial3D.new()
-	puff_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	puff_material.vertex_color_use_as_albedo = true
-	puff_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	puff.material = puff_material
-	_flame.mesh = puff
 	_pivot.add_child(_flame)
 
 
@@ -712,14 +707,16 @@ func _rebuild_axe() -> void:
 
 func _build_tracers() -> void:
 	var box := BoxMesh.new()
-	box.size = Vector3.ONE
+	box.size = Vector3.ONE * tracer_width
 	for i in TRACERS:
-		var tracer := MeshInstance3D.new()
-		tracer.mesh = box
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		tracer.material_override = material
+		var tracer := MultiMeshInstance3D.new()
+		var cubes := MultiMesh.new()
+		cubes.transform_format = MultiMesh.TRANSFORM_3D
+		cubes.mesh = box
+		cubes.instance_count = TRACER_CUBES
+		cubes.visible_instance_count = 0
+		tracer.multimesh = cubes
+		tracer.material_override = VoxelFx.material(tracer_width)
 		tracer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		tracer.top_level = true
 		tracer.visible = false
@@ -737,6 +734,7 @@ func _show_shots(type: AmmoType, from: Vector3, ends: PackedVector3Array) -> voi
 	if _flash_mesh:
 		(_flash_mesh.material_override as StandardMaterial3D).albedo_color = type.color.lightened(0.5)
 		_flash_mesh.visible = type.mode != "cone"
+		_flash_mesh.rotation.z = (randi() % 4) * PI * 0.5
 	if type.mode == "cone":
 		_flame_time = FLAME_LINGER
 	var color := Color(type.color.lightened(0.4), 0.9)
@@ -749,13 +747,14 @@ func _show_shots(type: AmmoType, from: Vector3, ends: PackedVector3Array) -> voi
 		_tracer_life[_next_tracer] = tracer_time
 		_tracer_colors[_next_tracer] = color
 		_next_tracer = (_next_tracer + 1) % _tracers.size()
-		var up := Vector3.UP if absf(span.normalized().y) < 0.99 else Vector3.RIGHT
-		var axes := Basis.looking_at(span, up)
-		axes.x *= tracer_width
-		axes.y *= tracer_width
-		axes.z *= length
-		tracer.global_transform = Transform3D(axes, from + span * 0.5)
-		(tracer.material_override as StandardMaterial3D).albedo_color = color
+		# Cubes from the far end back to the muzzle; the fade drops them from the muzzle end.
+		var count := clampi(int(length / tracer_gap), 1, TRACER_CUBES)
+		var cubes := tracer.multimesh
+		for c in count:
+			cubes.set_instance_transform(c, Transform3D(Basis.IDENTITY, to - span * (float(c) / count)))
+		cubes.visible_instance_count = count
+		tracer.set_meta("cubes", count)
+		(tracer.material_override as ShaderMaterial).set_shader_parameter("tint", color)
 		tracer.visible = true
 
 
@@ -774,9 +773,8 @@ func _update_effects(delta: float) -> void:
 		if _tracer_life[i] <= 0.0:
 			tracer.visible = false
 		else:
-			var color := _tracer_colors[i]
-			color.a *= _tracer_life[i] / tracer_time
-			(tracer.material_override as StandardMaterial3D).albedo_color = color
+			var left := clampf(_tracer_life[i] / tracer_time, 0.0, 1.0)
+			tracer.multimesh.visible_instance_count = ceili(int(tracer.get_meta("cubes", 1)) * left)
 	_flame_time -= delta
 	_flame.emitting = _flame_time > 0.0
 	# Kick back on each shot and settle; hidden while editing or dead.

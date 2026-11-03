@@ -9,6 +9,14 @@ tone and art references, not mechanics.
 
 ## Status (2026-11-03)
 
+- 2026-11-03, combat fairness (`combat_los_test`): `Combat.can_see` (voxel raycast, glass clear)
+  gates every effect on a player: clouds (only in sight of the center, feet within a 2.5 m
+  vertical extent, so never through a floor), spore releases, ceiling-cloud drops, giant swings,
+  tentacle grabs, exploding blasts and fuses, melee bites, burning spread between enemies. Enemy
+  sounds out of the listener's sight are 14 dB quieter. Spawns are fair: never within 6 m of a
+  player or in a player's view (55 degrees, in sight); otherwise the spawner retries with its
+  budget kept. Spawned enemies emerge 0.8 s from the floor (ceiling: from above) and can't attack
+  or be hit meanwhile. `EnemyManager._spawned` gained an `emerge: int` argument.
 - 2026-11-03, story (lab side, `docs/story.md`): `Lines` holds every intercom line, the experiment
   steps and the ending texts. `Story` (added by LabHud in play) runs the `Intercom` subtitles
   (host picks the line for a trigger id, peers get the id), the `Experiment` effects, and the

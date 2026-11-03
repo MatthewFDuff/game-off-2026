@@ -518,7 +518,156 @@ func glass_case(origin: Vector3i, facing: int) -> void:
 	box(Vector3i(2, 13, 2), Vector3i(6, 14, 3), M.RUBBER) # Mount on the back wall.
 
 
+# --- Lab in use ---------------------------------------------------------------------------------
+
+## Specimen case: the training room's experiment. A glass box on a steel plinth with one glowing
+## shroom inside on a bed of substrate and two electrode rods coming down from the lid on either
+## side of it (the thing the experiment shocks). Glass voxels draw opaque, so the panes are open
+## with a glass rim and a few glints: the shroom stays in sight.
+func specimen_case(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 12, 12, facing)
+	box(Vector3i(0, 0, 0), Vector3i(12, 4, 12), M.STEEL)
+	box(Vector3i(0, 3, 0), Vector3i(12, 4, 1), M.HAZARD_STRIPES)
+	box(Vector3i(9, 1, 0), Vector3i(11, 3, 1), M.SCREEN) # Readout on the plinth.
+	_glass_panes(Vector3i(0, 4, 0), Vector3i(12, 15, 12))
+	box(Vector3i(0, 15, 0), Vector3i(12, 16, 12), M.STEEL) # Lid.
+	box(Vector3i(1, 4, 1), Vector3i(11, 5, 11), M.SUBSTRATE)
+	# The shroom: a stem, a capped head with gills under it and a glowing crown.
+	box(Vector3i(5, 5, 5), Vector3i(7, 9, 7), M.SHROOM_STEM)
+	box(Vector3i(3, 9, 3), Vector3i(9, 10, 9), M.SHROOM_GILL)
+	box(Vector3i(3, 10, 3), Vector3i(9, 11, 9), M.SHROOM_CAP)
+	box(Vector3i(4, 11, 4), Vector3i(8, 12, 8), M.SHROOM_CAP)
+	box(Vector3i(4, 10, 3), Vector3i(5, 11, 4), M.SHROOM_SPOT)
+	box(Vector3i(7, 10, 8), Vector3i(8, 11, 9), M.SHROOM_SPOT)
+	box(Vector3i(5, 11, 4), Vector3i(6, 12, 5), M.GLOW)
+	box(Vector3i(5, 12, 5), Vector3i(7, 13, 7), M.GLOW)
+	box(Vector3i(5, 7, 4), Vector3i(7, 8, 5), M.SHROOM_EYE)
+	# Electrodes: rods from the lid, warning-striped tips just off the cap.
+	for x in [1, 10]:
+		box(Vector3i(x, 9, 5), Vector3i(x + 1, 15, 7), M.STEEL)
+		box(Vector3i(x, 8, 5), Vector3i(x + 1, 9, 7), M.WARNING)
+	box(Vector3i(1, 15, 5), Vector3i(2, 16, 6), M.EMERGENCY)
+	box(Vector3i(10, 15, 6), Vector3i(11, 16, 7), M.EMERGENCY)
+
+
+## Vial cabinet: a steel cabinet with glass doors and four shelves of colored vials.
+func vial_cabinet(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 12, 5, facing)
+	box(Vector3i(0, 0, 0), Vector3i(12, 20, 5), M.STEEL)
+	box(Vector3i(1, 2, 0), Vector3i(11, 19, 4), M.AIR)
+	box(Vector3i(0, 0, 0), Vector3i(12, 1, 1), M.RUBBER)
+	for y in [2, 6, 10, 14]:
+		box(Vector3i(1, y, 1), Vector3i(11, y + 1, 4), M.STEEL)
+		var x := 1
+		while x < 11:
+			var tall := rng.randi_range(1, 2)
+			var liquid: int = SAMPLES[rng.randi() % SAMPLES.size()]
+			var z := rng.randi_range(1, 2)
+			box(Vector3i(x, y + 1, z), Vector3i(x + 1, y + 1 + tall, z + 1), liquid)
+			box(Vector3i(x, y + 1 + tall, z), Vector3i(x + 1, y + 2 + tall, z + 1), M.RUBBER)
+			x += rng.randi_range(1, 2)
+	# Glass doors (open panes with a rim and glints, as glass voxels draw opaque).
+	box(Vector3i(1, 18, 0), Vector3i(11, 19, 1), M.GLASS)
+	box(Vector3i(6, 2, 0), Vector3i(7, 19, 1), M.STEEL) # Door frames.
+	box(Vector3i(5, 9, 0), Vector3i(6, 11, 1), M.RUBBER) # Handles.
+	box(Vector3i(7, 9, 0), Vector3i(8, 11, 1), M.RUBBER)
+	for g in [Vector3i(2, 16, 0), Vector3i(3, 15, 0), Vector3i(8, 13, 0), Vector3i(9, 12, 0)]:
+		box(g, g + Vector3i(1, 1, 1), M.GLASS)
+
+
+## Specimen jar: a small jar of green fluid with a shroom floating in it, pressed against the glass.
+func specimen_jar(origin: Vector3i, facing: int) -> void:
+	_begin(origin, 4, 4, facing)
+	box(Vector3i(0, 0, 0), Vector3i(4, 1, 4), M.STEEL)
+	box(Vector3i(0, 1, 0), Vector3i(4, 4, 4), M.LIQUID_GREEN)
+	for x in [0, 3]:
+		for z in [0, 3]:
+			box(Vector3i(x, 1, z), Vector3i(x + 1, 5, z + 1), M.GLASS)
+	box(Vector3i(1, 1, 0), Vector3i(2, 3, 1), M.SHROOM_STEM)
+	box(Vector3i(1, 3, 0), Vector3i(3, 4, 1), M.SHROOM_CAP)
+	box(Vector3i(2, 3, 0), Vector3i(3, 4, 1), M.GLOW)
+	box(Vector3i(0, 4, 0), Vector3i(4, 5, 4), M.GLASS)
+	box(Vector3i(1, 5, 1), Vector3i(3, 6, 3), M.RUBBER) # Lid.
+
+
+## A grow bed with a crop of young shrooms coming up through the substrate, a few of them glowing.
+func grow_bed_shrooms(origin: Vector3i, facing: int, w := 30, d := 12) -> void:
+	grow_bed(origin, facing, w, d)
+	for x in range(2, w - 2, 3):
+		for z in range(2, d - 2, 3):
+			var at := Vector3i(x + rng.randi_range(0, 1), 3, z + rng.randi_range(0, 1))
+			if at.x >= w - 2 or at.z >= d - 2 or rng.randf() < 0.2:
+				continue
+			var stem := rng.randi_range(1, 3)
+			box(at, at + Vector3i(1, stem, 1), M.SHROOM_STEM)
+			var top := at + Vector3i(0, stem, 0)
+			if rng.randf() < 0.5:
+				box(top, top + Vector3i(2, 1, 2), M.SHROOM_CAP)
+			else:
+				box(top, top + Vector3i(1, 1, 1), M.SHROOM_CAP)
+			if rng.randf() < 0.3:
+				box(top + Vector3i(0, 1, 0), top + Vector3i(1, 2, 1), M.GLOW)
+			elif rng.randf() < 0.3:
+				box(top, top + Vector3i(1, 1, 1), M.SHROOM_SPOT)
+
+
+## Lab table with a microscope, flasks, beakers and a tube rack set out on it.
+func lab_table_gear(origin: Vector3i, facing: int, w := 16, d := 8) -> void:
+	table(origin, facing, w, d, M.PLASTIC)
+	box(Vector3i(1, 2, 1), Vector3i(w - 1, 3, d - 1), M.STEEL) # Lower shelf.
+	_beaker(Vector3i(2, 3, 2), M.LIQUID_BLUE)
+	_microscope(Vector3i(1, 7, 3))
+	_flask(Vector3i(5, 7, 1), SAMPLES[rng.randi() % SAMPLES.size()])
+	_tube_rack(Vector3i(9, 7, 1))
+	_beaker(Vector3i(9, 7, 5), SAMPLES[rng.randi() % SAMPLES.size()])
+	_beaker(Vector3i(12, 7, 4), SAMPLES[rng.randi() % SAMPLES.size()])
+	# A specimen jar (fluid to the glass, the shroom against the front).
+	box(Vector3i(5, 7, 4), Vector3i(9, 8, 8), M.STEEL)
+	box(Vector3i(5, 8, 4), Vector3i(9, 11, 8), M.LIQUID_GREEN)
+	box(Vector3i(6, 8, 4), Vector3i(7, 10, 5), M.SHROOM_STEM)
+	box(Vector3i(6, 10, 4), Vector3i(8, 11, 5), M.SHROOM_CAP)
+	box(Vector3i(7, 10, 4), Vector3i(8, 11, 5), M.GLOW)
+	box(Vector3i(5, 11, 4), Vector3i(9, 12, 8), M.GLASS)
+	box(Vector3i(6, 12, 5), Vector3i(8, 13, 7), M.RUBBER)
+
+
+## A pot of substrate with one shroom growing out of it.
+func shroom_pot(origin: Vector3i) -> void:
+	_begin(origin, 4, 4, NORTH)
+	box(Vector3i(0, 0, 0), Vector3i(4, 3, 4), M.CLAY)
+	box(Vector3i(1, 2, 1), Vector3i(3, 3, 3), M.SUBSTRATE)
+	box(Vector3i(1, 3, 1), Vector3i(2, 6, 2), M.SHROOM_STEM)
+	box(Vector3i(0, 6, 0), Vector3i(3, 7, 3), M.SHROOM_CAP)
+	box(Vector3i(1, 7, 1), Vector3i(2, 8, 2), M.SHROOM_CAP)
+	box(Vector3i(2, 6, 0), Vector3i(3, 7, 1), M.SHROOM_SPOT)
+	box(Vector3i(0, 5, 0), Vector3i(3, 6, 3), M.SHROOM_GILL)
+	box(Vector3i(1, 5, 1), Vector3i(2, 6, 2), M.SHROOM_STEM)
+
+
 # --- Parts placed in the current prop's frame ---------------------------------------------------
+
+## The walls of a glass box over [from, to) in the prop's frame: steel corner posts, a glass rim at
+## the bottom and top of each pane and two glints across it; the panes themselves are left open
+## (glass voxels draw opaque, and the point of a case is to see what's in it).
+func _glass_panes(from: Vector3i, to: Vector3i) -> void:
+	var w := to.x - from.x
+	var d := to.z - from.z
+	for y in [from.y, to.y - 1]:
+		box(Vector3i(from.x, y, from.z), Vector3i(to.x, y + 1, from.z + 1), M.GLASS)
+		box(Vector3i(from.x, y, to.z - 1), Vector3i(to.x, y + 1, to.z), M.GLASS)
+		box(Vector3i(from.x, y, from.z), Vector3i(from.x + 1, y + 1, to.z), M.GLASS)
+		box(Vector3i(to.x - 1, y, from.z), Vector3i(to.x, y + 1, to.z), M.GLASS)
+	for x in [from.x, to.x - 1]:
+		for z in [from.z, to.z - 1]:
+			box(Vector3i(x, from.y, z), Vector3i(x + 1, to.y, z + 1), M.STEEL)
+	var h := to.y - from.y
+	for i in 2:
+		var y := from.y + h - 3 - i
+		box(Vector3i(from.x + 2 + i, y, from.z), Vector3i(from.x + 3 + i, y + 1, from.z + 1), M.GLASS)
+		box(Vector3i(to.x - 3 - i, y - 4, to.z - 1), Vector3i(to.x - 2 - i, y - 3, to.z), M.GLASS)
+		box(Vector3i(from.x, y, from.z + 2 + i), Vector3i(from.x + 1, y + 1, from.z + 3 + i), M.GLASS)
+		box(Vector3i(to.x - 1, y - 4, to.z - 3 - i), Vector3i(to.x, y - 3, to.z - 2 - i), M.GLASS)
+
 
 func _legs(w: int, d: int, h: int) -> void:
 	for x in [0, w - 1]:
@@ -577,6 +726,13 @@ func _stock_shelf(at: Vector3i, width: int, stock: String) -> void:
 	while x < width - 1:
 		var p := at + Vector3i(x, 0, rng.randi_range(0, 1))
 		match stock:
+			"jars":
+				# Specimen jars: green fluid, a shroom speck, a rubber lid.
+				box(p, p + Vector3i(2, 3, 2), M.LIQUID_GREEN if rng.randf() < 0.7 else M.LIQUID_PINK)
+				box(p + Vector3i(rng.randi_range(0, 1), 1, 0), p + Vector3i(rng.randi_range(0, 1) + 1, 2, 1), M.SHROOM_CAP if rng.randf() < 0.6 else M.GLOW)
+				box(p + Vector3i(0, 3, 0), p + Vector3i(2, 4, 2), M.GLASS)
+				box(p + Vector3i(0, 4, 0), p + Vector3i(2, 5, 2), M.RUBBER)
+				x += 3
 			"lab":
 				if rng.randf() < 0.5:
 					_beaker(p, SAMPLES[rng.randi() % SAMPLES.size()])

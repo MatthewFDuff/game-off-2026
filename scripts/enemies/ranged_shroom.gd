@@ -194,12 +194,9 @@ func _spawn_spit(spit_id: int, from: Vector3, velocity: Vector3, host: bool) -> 
 	(shot.get_node("Mesh") as MeshInstance3D).visible = false
 	var blob := MeshInstance3D.new()
 	blob.name = "Blob"
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.09
-	sphere.height = 0.16
-	sphere.radial_segments = 8
-	sphere.rings = 4
-	blob.mesh = sphere
+	var cube := BoxMesh.new()
+	cube.size = Vector3.ONE * 0.15
+	blob.mesh = cube
 	if _blob_material == null:
 		_blob_material = StandardMaterial3D.new()
 		_blob_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -226,22 +223,13 @@ func _spit_ended(spit_id: int, at: Vector3, normal: Vector3) -> void:
 ## Every peer: a wet sound and, on a surface (normal not zero), a green splat that fades. Splats
 ## belong to the manager, so they outlive the shroom.
 func splat(at: Vector3, normal: Vector3) -> void:
-	Sfx.play_at("spit", at, -4.0, 0.1, 0.7)
+	play_sound("spit", at, -4.0, 0.1, 0.7)
 	if normal == Vector3.ZERO or manager == null:
 		return
 	var disc := MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
-	var radius := randf_range(0.2, 0.32)
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = 0.01
-	mesh.radial_segments = 10
-	mesh.rings = 1
-	disc.mesh = mesh
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = SPLAT_COLOR
+	# A ragged patch of voxel squares (VoxelFx.splat) that fades out as a pixel dither.
+	disc.mesh = VoxelFx.splat(randf_range(0.2, 0.32))
+	var material := VoxelFx.material(1.0, false, SPLAT_COLOR)
 	disc.material_override = material
 	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	manager.add_child(disc)
@@ -250,5 +238,6 @@ func splat(at: Vector3, normal: Vector3) -> void:
 	disc.global_position = at + up * 0.012
 	var tween := disc.create_tween()
 	tween.tween_interval(SPLAT_TIME - 1.5)
-	tween.tween_property(material, "albedo_color:a", 0.0, 1.5)
+	tween.tween_method(func(a: float) -> void: material.set_shader_parameter("tint", Color(SPLAT_COLOR, a)),
+			SPLAT_COLOR.a, 0.0, 1.5)
 	tween.tween_callback(disc.queue_free)

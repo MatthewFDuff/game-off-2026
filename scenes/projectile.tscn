@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/weapons/projectile.gd" id="1_projectile"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_shot"]
-size = Vector3(0.07, 0.07, 0.07)
+size = Vector3(0.1, 0.1, 0.1)
 
 [node name="Projectile" type="Node3D"]
 script = ExtResource("1_projectile")

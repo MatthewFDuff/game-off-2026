@@ -132,6 +132,8 @@ const ASSET_VALUES := {
 	"crate": 30, "barrel": 60, "trash_can": 20, "grow_bed": 800, "plank_stack": 25, "sandbags": 30,
 	"terminal": 2000, "cabinet": 300, "drawer_desk": 600, "medkit_station": 400, "ammo_bench": 800,
 	"generator": 20000, "glass_case": 150, "vent_grate": 20, "vent_duct": 80,
+	"specimen_case": 25000, "vial_cabinet": 1800, "specimen_jar": 350, "grow_bed_shrooms": 1400, "lab_table_gear": 3200,
+	"shroom_pot": 90,
 }
 
 

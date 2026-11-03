@@ -3,7 +3,7 @@ extends Enemy
 ## The ceiling poison cloud: a bulbous sac hanging from the ceiling. On its first host tick it
 ## climbs to the nearest ceiling voxel above where it spawned (spawners with `on_ceiling`, or any
 ## spawn point under a ceiling) and hangs there with no gravity. When a player passes within
-## TRIGGER_RANGE underneath it, or it takes any damage, it drops: a poison Cloud on the floor below
+## TRIGGER_RANGE underneath it (and in its sight, Combat.can_see), or it takes any damage, it drops: a poison Cloud on the floor below
 ## and a wet `burst`. If the voxel it hangs from is carved away it falls and bursts where it lands.
 ## Counterplay: shoot it from far off, so the cloud forms away from you.
 
@@ -42,12 +42,20 @@ func _init() -> void:
 func _physics_process(delta: float) -> void:
 	if not alive or manager == null or not manager.simulating:
 		return
+	if not _placed:
+		_placed = true
+		# Emerging (a ceiling spawner): hang where it would, then drop in out of the ceiling to there.
+		if emerging > 0.0:
+			global_position = _emerge_goal
+		attach()
+		if emerging > 0.0:
+			_emerge_goal = global_position
+			global_position = _emerge_goal - Vector3.UP * EMERGE_DEPTH * emerge_from
+	if _emerge_tick(delta):
+		return
 	_tick_statuses(delta)
 	if not alive:
 		return
-	if not _placed:
-		_placed = true
-		attach()
 	if _dropping:
 		manager.kill(id)
 		return
@@ -91,7 +99,8 @@ func attach() -> bool:
 func _player_below() -> bool:
 	for player in manager.targets():
 		var offset: Vector3 = player.global_position - global_position
-		if offset.y < 0.0 and offset.y > -TRIGGER_DEPTH and Vector2(offset.x, offset.z).length() < TRIGGER_RANGE:
+		if offset.y < 0.0 and offset.y > -TRIGGER_DEPTH and Vector2(offset.x, offset.z).length() < TRIGGER_RANGE \
+				and Combat.sees_player(world, get_center(), player):
 			return true
 	return false
 

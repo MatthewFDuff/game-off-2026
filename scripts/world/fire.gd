@@ -452,30 +452,21 @@ func _whoosh(at: Vector3, radius: float) -> void:
 	var tween := flash.create_tween()
 	tween.tween_property(flash, "light_energy", 0.0, 0.6)
 	tween.tween_callback(flash.queue_free)
+	VoxelFx.blast(self, at, radius, Color(1.0, 0.45, 0.12))
 
 
 # --- Looks (every peer) --------------------------------------------------------------------------
 
 func _build_fx() -> void:
-	var puff := BoxMesh.new()
-	puff.size = Vector3.ONE * 0.09
-	var puff_material := StandardMaterial3D.new()
-	puff_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	puff_material.vertex_color_use_as_albedo = true
-	puff_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	puff.material = puff_material
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.8, 0.3, 0.9))
-	ramp.add_point(0.5, Color(1.0, 0.35, 0.08, 0.7))
-	ramp.set_color(2, Color(0.15, 0.12, 0.1, 0.0))
+	# Voxel flames: 0.1 m cubes (one terrain voxel) rising in grid steps, white-hot -> orange ->
+	# red -> a dithered wisp of smoke, shrinking out a step at a time.
+	var steps := [Color(1.0, 0.92, 0.5), Color(1.0, 0.6, 0.12), Color(0.85, 0.25, 0.06), Color(0.15, 0.12, 0.1, 0.5)]
 	for i in FX_EMITTERS:
-		var flames := CPUParticles3D.new()
+		var flames := VoxelFx.particles(0.1, steps, 0.5)
 		flames.name = "Flames%d" % i
 		flames.top_level = true
-		flames.emitting = false
 		flames.amount = 18
 		flames.lifetime = 0.9
-		flames.mesh = puff
 		flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 		flames.emission_box_extents = Vector3.ONE * CELL * 0.5 * world.voxel_size
 		flames.direction = Vector3.UP
@@ -483,9 +474,6 @@ func _build_fx() -> void:
 		flames.gravity = Vector3(0.0, 2.0, 0.0)
 		flames.initial_velocity_min = 0.3
 		flames.initial_velocity_max = 0.9
-		flames.scale_amount_min = 0.6
-		flames.scale_amount_max = 1.6
-		flames.color_ramp = ramp
 		add_child(flames)
 		_emitters.append(flames)
 	for i in FX_LIGHTS:

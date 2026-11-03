@@ -22,10 +22,11 @@ const STATUS_VIGNETTES := {burning = Color(1.0, 0.45, 0.1), poisoned = Color(0.3
 var lab: Lab
 
 var _flash := ColorRect.new()
+var _flash_material := VoxelFx.overlay(0.35, 4.0, 3.0)
 var _bar_back := ColorRect.new()
 var _bar_fill := ColorRect.new()
 var _bar_label := Label.new()
-var _hit_marker := Label.new()
+var _hit_marker := PixelMark.create("x")
 var _hit_time := 0.0
 var _flash_time := 0.0
 var _last_health := -1.0
@@ -40,7 +41,9 @@ var _last_ammo := ""
 var _flask_box := VBoxContainer.new()
 var _flask_name := Label.new()
 var _flask_count := Label.new()
-var _vignette := TextureRect.new()
+var _vignette := ColorRect.new()
+var _vignette_material := VoxelFx.overlay(0.5, 6.0, 4.0)
+var _blind_material := VoxelFx.overlay(-1.0, 3.0, 4.0)
 var _finale_label := Label.new()
 var _banner := Label.new()
 var _banner_time := 0.0
@@ -56,26 +59,18 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var vignette := GradientTexture2D.new()
-	vignette.fill = GradientTexture2D.FILL_RADIAL
-	vignette.fill_from = Vector2(0.5, 0.5)
-	vignette.fill_to = Vector2(1.0, 0.5)
-	vignette.width = 256
-	vignette.height = 256
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 1.0, 1.0, 0.0))
-	ramp.set_color(1, Color(1.0, 1.0, 1.0, 0.85))
-	ramp.add_point(0.55, Color(1.0, 1.0, 1.0, 0.0))
-	vignette.gradient = ramp
-	_vignette.texture = vignette
-	_vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	# Status vignette and damage flash: pixel overlays (VoxelFx.overlay), blocky dithered rings and
+	# an even dither, never a smooth gradient.
+	_vignette.color = Color.WHITE
+	_vignette.material = _vignette_material
 	_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_vignette.visible = false
 	add_child(_vignette)
 
-	_flash.color = Color(0.8, 0.0, 0.0, 0.0)
+	_flash.color = Color(0.8, 0.0, 0.0, 1.0)
+	_flash.material = _flash_material
+	_flash.visible = false
 	_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_flash)
@@ -95,13 +90,6 @@ func _ready() -> void:
 	_bar_label.position = Vector2(BAR_SIZE.x + 8, -5)
 	_bar_back.add_child(_bar_label)
 
-	_hit_marker.text = "x"
-	_hit_marker.label_settings = LabHud._settings(26, Color(1.0, 1.0, 1.0), 4)
-	_hit_marker.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_hit_marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_hit_marker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_hit_marker.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_hit_marker.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_hit_marker.visible = false
 	add_child(_hit_marker)
 
@@ -128,11 +116,13 @@ func _process(delta: float) -> void:
 	# The health bar belongs to combat: nothing to show before the spore shooter is in hand.
 	_bar_back.visible = me.has_weapon
 	var fraction := clampf(me.health / maxf(me.max_health, 1.0), 0.0, 1.0)
-	_bar_fill.size.x = (BAR_SIZE.x - 4) * fraction
+	# In 4 px steps, so the bar drops in hard blocks.
+	_bar_fill.size.x = floorf((BAR_SIZE.x - 4) * fraction / 4.0) * 4.0
 	_bar_label.text = "%d" % ceili(me.health)
 
 	_flash_time = maxf(0.0, _flash_time - delta)
-	_flash.color.a = 0.35 * _flash_time / DAMAGE_FLASH_TIME
+	_flash.visible = _flash_time > 0.0
+	_flash_material.set_shader_parameter("amount", ceilf(4.0 * _flash_time / DAMAGE_FLASH_TIME) / 4.0 * 0.5)
 	_hit_time = maxf(0.0, _hit_time - delta)
 	_hit_marker.visible = _hit_time > 0.0
 	_update_ammo(me, delta)
@@ -230,13 +220,25 @@ func _update_flask(me: Player) -> void:
 
 ## A pulsing edge glow in the color of the strongest status on the player.
 func _update_vignette(me: Player) -> void:
+	_pixel_blind(me)
 	_vignette.visible = false
 	for status: String in STATUS_VIGNETTES:
 		if me.statuses.has(status):
+			# The pulse moves the rings in a block at a time.
 			var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.006)
-			_vignette.modulate = Color(STATUS_VIGNETTES[status], 0.8 * pulse)
+			_vignette.modulate = Color(STATUS_VIGNETTES[status], 1.0)
+			_vignette_material.set_shader_parameter("amount", ceilf(pulse * 4.0) / 4.0 * 0.65)
+			_vignette_material.set_shader_parameter("inner", 0.5 - 0.1 * ceilf(pulse * 4.0) / 4.0)
 			_vignette.visible = true
 			return
+
+
+## The blinded fog (Player's own fullscreen overlay) drawn as a dither of pixel blocks.
+func _pixel_blind(me: Player) -> void:
+	var fog := me.get_node_or_null("BlindLayer/BlindOverlay") as CanvasItem
+	if fog and fog.material != _blind_material:
+		fog.material = _blind_material
+		PixelFont.nearest(fog)
 
 
 func _build_finale() -> void:

@@ -43,6 +43,8 @@ var markers := []
 var fills := []
 var spheres := []
 var ladders := []
+## Boxes (AABB, voxels) no prop may stand in besides the doorways: stairs, ladder runs, the lift hatch.
+var keep_clear: Array[AABB] = []
 var _order := 0
 var _mats := {floor = M.CONCRETE, wall = M.WALL_PAINT, ceiling = M.CONCRETE}
 var _rng := RandomNumberGenerator.new()
@@ -208,12 +210,16 @@ func stair(id: String, name: String, c: int, r0: int, r1: int, y_low: int, y_hig
 	r.top_center = zs + dir * (LANDING / 2)
 	r.bottom_center = zs + dir * ((bottom_start + (r.to.z - r.from.z)) / 2)
 	r.y_high = y_high
+	keep_clear.append(AABB(Vector3(r.from), Vector3(r.to - r.from)))
 	return r
 
 
 ## A ladder strip up a room's wall (side), centered at `along` on that wall, from y_from to y_to.
 func ladder(room_id: String, side: String, along: int, y_from: int, y_to: int) -> void:
 	ladders.append({room = room_id, side = side, along = along, y_from = y_from, y_to = y_to})
+	var r: Dictionary = rooms[room_id]
+	var x: int = r.to.x - 1 if side == "e" else r.from.x
+	keep_clear.append(AABB(Vector3(x - 10, y_from, along - 14), Vector3(21, y_to - y_from + 12, 28)))
 
 
 func _mats_for(floor: int, wall: int, ceiling := M.CONCRETE) -> void:
@@ -296,6 +302,7 @@ func _floor_0() -> void:
 	fill(Vector3i(hc.x - 6, roof_y, hc.z - 6), Vector3i(hc.x + 6, roof_y + 4, hc.z + 6), M.AIR)
 	fill(Vector3i(shaft.from.x, roof_y, shaft.from.z), Vector3i(shaft.to.x, roof_y + 1, shaft.to.z), M.HAZARD_STRIPES)
 	fill(Vector3i(hc.x - 6, roof_y, hc.z - 6), Vector3i(hc.x + 6, roof_y + 1, hc.z + 6), M.AIR)
+	keep_clear.append(AABB(Vector3(hc.x - 16, roof_y, hc.z - 16), Vector3(32, y + H - roof_y, 32)))
 
 	# Dressing.
 	prop("stair_lobby_0", "bench", 0.5, 0.05, P.SOUTH)
@@ -348,15 +355,26 @@ func _floor_0() -> void:
 	prop("cubby", "barrel", 0.1, 0.8)
 	item("cubby", 0.5, 0.6, "flask_fire")
 	wall_prop("cubby", "corkboard_small", "e", 0.5, 12, {use = "note", text = "Night 14. Gave the grow 0 one some of my coffee. It glowed brighter. Don't tell Fung.\n- Jan (janitor)"})
-	prop("training", "whiteboard", 0.5, 0.02, P.SOUTH)
+	wall_prop("training", "whiteboard", "n", 0.5, 14)
 	for i in 4:
 		prop("training", "chair", 0.2 + 0.2 * i, 0.3, P.NORTH)
 		prop("training", "chair", 0.2 + 0.2 * i, 0.5, P.NORTH)
 	prop("training", "terminal", 0.9, 0.85, P.WEST, {id = "term_training", on_use = "t_0_outbreak", text = StoryLines.EXPERIMENT_HEADER, steps = StoryLines.steps_text()})
-	prop("training", "spore_tank", 0.78, 0.9)
-	prop("grow_0", "grow_bed", 0.1, 0.2, P.NORTH)
-	prop("grow_0", "grow_bed", 0.1, 0.7, P.NORTH)
-	prop("grow_0", "shelf_lab_a", 0.9, 0.3, P.WEST)
+	# The specimen: the case the experiment shocks (scripts/story/experiment.gd looks it up by id).
+	prop("training", "specimen_case", 0.79, 0.9, P.NORTH, {id = "specimen"})
+	prop("training", "lab_table_gear", 0.05, 0.92, P.NORTH)
+	prop("training", "lab_table_gear", 0.25, 0.92, P.NORTH)
+	prop("training", "vial_cabinet", 0.0, 0.35, P.EAST)
+	prop("training", "shelf_lab_jars", 1.0, 0.3, P.WEST)
+	prop("training", "table_small", 0.62, 0.95, P.NORTH, {id = "jar_table_training"})
+	prop("training", "specimen_jar", 0.1, 0.3, P.NORTH, {on = "jar_table_training"})
+	prop("training", "specimen_jar", 0.9, 0.6, P.NORTH, {on = "jar_table_training"})
+	prop("grow_0", "grow_bed_shrooms_a", 0.15, 0.25, P.NORTH)
+	prop("grow_0", "grow_bed_shrooms_b", 0.15, 0.8, P.NORTH)
+	prop("grow_0", "grow_bed_shrooms_a", 0.55, 0.8, P.NORTH)
+	prop("grow_0", "shelf_lab_jars", 0.9, 0.3, P.WEST)
+	prop("grow_0", "shroom_pot", 0.85, 0.05)
+	prop("grow_0", "shroom_pot", 0.9, 0.05)
 	prop("grow_0", "glass_case", 0.9, 0.7, P.WEST, {id = "case_grow0", contents = "spore_shooter,ammo_shotgun,flask_fire"})
 	prop("grow_0", "spore_tank", 0.6, 0.1)
 	prop("closet_0", "shelf_storage_a", 0.5, 0.05, P.SOUTH)
@@ -437,8 +455,8 @@ func _floor_m1() -> void:
 	prop("substrate_store", "crate_7", 0.8, 0.85)
 	prop("substrate_store", "shelf_storage_b", 0.5, 0.95, P.NORTH)
 	for i in 3:
-		prop("grow_hall_1", "grow_bed", 0.1, 0.12 + 0.3 * i, P.NORTH)
-		prop("grow_hall_1", "grow_bed", 0.55, 0.12 + 0.3 * i, P.NORTH)
+		prop("grow_hall_1", "grow_bed" if i == 1 else "grow_bed_shrooms_a", 0.1, 0.12 + 0.3 * i, P.NORTH)
+		prop("grow_hall_1", "grow_bed_shrooms_b", 0.55, 0.12 + 0.3 * i, P.NORTH)
 	prop("grow_hall_1", "spore_tank", 0.95, 0.1)
 	prop("grow_hall_1", "spore_tank", 0.95, 0.5)
 	prop("grow_hall_1", "spore_tank", 0.95, 0.9)
@@ -450,6 +468,11 @@ func _floor_m1() -> void:
 	prop("wet_lab", "counter_sink", 0.5, 0.95, P.NORTH)
 	prop("wet_lab", "glass_case", 0.9, 0.85, P.WEST, {contents = "ammo_shotgun"})
 	prop("wet_lab", "glass_case", 0.75, 0.95, P.NORTH, {contents = "ammo_shotgun,ammo_poison"})
+	prop("wet_lab", "vial_cabinet", 0.75, 0.0, P.SOUTH)
+	prop("wet_lab", "lab_table_gear", 0.5, 0.45, P.NORTH)
+	prop("wet_lab", "table_small", 0.3, 0.7, P.NORTH, {id = "jar_table_wet"})
+	prop("wet_lab", "specimen_jar", 0.1, 0.4, P.NORTH, {on = "jar_table_wet"})
+	prop("wet_lab", "shroom_pot", 0.85, 0.6, P.NORTH, {on = "jar_table_wet"})
 	prop("wet_lab", "terminal", 0.3, 0.95, P.NORTH, {text = "GROWTH LOG, week 31\n\nPulse period: 4.1 s -> 2.3 s -> 0.9 s. Beds 1 to 8 now pulse together. Treating as a carrier. Bed 3 answered a tap on the glass with the same tap.\n\nRecommend: more beds."})
 	prop("cold_store", "fridge", 0.1, 0.1, P.SOUTH, {contents = "medkit"})
 	prop("cold_store", "fridge", 0.3, 0.1, P.SOUTH, {contents = "flask_freeze"})
@@ -457,8 +480,12 @@ func _floor_m1() -> void:
 	prop("cold_store", "shelf_lab_b", 0.9, 0.6, P.WEST)
 	for i in 3:
 		prop("incubation", "shelf_lab_a", 0.05 + 0.3 * i, 0.05, P.SOUTH)
-		prop("incubation", "shelf_lab_b", 0.05 + 0.3 * i, 0.95, P.NORTH)
+		prop("incubation", "shelf_lab_jars" if i == 1 else "shelf_lab_b", 0.05 + 0.3 * i, 0.95, P.NORTH)
 		prop("incubation", "spore_tank", 0.15 + 0.3 * i, 0.5)
+	prop("incubation", "vial_cabinet", 0.98, 0.15, P.WEST)
+	prop("incubation", "shroom_pot", 0.3, 0.3)
+	prop("incubation", "shroom_pot", 0.33, 0.3)
+	prop("incubation", "shroom_pot", 0.6, 0.7)
 	prop("incubation", "terminal", 0.95, 0.5, P.WEST, {text = "INCUBATION NOTICE\nThe puffballs vent when disturbed. The spores are harmless. Just blinding. Wear the goggles. Where are the goggles."})
 	wall_prop("secret_1b", "corkboard_small", "s", 0.5, 12, {use = "note", text = "They talk at 0.9 seconds. I counted. I tapped back. Bed 3 knows my name.\n- R."})
 	prop("clean_room", "locker", 0.05, 0.1, P.SOUTH)
@@ -468,8 +495,8 @@ func _floor_m1() -> void:
 	prop("bathroom_m1", "counter_sink", 0.1, 0.1, P.SOUTH)
 	prop("bathroom_m1", "trash_can", 0.9, 0.9)
 	for i in 3:
-		prop("grow_hall_2", "grow_bed", 0.1, 0.1 + 0.3 * i, P.NORTH)
-		prop("grow_hall_2", "grow_bed", 0.55, 0.1 + 0.3 * i, P.NORTH)
+		prop("grow_hall_2", "grow_bed_shrooms_b", 0.1, 0.1 + 0.3 * i, P.NORTH)
+		prop("grow_hall_2", "grow_bed" if i == 2 else "grow_bed_shrooms_a", 0.55, 0.1 + 0.3 * i, P.NORTH)
 	wall_prop("grow_hall_2", "vent_grate", "e", 0.8, 22)
 	prop("mycology", "desk", 0.5, 0.15, P.SOUTH)
 	prop("mycology", "chair", 0.5, 0.0, P.SOUTH)
@@ -477,7 +504,7 @@ func _floor_m1() -> void:
 	item("mycology", 0.5, 0.4, "keycard_green")
 	wall_prop("mycology", "corkboard_c", "e", 0.5, 14)
 	prop("clone_bay_m1", "ammo_bench", 0.05, 0.1, P.SOUTH, {charges = 2})
-	wall_prop("clone_bay_m1", "medkit_station", "n", 0.7, 10, {charges = 3})
+	wall_prop("clone_bay_m1", "medkit_station", "n", 0.7, 0, {charges = 3})
 	vat("vat_m1", "clone_bay_m1", 0.5, 0.75, 0.0)
 	prop("clone_bay_m1", "spore_tank", 0.85, 0.85)
 
@@ -532,7 +559,7 @@ func _floor_m2() -> void:
 	door("bullpen", "airlock", "door_security", {id = "d_m2_airlock_out", key = "red"})
 	door("airlock", "stair_m2_m3", "door_security", {id = "d_m2_airlock_in", locked = true, center = rooms.stair_m2_m3.top_center, y = y})
 
-	wall_prop("stair_lobby_m2", "corkboard_a", "n", 0.5, 14, {use = "note", text = "LEVEL -2: COMPUTE\nRack map: rows 1-11 silicon. Rows 12-40 HYBRID (Substrate Array B). Do not water the racks."})
+	wall_prop("stair_lobby_m2", "corkboard_a", "s", 0.5, 14, {use = "note", text = "LEVEL -2: COMPUTE\nRack map: rows 1-11 silicon. Rows 12-40 HYBRID (Substrate Array B). Do not water the racks."})
 	prop("stair_lobby_m2", "bench", 0.5, 0.95, P.NORTH)
 	prop("network_closet", "cabinet", 0.5, 0.05, P.SOUTH, {contents = "ammo_ricochet"})
 	wall_prop("network_closet", "vent_grate", "e", 0.5, 20)
@@ -562,6 +589,8 @@ func _floor_m2() -> void:
 	prop("inference_lab", "spore_tank", 0.5, 0.9)
 	prop("inference_lab", "shelf_storage_a", 0.05, 0.1, P.SOUTH)
 	prop("inference_lab", "shelf_storage_a", 0.95, 0.1, P.SOUTH)
+	prop("inference_lab", "lab_table_gear", 0.15, 0.85, P.NORTH)
+	prop("inference_lab", "vial_cabinet", 0.85, 0.98, P.NORTH)
 	wall_prop("inference_lab", "whiteboard", "s", 0.5, 14, {use = "note", text = "Q: what happens to the model if the substrate is already thinking?\nA: (nobody wrote an answer)"})
 	prop("electrical", "cabinet", 0.1, 0.05, P.SOUTH)
 	prop("electrical", "cabinet", 0.25, 0.05, P.SOUTH)
@@ -585,7 +614,7 @@ func _floor_m2() -> void:
 	prop("bullpen", "couch", 0.1, 0.85, P.NORTH)
 	prop("bullpen", "drawer_desk", 0.5, 0.85, P.NORTH, {contents = "medkit"})
 	wall_prop("bullpen", "whiteboard", "n", 0.5, 14, {use = "note", text = "ON CALL: nobody. Fung says the model will handle it."})
-	wall_prop("bullpen", "medkit_station", "e", 0.5, 10, {charges = 3})
+	wall_prop("bullpen", "medkit_station", "e", 0.5, 0, {charges = 3})
 	wall_prop("bullpen", "vent_grate", "s", 0.9, 22)
 	vat("vat_m2", "bullpen", 0.85, 0.6, 180.0)
 	prop("break_room_2", "fridge", 0.1, 0.1, P.SOUTH, {contents = "medkit"})
@@ -663,8 +692,8 @@ func _floor_m3() -> void:
 	prop("decon", "locker", 0.05, 0.1, P.SOUTH, {contents = "medkit"})
 	prop("decon", "locker", 0.17, 0.1, P.SOUTH)
 	prop("decon", "locker", 0.29, 0.1, P.SOUTH)
-	prop("decon", "counter_sink", 0.8, 0.1, P.SOUTH)
-	prop("decon", "bench", 0.5, 0.9, P.NORTH)
+	prop("decon", "counter_sink", 0.5, 1.0, P.NORTH)
+	prop("decon", "bench", 0.0, 0.6, P.EAST)
 	wall_prop("decon", "corkboard_a", "w", 0.5, 14, {use = "note", text = "LEVEL -3: CONTAINMENT\nShower in. Shower out. Specimens do not leave this level. (They did.)"})
 	prop("gallery", "terminal", 0.95, 0.15, P.WEST, {text = "CHAMBER 1: subject expired week 9 (dried out). Glass cracked during removal. Not replaced."})
 	prop("gallery", "terminal", 0.95, 0.5, P.WEST, {text = "CHAMBER 2: 'tentacle' morphology. Rooted. Reach 4 m. Grabs. Do not approach alone."})
@@ -677,7 +706,10 @@ func _floor_m3() -> void:
 	prop("sample_room", "glass_case", 0.9, 0.5, P.WEST, {contents = "flask_rage"})
 	prop("sample_room", "terminal", 0.1, 0.5, P.EAST, {text = "SURVEY NOTE, core sample 1\n\nFound at 40 m, glowing. Do not touch with bare hands. (Touched with bare hands.) Warm. Pulses when you talk to it.\n- survey team, year 1"})
 	prop("tc2", "lab_bench_c", 0.5, 0.95, P.NORTH)
-	prop("dissection", "lab_bench_a", 0.1, 0.15, P.SOUTH)
+	prop("dissection", "lab_bench_a", 0.1, 0.15, P.SOUTH, {id = "bench_dissection"})
+	prop("dissection", "specimen_jar", 0.85, 0.5, P.SOUTH, {on = "bench_dissection"})
+	prop("dissection", "vial_cabinet", 0.0, 0.75, P.EAST)
+	prop("dissection", "lab_table_gear", 0.5, 0.75, P.NORTH)
 	prop("dissection", "lab_bench_b", 0.1, 0.5, P.NORTH)
 	prop("dissection", "fume_hood", 0.9, 0.2, P.WEST)
 	prop("dissection", "spore_tank", 0.9, 0.6)
@@ -699,7 +731,7 @@ func _floor_m3() -> void:
 	prop("hazmat", "shelf_storage_b", 0.3, 0.05, P.SOUTH)
 	prop("hazmat", "barrel_hazard", 0.9, 0.1)
 	prop("hazmat", "ammo_bench", 0.9, 0.5, P.WEST, {charges = 3})
-	wall_prop("hazmat", "medkit_station", "w", 0.5, 10, {charges = 3})
+	wall_prop("hazmat", "medkit_station", "w", 0.5, 0, {charges = 3})
 	vat("vat_m3", "hazmat", 0.5, 0.8, 0.0)
 	prop("tc3", "spore_tank", 0.1, 0.1)
 	prop("tc3", "spore_tank", 0.9, 0.1)
@@ -817,11 +849,14 @@ func _floor_dig() -> void:
 	prop("pump_room", "terminal", 0.5, 0.95, P.NORTH, {text = "WATER TABLE LOG\nWeek 1: clear. Week 20: faint glow under UV. Week 31: the glow is in the water now. Pumps running. Where does it go? (It goes to the cooling plant.)"})
 	item("pump_room", 0.7, 0.3, "ammo_poison")
 	item("pump_room", 0.3, 0.3, "medkit")
-	prop("core_lab", "lab_bench_a", 0.1, 0.1, P.SOUTH)
+	prop("core_lab", "lab_bench_a", 0.1, 0.1, P.SOUTH, {id = "bench_core"})
+	prop("core_lab", "specimen_jar", 0.9, 0.5, P.SOUTH, {on = "bench_core"})
+	prop("core_lab", "vial_cabinet", 0.0, 0.85, P.EAST)
+	prop("core_lab", "shroom_pot", 0.1, 0.95)
 	prop("core_lab", "glass_case", 0.9, 0.2, P.WEST, {contents = "ammo_flame,ammo_explosive"})
 	prop("core_lab", "glass_case", 0.9, 0.6, P.WEST, {contents = "ammo_flame,ammo_explosive"})
 	wall_prop("core_lab", "corkboard_a", "s", 0.5, 14, {use = "note", text = "SURVEY MAP: the cavern is west. The colony's center is the mass in the middle. The ledge along the east wall is clear of growth. The generator hall is east of the cavern's south end."})
-	wall_prop("core_lab", "medkit_station", "n", 0.8, 10, {charges = 4})
+	wall_prop("core_lab", "medkit_station", "n", 0.8, 0, {charges = 4})
 	vat("vat_m4", "core_lab", 0.5, 0.6, 90.0)
 	prop("survey_tunnel", "bench", 0.2, 0.5, P.NORTH)
 	prop("survey_tunnel", "crate_5", 0.8, 0.2)
@@ -836,7 +871,7 @@ func _floor_dig() -> void:
 	prop("generator_hall", "cabinet", 0.05, 0.05, P.SOUTH)
 	prop("generator_hall", "cabinet", 0.15, 0.05, P.SOUTH)
 	prop("generator_hall", "ammo_bench", 0.92, 0.1, P.WEST, {charges = 4})
-	wall_prop("generator_hall", "medkit_station", "e", 0.9, 10, {charges = 4})
+	wall_prop("generator_hall", "medkit_station", "e", 0.9, 0, {charges = 4})
 	prop("generator_hall", "crate_8", 0.05, 0.9)
 	prop("generator_hall", "crate_6", 0.14, 0.9)
 	prop("generator_hall", "barrel", 0.95, 0.9)

@@ -30,4 +30,4 @@ func _process(delta: float) -> void:
 	_chitter_time = randf_range(1.5, 4.0)
 	var nearest := manager.nearest_player_distance(global_position)
 	if nearest < CHITTER_RANGE:
-		Sfx.play_at("shroom_chitter", get_center(), -10.0 + 6.0 * (1.0 - nearest / CHITTER_RANGE), 0.15)
+		play_sound("shroom_chitter", get_center(), -10.0 + 6.0 * (1.0 - nearest / CHITTER_RANGE), 0.15)

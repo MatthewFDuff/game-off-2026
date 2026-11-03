@@ -139,15 +139,11 @@ func _make_rain() -> GPUParticles3D:
 	material.initial_velocity_min = 7.0
 	material.initial_velocity_max = 9.0
 	material.gravity = Vector3(0.0, -3.0, 0.0)
-	material.scale_min = 0.6
-	material.scale_max = 1.0
 	rain.process_material = material
+	# Drops are voxel streaks (VoxelFx: one 0.05 m cube wide, snapped to the effect grid), thinned
+	# by dither rather than blended.
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.015, 0.35, 0.015)
-	var look := StandardMaterial3D.new()
-	look.albedo_color = Color(0.7, 0.8, 0.9, 0.45)
-	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	look.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mesh.material = look
+	mesh.size = Vector3(0.05, 0.3, 0.05)
+	mesh.material = VoxelFx.material(0.05, true, Color(0.7, 0.8, 0.9, 0.45))
 	rain.draw_pass_1 = mesh
 	return rain

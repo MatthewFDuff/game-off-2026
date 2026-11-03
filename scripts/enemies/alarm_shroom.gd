@@ -1,7 +1,7 @@
 class_name AlarmShroom
 extends Enemy
 ## The alarm shroom: a tall stem with a trumpet for a cap, rooted to the spot. It never chases or
-## bites. Every LOOK_INTERVAL the host checks for a line of sight (world.raycast, voxels only) from
+## bites. Every LOOK_INTERVAL the host checks for a line of sight (Combat.can_see: voxels, glass is clear) from
 ## its trumpet to each living player within SIGHT_RANGE; on seeing one it winds up a scream
 ## (WINDUP seconds, pulsing red), then calls a horde (HordeDirector.start_horde) and tells everyone.
 ## Hitting it during the wind-up chokes the scream off. After a scream it rests COOLDOWN seconds.
@@ -66,7 +66,7 @@ func _think(_delta: float) -> Dictionary:
 
 func _physics_process(delta: float) -> void:
 	super(delta)
-	if not alive or manager == null or not manager.simulating:
+	if not alive or manager == null or not manager.simulating or emerging > 0.0:
 		return
 	if scream >= 0.0:
 		scream -= delta
@@ -96,8 +96,7 @@ func sees_player() -> bool:
 		var distance := to.length()
 		if distance > SIGHT_RANGE or distance < 0.01:
 			continue
-		var hit: Dictionary = world.raycast(mouth, to / distance, distance)
-		if not hit.hit:
+		if Combat.can_see(world, mouth, eye):
 			return true
 	return false
 
@@ -137,13 +136,13 @@ func show_scream(state: Scream) -> void:
 	match state:
 		Scream.WINDING_UP:
 			_pulse = WINDUP
-			Sfx.play_at("shroom_scream", get_center() + Vector3.UP * bounds.size.y * 0.4, 4.0, 0.05)
+			play_sound("shroom_scream", get_center() + Vector3.UP * bounds.size.y * 0.4, 4.0, 0.05)
 		Scream.SCREAMED:
 			_pulse = 0.0
 			Sfx.play_at("alarm", get_center(), 2.0, 0.05, 0.8)
 		_:
 			_pulse = 0.0
-			Sfx.play_at("shroom_hit", get_center(), 0.0, 0.1, 0.6)
+			play_sound("shroom_hit", get_center(), 0.0, 0.1, 0.6)
 	if _pulse <= 0.0 and _mesh:
 		_mesh.material_overlay = tint_material()
 

@@ -18,8 +18,20 @@ extends Node3D
 ##   raging    goes for the nearest other enemy instead of players (its normal attack, through
 ##             EnemyManager.damage), RAGE_SPEED x speed, red tint
 ## The host tells every peer the active set (EnemyManager.statuses_changed), so all of them tint it.
+##
+## Sight: melee only starts and lands with a clear line (Combat.can_see) from its eye_point to the
+## target's chest, so nothing bites through a thin wall, and burning only spreads to enemies in
+## sight. Its sounds are quieter on a peer whose camera can't see it (play_sound).
+##
+## Emerging: spawner enemies (EnemyManager.spawn with emerge) rise EMERGE_DEPTH out of the floor
+## over EMERGE_TIME (from the ceiling: drop down out of it) before they act. The host moves it (the
+## position stream shows it to peers); every peer counts `emerging` down, and while it's above zero
+## the enemy can't be hit (Combat.enemies skips it), take statuses or attack.
 
 const GROUP := "enemies"
+## Seconds a spawned enemy takes to emerge, and how far below (or above) its spot it starts.
+const EMERGE_TIME := 0.8
+const EMERGE_DEPTH := 0.6
 ## Peers draw enemies this far in the past, so there's always a newer state to blend toward.
 const REMOTE_DELAY := 0.15
 ## Below this height (meters) an enemy has fallen out of the level and is removed.
@@ -101,6 +113,12 @@ var statuses := {}
 var shown_statuses := PackedStringArray()
 ## The model's box in local space.
 var bounds := AABB(Vector3(-0.35, 0.0, -0.35), Vector3(0.7, 1.2, 0.7))
+## Every peer: seconds of emerging left (0: done). See the top.
+var emerging := 0.0
+## 1: rising out of the floor, -1: dropping out of the ceiling, 0: not emerging.
+var emerge_from := 0
+## Host: where it ends up when it has emerged.
+var _emerge_goal := Vector3.ZERO
 
 var _visual: Node3D
 var _mesh: MeshInstance3D
@@ -176,6 +194,51 @@ func _setup_hit_zones(_model: Dictionary) -> void:
 ## Center of the body, for distances and effects.
 func get_center() -> Vector3:
 	return global_position + Vector3.UP * bounds.size.y * 0.5
+
+
+## Where it looks from (sight checks): 70% of its height, at most 1.5 m above its feet.
+func eye_point() -> Vector3:
+	return global_position + Vector3.UP * clampf(bounds.size.y * 0.7, 0.3, 1.5)
+
+
+## Host: whether it has a clear line from its eye to a player's chest (Combat.can_see).
+func sees(player: Player) -> bool:
+	return Combat.sees_player(world, eye_point(), player)
+
+
+## Every peer: plays a sound of this enemy at a point, quieter (Combat.MUFFLED_DB) when this
+## peer's camera can't see the point (through a floor or a wall).
+func play_sound(sound: String, at: Vector3, volume_db := 0.0, pitch_jitter := 0.08, pitch := 1.0) -> void:
+	Sfx.play_at(sound, at, volume_db + Combat.muffle_db(world, at), pitch_jitter, pitch)
+
+
+## Every peer, right after it's created: starts emerging (from: 1 the floor, -1 the ceiling) toward
+## where it stands now. The host moves it; the wet `emerge` plays everywhere.
+func begin_emerge(from: int) -> void:
+	if from == 0:
+		return
+	emerge_from = signi(from)
+	emerging = EMERGE_TIME
+	_emerge_goal = global_position
+	global_position = _emerge_goal - Vector3.UP * EMERGE_DEPTH * emerge_from
+	_last_position = global_position
+	play_sound("emerge", _emerge_goal + Vector3.UP * 0.3 * emerge_from, 0.0, 0.12)
+
+
+## Host: moves it on toward its emerge goal; true while it's still emerging.
+func _emerge_tick(delta: float) -> bool:
+	if emerging <= 0.0:
+		return false
+	emerging = maxf(emerging - delta, 0.0)
+	var left := emerging / EMERGE_TIME
+	# Fast out of the ground, easing into place.
+	global_position = _emerge_goal - Vector3.UP * EMERGE_DEPTH * emerge_from * left * left
+	velocity = Vector3.ZERO
+	if emerging <= 0.0:
+		global_position = _emerge_goal
+		emerge_from = 0
+		return false
+	return true
 
 
 ## The model's box in world space (turned with the enemy, so slightly larger when not square on).
@@ -266,7 +329,7 @@ func _on_damaged(_amount: float, _kind: String, _peer: int) -> void:
 ## Host: a status effect ("burning", "poisoned", "frozen", "raging", see the top) for seconds. A
 ## longer time than what's left replaces it (frozen starts its stop again); shorter does nothing.
 func apply_status(status: String, seconds: float) -> void:
-	if not STATUS_TINTS.has(status) or seconds <= 0.0 or not alive:
+	if not STATUS_TINTS.has(status) or seconds <= 0.0 or not alive or emerging > 0.0:
 		return
 	var had := statuses.has(status)
 	if seconds <= float(statuses.get(status, 0.0)):
@@ -320,7 +383,7 @@ func _tick_statuses(delta: float) -> void:
 		if share >= MIN_SPREAD:
 			var reach := maxf(bounds.size.x, bounds.size.z) * 0.5 + SPREAD_RANGE
 			for other in Combat.sphere_hit(get_center(), reach):
-				if other != self and other.manager == manager:
+				if other != self and other.manager == manager and Combat.can_see(world, get_center(), other.get_center()):
 					other.apply_status("burning", share)
 	var amount := 0.0
 	if statuses.has("burning"):
@@ -333,6 +396,8 @@ func _tick_statuses(delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	if not alive or manager == null or not manager.simulating:
+		return
+	if _emerge_tick(delta):
 		return
 	_tick_statuses(delta)
 	if not alive:
@@ -394,21 +459,24 @@ func _think(delta: float) -> Dictionary:
 	var to_target := target.global_position - global_position
 	var flat := Vector2(to_target.x, to_target.z).length()
 	out.facing = Vector3(to_target.x, 0.0, to_target.z)
-	var in_reach := flat < attack_range and absf(to_target.y) < 1.6
+	# In reach only with a clear line to the target (no biting through a thin wall).
+	var seen := flat <= maxf(attack_range, 2.0) and sees(target)
+	var in_reach := flat < attack_range and absf(to_target.y) < 1.6 and seen
 	if _windup > 0.0:
-		# Committed: hold still, then land it only if the target didn't back off.
+		# Committed: hold still, then land it only if the target didn't back off or duck behind something.
 		_windup -= delta
 		if _windup <= 0.0:
 			_windup = 0.0
 			_attack_timer = attack_cooldown
-			_attack(target, flat < attack_range * 1.25 and absf(to_target.y) < 1.6)
+			_attack(target, flat < attack_range * 1.25 and absf(to_target.y) < 1.6 and sees(target))
 		return out
 	if in_reach:
 		if _attack_timer <= 0.0:
 			_windup = attack_windup
 		return out
 	var goal := target.global_position
-	if flat > 2.0:
+	# Close but out of sight (a wall between): the flow field leads around it.
+	if flat > 2.0 or not seen:
 		var flow: Dictionary = world.get_flow(global_position)
 		if flow.valid and not flow.at_target:
 			goal = flow.next
@@ -437,9 +505,10 @@ func _think_raging(delta: float) -> Dictionary:
 		if _windup <= 0.0:
 			_windup = 0.0
 			_attack_timer = attack_cooldown
-			_attack_enemy(target, flat < reach * 1.25 and absf(to_target.y) < 1.6)
+			_attack_enemy(target, flat < reach * 1.25 and absf(to_target.y) < 1.6
+					and Combat.can_see(world, eye_point(), target.get_center()))
 		return out
-	if flat < reach and absf(to_target.y) < 1.6:
+	if flat < reach and absf(to_target.y) < 1.6 and Combat.can_see(world, eye_point(), target.get_center()):
 		if _attack_timer <= 0.0:
 			_windup = attack_windup
 		return out
@@ -508,6 +577,8 @@ func _interpolate_remote() -> void:
 func _process(delta: float) -> void:
 	if manager and not manager.simulating:
 		_interpolate_remote()
+		# Peers count the emergence down themselves (the host's stream carries the rise).
+		emerging = maxf(emerging - delta, 0.0)
 	var step := global_position - _last_position
 	_last_position = global_position
 	if delta > 0.0:
@@ -556,7 +627,8 @@ func tint_material() -> StandardMaterial3D:
 
 
 func _make_embers() -> CPUParticles3D:
-	var embers := CPUParticles3D.new()
+	# Voxel embers (VoxelFx): grid-snapped cubes stepping yellow -> orange -> red, shrinking out.
+	var embers := VoxelFx.particles(0.1, [Color(1.0, 0.85, 0.3), Color(1.0, 0.5, 0.1), Color(0.85, 0.2, 0.05)], 0.4)
 	embers.name = "Embers"
 	embers.amount = 16
 	embers.lifetime = 0.8
@@ -568,20 +640,6 @@ func _make_embers() -> CPUParticles3D:
 	embers.initial_velocity_min = 0.6
 	embers.initial_velocity_max = 1.4
 	embers.gravity = Vector3(0.0, 1.0, 0.0)
-	embers.scale_amount_min = 0.5
-	embers.scale_amount_max = 1.0
-	var ramp := Gradient.new()
-	ramp.set_color(0, Color(1.0, 0.8, 0.3, 1.0))
-	ramp.set_color(1, Color(0.9, 0.2, 0.05, 0.0))
-	embers.color_ramp = ramp
-	var spark := BoxMesh.new()
-	spark.size = Vector3.ONE * 0.05
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.vertex_color_use_as_albedo = true
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	spark.material = material
-	embers.mesh = spark
 	return embers
 
 
@@ -589,7 +647,7 @@ func _make_embers() -> CPUParticles3D:
 func play_attack() -> void:
 	_strike = 1.0
 	if attack_sound != "":
-		Sfx.play_at(attack_sound, get_center(), -4.0, 0.1)
+		play_sound(attack_sound, get_center(), -4.0, 0.1)
 
 
 ## Every peer: pops into debris and frees itself.
@@ -598,7 +656,7 @@ func die() -> void:
 		return
 	alive = false
 	remove_from_group(GROUP)
-	Sfx.play_at(death_sound, get_center())
+	play_sound(death_sound, get_center())
 	if manager and manager.debris:
 		manager.debris.burst(get_center(), Vector3.UP, _debris_counts())
 	queue_free()

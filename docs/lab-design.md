@@ -49,6 +49,22 @@ and slabs, so floors are 40 apart) and by what fit:
 - Nothing has been play-tested by hand yet; rates, caps and the finale length are the plan's
   numbers.
 
+Dressing pass (2026-11-03, after the first hand play-test): props that hang off the floor in their
+own model (`glass_case`, `medkit_station`, drawn 1 m up) are now backed against the wall behind
+them by the builder (they used to stand at a fraction of the room and float); `wall_prop` medkit
+stations no longer add another meter on top. No prop stands within 1 m (10 voxels) of a doorway,
+open passage or crawl hole on either side of its wall, in a door's slot, on the stairs, at the cage
+shaft's ladder or over the lift car's hatch: `lab_builder.gd` slides a prop along its wall to the
+nearest clear spot, else pushes it into the room, else drops it with a warning (none are dropped).
+The lab now looks in use: the training room has the `specimen_case` (prop id `specimen`, a glowing
+shroom between two electrodes, which `scripts/story/experiment.gd` flashes and sparks on each
+step) beside the experiment terminal, two `lab_table_gear` tables, a `vial_cabinet`, a shelf of
+specimen jars and jars on a side table; grow room 0 and the grow halls are mostly
+`grow_bed_shrooms`; the wet lab, incubation, dissection, core and inference labs got vial
+cabinets, gear tables, jars and shroom pots. Props can stand on another prop (`on = <prop id>`).
+`tests/laboratory_test.gd` checks that floor props stand on something, that wall and hanging props
+touch a wall, and that no prop is in the keep-out boxes.
+
 ## 1. Premise
 
 **Fung AI** (CEO **Guy Fung**, decided 2026-11-03) found a mycelium that stores and processes

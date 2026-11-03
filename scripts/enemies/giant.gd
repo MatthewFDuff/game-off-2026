@@ -1,7 +1,7 @@
 class_name Giant
 extends Enemy
 ## The giant: a huge, slow, tough shroom. Its swing hits every player in an arc in front of it
-## (swing_reach, SWING_HALF_ANGLE) with a heavy shove, and gouges the terrain where it lands. Its
+## (swing_reach, SWING_HALF_ANGLE) that it can see (Enemy.sees) with a heavy shove, and gouges the terrain where it lands. Its
 ## weak spot is the pair of antennae on top: a `crit` hit zone (5x damage) covering every voxel of
 ## the model at or above ANTENNA_FROM of its height. Once the crit zone has taken antenna_health
 ## damage, the antennae break off: the zone goes, those voxels leave the body's mesh on every peer
@@ -137,6 +137,8 @@ func _attack(_target: Player, _connects: bool) -> void:
 		var distance := to.length()
 		if distance > swing_reach or (distance > 0.3 and forward.dot(to / distance) < arc):
 			continue
+		if not sees(player): # Never through a wall.
+			continue
 		var away := to / distance if distance > 0.3 else forward
 		manager.damage_player(player, damage, global_position)
 		shove(player, away * swing_push + Vector3.UP * swing_lift)
@@ -197,8 +199,8 @@ func show_antennae_broken() -> void:
 	build_body()
 	hit_zones.erase("crit")
 	var at := global_transform * (bounds.position + (box.position + box.size * 0.5) * world.voxel_size) if box.size != Vector3.ZERO else get_center()
-	Sfx.play_at("shroom_pop", at, 4.0, 0.05, 0.7)
-	Sfx.play_at("melee_hit", at, 0.0, 0.05, 0.6)
+	play_sound("shroom_pop", at, 4.0, 0.05, 0.7)
+	play_sound("melee_hit", at, 0.0, 0.05, 0.6)
 	if manager and manager.debris:
 		manager.debris.burst(at, Vector3.UP, {VoxelMaterials.SHROOM_GILL: 40, VoxelMaterials.SHROOM_EYE: 8})
 

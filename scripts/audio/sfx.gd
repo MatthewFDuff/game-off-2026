@@ -231,7 +231,7 @@ func _synthesize_all() -> int:
 		"drawer_open", "terminal_beep", "station_use", "glass_break",
 		"fuse", "shroom_scream", "spit", "giant_slam",
 		"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
-		"intercom_chime", "register_tick", "crash", "zap", "splash", "rain",
+		"intercom_chime", "register_tick", "crash", "zap", "splash", "rain", "emerge",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
@@ -597,6 +597,19 @@ func _make_spawn_pop() -> AudioStreamWAV:
 	_add_noise(buf, RATE, 0.0, 0.3, 0.35, 0.1, 600.0, 0.0, 0.05)
 	_add_tone(buf, RATE, 0.25, 0.12, 260.0, 620.0, 0.4, 0.04)
 	_add_noise(buf, RATE, 0.28, 0.2, 0.25, 0.05, 2200.0)
+	return _to_wav(buf, RATE)
+
+
+## A spawned enemy pushes out of the floor (or ceiling): a slow wet tearing squelch over a low
+## grinding swell, ending in a soft sucking pop as it comes free (about EMERGE_TIME long).
+func _make_emerge() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.95)
+	_add_noise(buf, RATE, 0.0, 0.8, 0.45, 0.0, 900.0, 120.0, 0.25, 0.15, 11.0, 0.6)
+	_add_tone(buf, RATE, 0.0, 0.75, 55.0, 95.0, 0.4, 0.0, Shape.TRIANGLE, 0.2, 0.15, 7.0, 0.4)
+	for i in 5:
+		_add_tone(buf, RATE, 0.08 + i * 0.13, 0.07, 340.0 - i * 30.0, 140.0, 0.16, 0.025)
+	_add_tone(buf, RATE, 0.74, 0.12, 180.0, 520.0, 0.35, 0.04)
+	_add_noise(buf, RATE, 0.76, 0.18, 0.2, 0.05, 2400.0)
 	return _to_wav(buf, RATE)
 
 

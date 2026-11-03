@@ -35,6 +35,8 @@ var done := false
 var pierced: Array = []
 ## Flasks: the item model, tumbling in flight.
 var _model: Node3D
+## Shots: cubes left behind in flight.
+var _trail: CPUParticles3D
 
 @onready var _mesh: MeshInstance3D = $Mesh
 @onready var _light: OmniLight3D = $Light
@@ -51,10 +53,9 @@ func setup(projectile_id: int, type: AmmoType, voxel_world: VoxelWorld, from: Ve
 
 
 func _ready() -> void:
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = ammo.color.lightened(0.3) if ammo else Color.WHITE
-	_mesh.material_override = material
+	# A grid-snapped cube (VoxelFx) that hops along in voxel steps, dropping a trail of smaller cubes.
+	var color := ammo.color.lightened(0.3) if ammo else Color.WHITE
+	_mesh.material_override = VoxelFx.material((_mesh.mesh as BoxMesh).size.x, true, color)
 	if ammo:
 		_light.light_color = ammo.color
 	if ammo and ammo.flask and world:
@@ -63,6 +64,15 @@ func _ready() -> void:
 		add_child(_model)
 		_mesh.visible = false
 		_light.light_energy = 0.6
+	elif ammo:
+		_trail = VoxelFx.particles(0.05, [color, ammo.color, Color(ammo.color.darkened(0.5), 0.5)], 0.3)
+		_trail.name = "Trail"
+		_trail.amount = 10
+		_trail.lifetime = 0.25
+		_trail.spread = 180.0
+		_trail.initial_velocity_max = 0.3
+		add_child(_trail)
+		_trail.emitting = true
 	global_position = position
 	_face()
 
@@ -160,6 +170,8 @@ func _stop(at: Vector3, normal: Vector3, enemy: Enemy) -> void:
 		queue_free()
 	else:
 		visible = false
+		if _trail:
+			_trail.emitting = false
 		get_tree().create_timer(2.0).timeout.connect(queue_free)
 
 
@@ -170,7 +182,7 @@ func correct(at: Vector3, new_velocity: Vector3) -> void:
 	_face()
 
 
+## Shots are axis-aligned cubes (the shader snaps them), so there is nothing to turn; flasks tumble
+## in _process.
 func _face() -> void:
-	if velocity.length() > 0.01 and _mesh:
-		var up := Vector3.UP if absf(velocity.normalized().y) < 0.99 else Vector3.RIGHT
-		_mesh.global_basis = Basis.looking_at(velocity, up) * Basis.from_scale(Vector3(1.0, 1.0, 2.5))
+	pass

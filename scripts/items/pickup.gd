@@ -39,5 +39,6 @@ func build() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	_visual.position.y = sin(_time * BOB_SPEED) * BOB_HEIGHT
+	# The bob moves in half-voxel steps, so the pickup steps up and down instead of gliding.
+	_visual.position.y = snappedf(sin(_time * BOB_SPEED) * BOB_HEIGHT, VOXEL * 0.5)
 	_visual.rotation.y = _time * TURN_SPEED

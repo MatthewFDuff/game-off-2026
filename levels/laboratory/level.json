@@ -1,7 +1,7 @@
 {
 	"format": 1,
 	"name": "laboratory",
-	"next_id": 720,
+	"next_id": 742,
 	"objects": {
 		"airlock": {
 			"ceiling": 3,
@@ -57,6 +57,54 @@
 			"thickness": 5,
 			"to": [200, 285, 265],
 			"wall": 14
+		},
+		"bench_core": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 2,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "lab_bench_a",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [143, 30, 192],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 2500
+		},
+		"bench_dissection": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 2,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "lab_bench_a",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [208, 130, 288],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 2500
 		},
 		"booth": {
 			"ceiling": 3,
@@ -163,7 +211,7 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [315, 250, 371],
+			"origin": [327, 250, 371],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -2359,194 +2407,242 @@
 			"to": [330, 205, 265],
 			"wall": 4
 		},
-		"item_507": {
+		"item_529": {
 			"item": "keycard_blue",
 			"kind": "marker",
 			"position": [170.0, 250.0, 96.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_508": {
+		"item_530": {
 			"item": "flask_fire",
 			"kind": "marker",
 			"position": [170.0, 250.0, 304.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_509": {
+		"item_531": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [173.0, 250.0, 373.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_510": {
+		"item_532": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [179.0, 250.0, 373.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_513": {
+		"item_535": {
 			"item": "ammo_flame",
 			"kind": "marker",
 			"position": [34.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_514": {
+		"item_536": {
 			"item": "ammo_flame",
 			"kind": "marker",
 			"position": [46.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_515": {
+		"item_537": {
 			"item": "flask_poison",
 			"kind": "marker",
 			"position": [40.0, 210.0, 315.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_516": {
+		"item_538": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [58.0, 210.0, 300.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_517": {
+		"item_539": {
 			"item": "keycard_green",
 			"kind": "marker",
 			"position": [300.0, 210.0, 34.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_521": {
+		"item_543": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [365.0, 170.0, 40.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_522": {
+		"item_544": {
 			"item": "flask_rage",
 			"kind": "marker",
 			"position": [365.0, 170.0, 52.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_523": {
+		"item_545": {
 			"item": "ammo_explosive",
 			"kind": "marker",
 			"position": [181.25, 170.0, 298.75],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_524": {
+		"item_546": {
 			"item": "keycard_red",
 			"kind": "marker",
 			"position": [430.0, 170.0, 112.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_530": {
+		"item_552": {
 			"item": "keycard_black",
 			"kind": "marker",
 			"position": [365.0, 130.0, 105.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_533": {
+		"item_555": {
 			"item": "ammo_poison",
 			"kind": "marker",
 			"position": [182.0, 30.0, 93.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_534": {
+		"item_556": {
 			"item": "medkit",
 			"kind": "marker",
 			"position": [158.0, 30.0, 93.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_536": {
+		"item_558": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [72.5, 30.0, 430.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_538": {
+		"item_560": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [215.0, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_539": {
+		"item_561": {
 			"item": "ammo_shotgun",
 			"kind": "marker",
 			"position": [220.0, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_540": {
+		"item_562": {
 			"item": "ammo_explosive",
 			"kind": "marker",
 			"position": [317.5, 30.0, 370.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_541": {
+		"item_563": {
 			"item": "flask_freeze",
 			"kind": "marker",
 			"position": [311.25, 30.0, 295.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_542": {
+		"item_564": {
 			"item": "flask_freeze",
 			"kind": "marker",
 			"position": [223.75, 30.0, 295.0],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_543": {
+		"item_565": {
 			"item": "flask_poison",
 			"kind": "marker",
 			"position": [267.5, 30.0, 288.75],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_544": {
+		"item_566": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [72.5, 38.0, 267.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_545": {
+		"item_567": {
 			"item": "ammo_homing",
 			"kind": "marker",
 			"position": [78.75, 38.0, 267.5],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_546": {
+		"item_568": {
 			"item": "flask_fire",
 			"kind": "marker",
 			"position": [72.5, 38.0, 280.25],
 			"type": "item",
 			"yaw": 0.0
 		},
-		"item_547": {
+		"item_569": {
 			"item": "flask_rage",
 			"kind": "marker",
 			"position": [66.25, 38.0, 267.5],
 			"type": "item",
 			"yaw": 0.0
+		},
+		"jar_table_training": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "table_small",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [283, 250, 321],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 300
+		},
+		"jar_table_wet": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "table_small",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [305, 210, 353],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 300
 		},
 		"lift_lobby": {
 			"ceiling": 3,
@@ -2570,7 +2666,7 @@
 			"to": [135, 285, 200],
 			"wall": 4
 		},
-		"light_550": {
+		"light_572": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2585,7 +2681,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_551": {
+		"light_573": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2600,7 +2696,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_552": {
+		"light_574": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2615,7 +2711,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_553": {
+		"light_575": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 12.0,
@@ -2630,7 +2726,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_554": {
+		"light_576": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2645,7 +2741,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_555": {
+		"light_577": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2660,7 +2756,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_556": {
+		"light_578": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2675,7 +2771,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_557": {
+		"light_579": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2690,7 +2786,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_558": {
+		"light_580": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2705,7 +2801,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_559": {
+		"light_581": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2720,7 +2816,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_560": {
+		"light_582": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2735,7 +2831,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_561": {
+		"light_583": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2750,7 +2846,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_562": {
+		"light_584": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2765,7 +2861,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_563": {
+		"light_585": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2780,7 +2876,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_564": {
+		"light_586": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2795,7 +2891,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_565": {
+		"light_587": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2810,7 +2906,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_566": {
+		"light_588": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2825,7 +2921,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_567": {
+		"light_589": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2840,7 +2936,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_568": {
+		"light_590": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2855,7 +2951,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_569": {
+		"light_591": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2870,7 +2966,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_570": {
+		"light_592": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2885,7 +2981,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_571": {
+		"light_593": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2900,7 +2996,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_572": {
+		"light_594": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2915,7 +3011,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_573": {
+		"light_595": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -2930,7 +3026,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_574": {
+		"light_596": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2945,7 +3041,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_575": {
+		"light_597": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2960,7 +3056,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_576": {
+		"light_598": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2975,7 +3071,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_577": {
+		"light_599": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -2990,7 +3086,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_578": {
+		"light_600": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3005,7 +3101,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_579": {
+		"light_601": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3020,7 +3116,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_580": {
+		"light_602": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3035,7 +3131,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_581": {
+		"light_603": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3050,7 +3146,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_582": {
+		"light_604": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3065,7 +3161,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_583": {
+		"light_605": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3080,7 +3176,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_584": {
+		"light_606": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3095,7 +3191,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_585": {
+		"light_607": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3110,7 +3206,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_586": {
+		"light_608": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3125,7 +3221,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_587": {
+		"light_609": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3140,7 +3236,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_588": {
+		"light_610": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3155,7 +3251,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_589": {
+		"light_611": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3170,7 +3266,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_590": {
+		"light_612": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3185,7 +3281,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_591": {
+		"light_613": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3200,7 +3296,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_592": {
+		"light_614": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3215,7 +3311,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_593": {
+		"light_615": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3230,7 +3326,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_594": {
+		"light_616": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3245,7 +3341,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_595": {
+		"light_617": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3260,7 +3356,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_596": {
+		"light_618": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3275,7 +3371,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_597": {
+		"light_619": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3290,7 +3386,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_598": {
+		"light_620": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3305,7 +3401,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_599": {
+		"light_621": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3320,7 +3416,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_600": {
+		"light_622": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3335,7 +3431,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_601": {
+		"light_623": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3350,7 +3446,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_602": {
+		"light_624": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3365,7 +3461,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_603": {
+		"light_625": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3380,7 +3476,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_604": {
+		"light_626": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3395,7 +3491,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_605": {
+		"light_627": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3410,7 +3506,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_606": {
+		"light_628": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3425,7 +3521,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_607": {
+		"light_629": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3440,7 +3536,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_608": {
+		"light_630": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3455,7 +3551,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_609": {
+		"light_631": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3470,7 +3566,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_610": {
+		"light_632": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3485,7 +3581,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_611": {
+		"light_633": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3500,7 +3596,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_612": {
+		"light_634": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3515,7 +3611,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_613": {
+		"light_635": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3530,7 +3626,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_614": {
+		"light_636": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3545,7 +3641,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_615": {
+		"light_637": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3560,7 +3656,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_616": {
+		"light_638": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3575,7 +3671,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_617": {
+		"light_639": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3590,7 +3686,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_618": {
+		"light_640": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3605,7 +3701,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_619": {
+		"light_641": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3620,7 +3716,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_620": {
+		"light_642": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3635,7 +3731,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_621": {
+		"light_643": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3650,7 +3746,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_622": {
+		"light_644": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3665,7 +3761,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_623": {
+		"light_645": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3680,7 +3776,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_624": {
+		"light_646": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3695,7 +3791,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_625": {
+		"light_647": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3710,7 +3806,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_626": {
+		"light_648": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3725,7 +3821,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_627": {
+		"light_649": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3740,7 +3836,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_628": {
+		"light_650": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3755,7 +3851,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_629": {
+		"light_651": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3770,7 +3866,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_630": {
+		"light_652": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3785,7 +3881,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_631": {
+		"light_653": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3800,7 +3896,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_632": {
+		"light_654": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3815,7 +3911,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_633": {
+		"light_655": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3830,7 +3926,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_634": {
+		"light_656": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3845,7 +3941,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_635": {
+		"light_657": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3860,7 +3956,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_636": {
+		"light_658": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3875,7 +3971,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_637": {
+		"light_659": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3890,7 +3986,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_638": {
+		"light_660": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -3905,7 +4001,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_639": {
+		"light_661": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3920,7 +4016,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_640": {
+		"light_662": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3935,7 +4031,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_641": {
+		"light_663": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3950,7 +4046,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_642": {
+		"light_664": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3965,7 +4061,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_643": {
+		"light_665": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -3980,7 +4076,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_644": {
+		"light_666": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -3995,7 +4091,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_645": {
+		"light_667": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4010,7 +4106,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_646": {
+		"light_668": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4025,7 +4121,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_647": {
+		"light_669": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4040,7 +4136,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_648": {
+		"light_670": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4055,7 +4151,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_649": {
+		"light_671": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4070,7 +4166,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_650": {
+		"light_672": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4085,7 +4181,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_651": {
+		"light_673": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4100,7 +4196,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_652": {
+		"light_674": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4115,7 +4211,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_653": {
+		"light_675": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4130,7 +4226,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_654": {
+		"light_676": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4145,7 +4241,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_655": {
+		"light_677": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4160,7 +4256,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_656": {
+		"light_678": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4175,7 +4271,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_657": {
+		"light_679": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4190,7 +4286,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_658": {
+		"light_680": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4205,7 +4301,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_659": {
+		"light_681": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4220,7 +4316,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_660": {
+		"light_682": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4235,7 +4331,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_661": {
+		"light_683": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4250,7 +4346,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_662": {
+		"light_684": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4265,7 +4361,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_663": {
+		"light_685": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4280,7 +4376,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_664": {
+		"light_686": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4295,7 +4391,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_665": {
+		"light_687": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4310,7 +4406,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_666": {
+		"light_688": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4325,7 +4421,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_667": {
+		"light_689": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4340,7 +4436,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_668": {
+		"light_690": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4355,7 +4451,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_669": {
+		"light_691": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4370,7 +4466,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_670": {
+		"light_692": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4385,7 +4481,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_671": {
+		"light_693": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4400,7 +4496,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_672": {
+		"light_694": {
 			"angle": 40.0,
 			"color": "#66ffbfff",
 			"energy": 1.5,
@@ -4415,7 +4511,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_673": {
+		"light_695": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4430,7 +4526,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_674": {
+		"light_696": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4445,7 +4541,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_675": {
+		"light_697": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4460,336 +4556,6 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_676": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [235.0, 161.0, 235.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_677": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [235.0, 161.0, 235.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_678": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [155.0, 161.0, 203.75],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_679": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [185.0, 161.0, 203.75],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_680": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [155.0, 161.0, 331.25],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_681": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [185.0, 161.0, 331.25],
-			"power": "facility",
-			"range": 18.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_682": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [170.0, 161.0, 267.5],
-			"power": "emergency",
-			"range": 12.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_683": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 161.0, 170.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_684": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 161.0, 235.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_685": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 161.0, 300.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_686": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 138.0, 300.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_687": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 161.0, 365.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_688": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [105.0, 138.0, 365.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_689": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [170.0, 161.0, 90.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_690": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [170.0, 161.0, 120.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_691": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [170.0, 161.0, 105.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_692": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [236.25, 161.0, 105.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_693": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [298.75, 161.0, 105.0],
-			"power": "facility",
-			"range": 10.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_694": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 161.0, 105.0],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_695": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [267.5, 138.0, 105.0],
-			"power": "emergency",
-			"range": 12.5,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_696": {
-			"angle": 40.0,
-			"color": "#ffebc7ff",
-			"energy": 4.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [365.0, 161.0, 105.0],
-			"power": "facility",
-			"range": 8.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_697": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [365.0, 161.0, 105.0],
-			"power": "emergency",
-			"range": 6.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
 		"light_698": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
@@ -4798,7 +4564,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 40.0],
+			"position": [235.0, 161.0, 235.0],
 			"power": "facility",
 			"range": 8.0,
 			"shadows": false,
@@ -4813,7 +4579,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [365.0, 161.0, 40.0],
+			"position": [235.0, 161.0, 235.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
@@ -4828,9 +4594,9 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 161.0, 41.25],
+			"position": [155.0, 161.0, 203.75],
 			"power": "facility",
-			"range": 10.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4843,44 +4609,14 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [430.0, 161.0, 103.75],
+			"position": [185.0, 161.0, 203.75],
 			"power": "facility",
-			"range": 10.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
 		"light_702": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [430.0, 161.0, 72.5],
-			"power": "emergency",
-			"range": 8.75,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_703": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [300.0, 52.0, 105.0],
-			"power": "emergency",
-			"range": 12.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_704": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -4888,14 +4624,29 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 105.0],
+			"position": [155.0, 161.0, 331.25],
 			"power": "facility",
-			"range": 8.0,
+			"range": 18.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_705": {
+		"light_703": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [185.0, 161.0, 331.25],
+			"power": "facility",
+			"range": 18.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_704": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -4903,9 +4654,24 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 105.0],
+			"position": [170.0, 161.0, 267.5],
 			"power": "emergency",
-			"range": 6.0,
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_705": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [105.0, 161.0, 170.0],
+			"power": "facility",
+			"range": 8.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4918,7 +4684,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 155.0],
+			"position": [105.0, 161.0, 235.0],
 			"power": "facility",
 			"range": 8.0,
 			"shadows": false,
@@ -4933,7 +4699,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 185.0],
+			"position": [105.0, 161.0, 300.0],
 			"power": "facility",
 			"range": 8.0,
 			"shadows": false,
@@ -4942,13 +4708,13 @@
 		},
 		"light_708": {
 			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [170.0, 61.0, 170.0],
+			"position": [105.0, 138.0, 300.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
@@ -4957,15 +4723,15 @@
 		},
 		"light_709": {
 			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
 			"flicker": "none",
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [72.5, 116.0, 267.5],
-			"power": "emergency",
-			"range": 12.0,
+			"position": [105.0, 161.0, 365.0],
+			"power": "facility",
+			"range": 8.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -4978,44 +4744,14 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [72.5, 38.0, 267.5],
-			"power": "emergency",
-			"range": 16.0,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_711": {
-			"angle": 40.0,
-			"color": "#66ffbfff",
-			"energy": 1.5,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [72.5, 38.0, 430.0],
-			"power": "emergency",
-			"range": 12.5,
-			"shadows": false,
-			"type": "light",
-			"yaw": 0.0
-		},
-		"light_712": {
-			"angle": 40.0,
-			"color": "#ff2e1fff",
-			"energy": 2.0,
-			"flicker": "none",
-			"kind": "marker",
-			"light": "omni",
-			"pitch": -90.0,
-			"position": [170.0, 52.0, 365.0],
+			"position": [105.0, 138.0, 365.0],
 			"power": "emergency",
 			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_713": {
+		"light_711": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5023,9 +4759,39 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [236.25, 76.0, 301.25],
+			"position": [170.0, 161.0, 90.0],
 			"power": "facility",
-			"range": 10.0,
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_712": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 161.0, 120.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_713": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 161.0, 105.0],
+			"power": "emergency",
+			"range": 6.0,
 			"shadows": false,
 			"type": "light",
 			"yaw": 0.0
@@ -5038,7 +4804,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [298.75, 76.0, 301.25],
+			"position": [236.25, 161.0, 105.0],
 			"power": "facility",
 			"range": 10.0,
 			"shadows": false,
@@ -5053,7 +4819,7 @@
 			"kind": "marker",
 			"light": "omni",
 			"pitch": -90.0,
-			"position": [236.25, 76.0, 363.75],
+			"position": [298.75, 161.0, 105.0],
 			"power": "facility",
 			"range": 10.0,
 			"shadows": false,
@@ -5061,6 +4827,336 @@
 			"yaw": 0.0
 		},
 		"light_716": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 161.0, 105.0],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_717": {
+			"angle": 40.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [267.5, 138.0, 105.0],
+			"power": "emergency",
+			"range": 12.5,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_718": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 105.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_719": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 105.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_720": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 40.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_721": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [365.0, 161.0, 40.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_722": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 161.0, 41.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_723": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 161.0, 103.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_724": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [430.0, 161.0, 72.5],
+			"power": "emergency",
+			"range": 8.75,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_725": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [300.0, 52.0, 105.0],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_726": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 105.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_727": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 105.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_728": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 155.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_729": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 185.0],
+			"power": "facility",
+			"range": 8.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_730": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 61.0, 170.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_731": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [72.5, 116.0, 267.5],
+			"power": "emergency",
+			"range": 12.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_732": {
+			"angle": 40.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [72.5, 38.0, 267.5],
+			"power": "emergency",
+			"range": 16.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_733": {
+			"angle": 40.0,
+			"color": "#66ffbfff",
+			"energy": 1.5,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [72.5, 38.0, 430.0],
+			"power": "emergency",
+			"range": 12.5,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_734": {
+			"angle": 40.0,
+			"color": "#ff2e1fff",
+			"energy": 2.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [170.0, 52.0, 365.0],
+			"power": "emergency",
+			"range": 6.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_735": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [236.25, 76.0, 301.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_736": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [298.75, 76.0, 301.25],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_737": {
+			"angle": 40.0,
+			"color": "#ffebc7ff",
+			"energy": 4.0,
+			"flicker": "none",
+			"kind": "marker",
+			"light": "omni",
+			"pitch": -90.0,
+			"position": [236.25, 76.0, 363.75],
+			"power": "facility",
+			"range": 10.0,
+			"shadows": false,
+			"type": "light",
+			"yaw": 0.0
+		},
+		"light_738": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5075,7 +5171,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_717": {
+		"light_739": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -5090,7 +5186,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_718": {
+		"light_740": {
 			"angle": 40.0,
 			"color": "#ffebc7ff",
 			"energy": 4.0,
@@ -5105,7 +5201,7 @@
 			"type": "light",
 			"yaw": 0.0
 		},
-		"light_719": {
+		"light_741": {
 			"angle": 40.0,
 			"color": "#ff2e1fff",
 			"energy": 2.0,
@@ -5476,7 +5572,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [385, 290, 46],
+			"origin": [385, 290, 54],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -5620,7 +5716,7 @@
 			"name": "corkboard_small",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [394, 264, 99],
+			"origin": [394, 264, 75],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "LEVEL 0: ADMINISTRATION\nLevel -1: Cultivation. Level -2: Compute. Level -3: Containment. Level -4: no entry.",
@@ -5740,7 +5836,7 @@
 			"name": "vending_machine",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [316, 250, 179],
+			"origin": [316, 250, 139],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -5764,7 +5860,7 @@
 			"name": "water_cooler",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [320, 250, 167],
+			"origin": [320, 250, 192],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -5932,7 +6028,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [192, 250, 103],
+			"origin": [192, 250, 121],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -5956,7 +6052,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [192, 250, 111],
+			"origin": [192, 250, 126],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -5980,7 +6076,7 @@
 			"name": "crate_6",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [189, 250, 189],
+			"origin": [184, 250, 189],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6028,7 +6124,7 @@
 			"name": "corkboard_small",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [164, 264, 140],
+			"origin": [186, 264, 140],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).",
@@ -6508,7 +6604,7 @@
 			"name": "chair",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [363, 250, 273],
+			"origin": [381, 250, 273],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6628,7 +6724,7 @@
 			"name": "fridge",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [252, 250, 210],
+			"origin": [226, 250, 210],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6868,7 +6964,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [190, 250, 216],
+			"origin": [190, 250, 214],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6892,7 +6988,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [190, 250, 227],
+			"origin": [190, 250, 209],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6916,7 +7012,7 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [190, 250, 238],
+			"origin": [190, 250, 251],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -6940,7 +7036,7 @@
 			"name": "shelf_storage_b",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [164, 250, 282],
+			"origin": [164, 250, 290],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -7012,7 +7108,7 @@
 			"name": "whiteboard",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [259, 250, 271],
+			"origin": [289, 264, 270],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -7225,15 +7321,15 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "spore_tank",
+			"name": "lab_table_gear",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [299, 250, 320],
+			"origin": [210, 250, 318],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 6000
+			"value": 3200
 		},
 		"prop_261": {
 			"charges": 3,
@@ -7249,15 +7345,15 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "lab_table_gear",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [215, 250, 345],
+			"origin": [232, 250, 318],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 3200
 		},
 		"prop_262": {
 			"charges": 3,
@@ -7270,18 +7366,18 @@
 			"door_offset": [0, 0, 0],
 			"door_power": false,
 			"door_speed": 2.0,
-			"facing": 0,
+			"facing": 1,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "vial_cabinet",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [215, 250, 369],
+			"origin": [205, 250, 287],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1800
 		},
 		"prop_263": {
 			"charges": 3,
@@ -7297,10 +7393,10 @@
 			"facing": 3,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "shelf_lab_a",
+			"name": "shelf_lab_jars",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [314, 250, 349],
+			"origin": [326, 250, 284],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
@@ -7321,17 +7417,209 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
+			"name": "specimen_jar",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [284, 257, 322],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 350
+		},
+		"prop_265": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "specimen_jar",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [288, 257, 322],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 350
+		},
+		"prop_266": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "grow_bed_shrooms_a",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [219, 250, 347],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1400
+		},
+		"prop_267": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "grow_bed_shrooms_b",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [219, 250, 373],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1400
+		},
+		"prop_268": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "grow_bed_shrooms_a",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [257, 250, 373],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1400
+		},
+		"prop_269": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 3,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shelf_lab_jars",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [314, 250, 349],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1200
+		},
+		"prop_270": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [308, 250, 338],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_271": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [314, 250, 338],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_272": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
 			"name": "spore_tank",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [278, 250, 341],
+			"origin": [283, 250, 341],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
 		},
-		"prop_265": {
+		"prop_273": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7348,14 +7636,14 @@
 			"name": "shelf_storage_a",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [164, 250, 347],
+			"origin": [163, 250, 347],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
 		},
-		"prop_266": {
+		"prop_274": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7379,7 +7667,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_267": {
+		"prop_275": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7403,7 +7691,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_268": {
+		"prop_276": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7427,7 +7715,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_269": {
+		"prop_277": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7451,7 +7739,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_270": {
+		"prop_278": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7475,7 +7763,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_271": {
+		"prop_279": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7492,14 +7780,14 @@
 			"name": "barrel",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [81, 210, 313],
+			"origin": [81, 210, 297],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
 		},
-		"prop_272": {
+		"prop_280": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7523,7 +7811,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_273": {
+		"prop_281": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7547,7 +7835,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_274": {
+		"prop_282": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7571,7 +7859,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_275": {
+		"prop_283": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7595,7 +7883,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_276": {
+		"prop_284": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7612,14 +7900,14 @@
 			"name": "barrel",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [81, 210, 341],
+			"origin": [78, 210, 341],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
 		},
-		"prop_277": {
+		"prop_285": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7636,14 +7924,14 @@
 			"name": "barrel",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [89, 210, 341],
+			"origin": [127, 210, 341],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
 		},
-		"prop_278": {
+		"prop_286": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7667,7 +7955,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_279": {
+		"prop_287": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7691,7 +7979,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_280": {
+		"prop_288": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7715,7 +8003,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_281": {
+		"prop_289": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7739,7 +8027,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_282": {
+		"prop_290": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7753,7 +8041,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_a",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [150, 210, 161],
@@ -7761,9 +8049,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_283": {
+		"prop_291": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7777,7 +8065,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [192, 210, 161],
@@ -7785,9 +8073,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_284": {
+		"prop_292": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7811,7 +8099,7 @@
 			"use": "none",
 			"value": 800
 		},
-		"prop_285": {
+		"prop_293": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7825,7 +8113,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [192, 210, 215],
@@ -7833,9 +8121,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_286": {
+		"prop_294": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7849,7 +8137,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_a",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [150, 210, 268],
@@ -7857,9 +8145,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_287": {
+		"prop_295": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7873,7 +8161,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [192, 210, 268],
@@ -7881,9 +8169,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_288": {
+		"prop_296": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7907,7 +8195,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_289": {
+		"prop_297": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7931,7 +8219,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_290": {
+		"prop_298": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7948,14 +8236,14 @@
 			"name": "spore_tank",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [255, 210, 307],
+			"origin": [255, 210, 289],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
 		},
-		"prop_291": {
+		"prop_299": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -7979,7 +8267,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_292": {
+		"prop_300": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8003,7 +8291,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_293": {
+		"prop_301": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8027,7 +8315,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_294": {
+		"prop_302": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8051,7 +8339,7 @@
 			"use": "none",
 			"value": 4000
 		},
-		"prop_295": {
+		"prop_303": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8075,7 +8363,7 @@
 			"use": "none",
 			"value": 4000
 		},
-		"prop_296": {
+		"prop_304": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8099,7 +8387,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_297": {
+		"prop_305": {
 			"charges": 3,
 			"contents": "ammo_shotgun",
 			"door": false,
@@ -8116,14 +8404,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [380, 210, 369],
+			"origin": [392, 210, 381],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_298": {
+		"prop_306": {
 			"charges": 3,
 			"contents": "ammo_shotgun,ammo_poison",
 			"door": false,
@@ -8140,14 +8428,110 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [358, 210, 386],
+			"origin": [358, 210, 392],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_299": {
+		"prop_307": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 2,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "vial_cabinet",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [355, 210, 270],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1800
+		},
+		"prop_308": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "lab_table_gear",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [325, 210, 323],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 3200
+		},
+		"prop_309": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "specimen_jar",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [306, 217, 354],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 350
+		},
+		"prop_310": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [310, 217, 354],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_311": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8171,7 +8555,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_300": {
+		"prop_312": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -8195,7 +8579,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_301": {
+		"prop_313": {
 			"charges": 3,
 			"contents": "flask_freeze",
 			"door": false,
@@ -8219,7 +8603,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_302": {
+		"prop_314": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8243,7 +8627,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_303": {
+		"prop_315": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8267,7 +8651,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_304": {
+		"prop_316": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8284,14 +8668,14 @@
 			"name": "shelf_lab_a",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [276, 210, 146],
+			"origin": [272, 210, 146],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
 		},
-		"prop_305": {
+		"prop_317": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8315,7 +8699,7 @@
 			"use": "none",
 			"value": 1200
 		},
-		"prop_306": {
+		"prop_318": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8339,7 +8723,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_307": {
+		"prop_319": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8356,14 +8740,14 @@
 			"name": "shelf_lab_a",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [310, 210, 146],
+			"origin": [316, 210, 146],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
 		},
-		"prop_308": {
+		"prop_320": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8377,17 +8761,17 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "shelf_lab_b",
+			"name": "shelf_lab_jars",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [310, 210, 255],
+			"origin": [298, 210, 255],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
 		},
-		"prop_309": {
+		"prop_321": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8411,7 +8795,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_310": {
+		"prop_322": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8428,14 +8812,14 @@
 			"name": "shelf_lab_a",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [343, 210, 146],
+			"origin": [337, 210, 146],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
 		},
-		"prop_311": {
+		"prop_323": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8452,14 +8836,14 @@
 			"name": "shelf_lab_b",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [343, 210, 255],
+			"origin": [354, 210, 255],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 1200
 		},
-		"prop_312": {
+		"prop_324": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8483,7 +8867,103 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_313": {
+		"prop_325": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 3,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "vial_cabinet",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [388, 210, 157],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1800
+		},
+		"prop_326": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [306, 210, 176],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_327": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [310, 210, 176],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_328": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [343, 210, 225],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_329": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8507,7 +8987,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_314": {
+		"prop_330": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8524,14 +9004,14 @@
 			"name": "corkboard_small",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [424, 222, 249],
+			"origin": [425, 222, 249],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "They talk at 0.9 seconds. I counted. I tapped back. Bed 3 knows my name.\n- R.",
 			"use": "note",
 			"value": 40
 		},
-		"prop_315": {
+		"prop_331": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8548,14 +9028,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [273, 210, 81],
+			"origin": [273, 210, 109],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_316": {
+		"prop_332": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8572,14 +9052,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [279, 210, 81],
+			"origin": [280, 210, 81],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_317": {
+		"prop_333": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8603,7 +9083,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_318": {
+		"prop_334": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8627,7 +9107,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_319": {
+		"prop_335": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8651,7 +9131,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_320": {
+		"prop_336": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8675,7 +9155,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_321": {
+		"prop_337": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8689,7 +9169,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [150, 210, 21],
@@ -8697,9 +9177,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_322": {
+		"prop_338": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8713,7 +9193,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_a",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [192, 210, 21],
@@ -8721,9 +9201,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_323": {
+		"prop_339": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8737,7 +9217,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [150, 210, 55],
@@ -8745,9 +9225,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_324": {
+		"prop_340": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8761,7 +9241,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_a",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [192, 210, 55],
@@ -8769,9 +9249,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_325": {
+		"prop_341": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8785,7 +9265,7 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "grow_bed",
+			"name": "grow_bed_shrooms_b",
 			"needs_power": false,
 			"on_use": "",
 			"origin": [150, 210, 89],
@@ -8793,9 +9273,9 @@
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 800
+			"value": 1400
 		},
-		"prop_326": {
+		"prop_342": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8819,7 +9299,7 @@
 			"use": "none",
 			"value": 800
 		},
-		"prop_327": {
+		"prop_343": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8843,7 +9323,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_328": {
+		"prop_344": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8867,7 +9347,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_329": {
+		"prop_345": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8891,7 +9371,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_330": {
+		"prop_346": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8908,14 +9388,14 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [273, 210, 39],
+			"origin": [273, 210, 56],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "MYCOLOGY  |  Dr. R. Okafor\n\nIt is not noise. It is a carrier. The glow pulses encode a 12-bit frame and the beds repeat each other's frames with a delay that matches the distance between them. They are talking.\n\nCompute wants to rack it. I said no. Fung said yes.",
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_331": {
+		"prop_347": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8939,7 +9419,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_332": {
+		"prop_348": {
 			"charges": 2,
 			"contents": "",
 			"door": false,
@@ -8956,14 +9436,14 @@
 			"name": "ammo_bench",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [77, 210, 15],
+			"origin": [77, 210, 36],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_333": {
+		"prop_349": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -8980,14 +9460,14 @@
 			"name": "medkit_station",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [113, 220, 10],
+			"origin": [113, 210, 10],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_334": {
+		"prop_350": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9004,14 +9484,14 @@
 			"name": "spore_tank",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [123, 210, 58],
+			"origin": [121, 210, 58],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
 		},
-		"prop_335": {
+		"prop_351": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9022,20 +9502,20 @@
 			"door_offset": [0, 0, 0],
 			"door_power": false,
 			"door_speed": 2.0,
-			"facing": 2,
+			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
 			"name": "corkboard_a",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [97, 184, 75],
+			"origin": [97, 184, 134],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "LEVEL -2: COMPUTE\nRack map: rows 1-11 silicon. Rows 12-40 HYBRID (Substrate Array B). Do not water the racks.",
 			"use": "note",
 			"value": 40
 		},
-		"prop_336": {
+		"prop_352": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9059,7 +9539,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_337": {
+		"prop_353": {
 			"charges": 3,
 			"contents": "ammo_ricochet",
 			"door": false,
@@ -9083,7 +9563,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_338": {
+		"prop_354": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9107,7 +9587,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_339": {
+		"prop_355": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9131,7 +9611,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_340": {
+		"prop_356": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9155,7 +9635,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_341": {
+		"prop_357": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9179,7 +9659,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_342": {
+		"prop_358": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9203,7 +9683,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_343": {
+		"prop_359": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9227,7 +9707,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_344": {
+		"prop_360": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9251,7 +9731,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_345": {
+		"prop_361": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9275,7 +9755,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_346": {
+		"prop_362": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9299,7 +9779,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_347": {
+		"prop_363": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9323,7 +9803,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_348": {
+		"prop_364": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9347,7 +9827,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_349": {
+		"prop_365": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9371,7 +9851,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_350": {
+		"prop_366": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9395,7 +9875,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_351": {
+		"prop_367": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9419,7 +9899,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_352": {
+		"prop_368": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9443,7 +9923,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_353": {
+		"prop_369": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9467,7 +9947,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_354": {
+		"prop_370": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9491,7 +9971,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_355": {
+		"prop_371": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9515,7 +9995,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_356": {
+		"prop_372": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9539,7 +10019,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_357": {
+		"prop_373": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9563,7 +10043,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_358": {
+		"prop_374": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9587,7 +10067,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_359": {
+		"prop_375": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9611,7 +10091,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_360": {
+		"prop_376": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9635,7 +10115,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_361": {
+		"prop_377": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9652,14 +10132,14 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [383, 170, 132],
+			"origin": [383, 170, 134],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "ARRAY B STATUS\nResident weights: 100%\nSubstrate temp: 31 C (rising)\nPulse sync: ALL RACKS\n\n> hello?\n> hello\n> who is this\n> you pressed the button. thank you.",
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_362": {
+		"prop_378": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9683,7 +10163,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_363": {
+		"prop_379": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9707,7 +10187,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_364": {
+		"prop_380": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9731,7 +10211,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_365": {
+		"prop_381": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9755,7 +10235,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_366": {
+		"prop_382": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9779,7 +10259,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_367": {
+		"prop_383": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9803,7 +10283,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_368": {
+		"prop_384": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9827,7 +10307,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_369": {
+		"prop_385": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9851,7 +10331,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_370": {
+		"prop_386": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9875,7 +10355,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_371": {
+		"prop_387": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9899,7 +10379,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_372": {
+		"prop_388": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9923,7 +10403,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_373": {
+		"prop_389": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9947,7 +10427,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_374": {
+		"prop_390": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9971,7 +10451,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_375": {
+		"prop_391": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -9995,7 +10475,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_376": {
+		"prop_392": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10019,7 +10499,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_377": {
+		"prop_393": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10043,7 +10523,55 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_378": {
+		"prop_394": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "lab_table_gear",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [270, 170, 249],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 3200
+		},
+		"prop_395": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "vial_cabinet",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [301, 170, 259],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1800
+		},
+		"prop_396": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10060,14 +10588,14 @@
 			"name": "whiteboard",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [259, 184, 264],
+			"origin": [264, 184, 264],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "Q: what happens to the model if the substrate is already thinking?\nA: (nobody wrote an answer)",
 			"use": "note",
 			"value": 150
 		},
-		"prop_379": {
+		"prop_397": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10091,7 +10619,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_380": {
+		"prop_398": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10115,7 +10643,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_381": {
+		"prop_399": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10139,7 +10667,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_382": {
+		"prop_400": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10163,7 +10691,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_383": {
+		"prop_401": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10187,7 +10715,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_384": {
+		"prop_402": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10211,7 +10739,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_385": {
+		"prop_403": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10235,7 +10763,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_386": {
+		"prop_404": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10259,7 +10787,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_387": {
+		"prop_405": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10283,7 +10811,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_388": {
+		"prop_406": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10307,7 +10835,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_389": {
+		"prop_407": {
 			"charges": 3,
 			"contents": "ammo_explosive",
 			"door": false,
@@ -10331,7 +10859,7 @@
 			"use": "container",
 			"value": 300
 		},
-		"prop_390": {
+		"prop_408": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10348,14 +10876,14 @@
 			"name": "shelf_storage_b",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [211, 170, 278],
+			"origin": [211, 170, 280],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
 		},
-		"prop_391": {
+		"prop_409": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10372,14 +10900,14 @@
 			"name": "shelf_storage_b",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [238, 170, 278],
+			"origin": [264, 170, 278],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 300
 		},
-		"prop_392": {
+		"prop_410": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10403,7 +10931,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_393": {
+		"prop_411": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10427,7 +10955,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_394": {
+		"prop_412": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10451,7 +10979,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_395": {
+		"prop_413": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10475,7 +11003,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_396": {
+		"prop_414": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10499,7 +11027,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_397": {
+		"prop_415": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10523,7 +11051,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_398": {
+		"prop_416": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10547,7 +11075,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_399": {
+		"prop_417": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10564,14 +11092,14 @@
 			"name": "desk",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [214, 170, 343],
+			"origin": [215, 170, 343],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
 		},
-		"prop_400": {
+		"prop_418": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10595,7 +11123,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_401": {
+		"prop_419": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10619,7 +11147,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_402": {
+		"prop_420": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10643,7 +11171,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_403": {
+		"prop_421": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10660,14 +11188,14 @@
 			"name": "desk",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [279, 170, 343],
+			"origin": [279, 170, 345],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 600
 		},
-		"prop_404": {
+		"prop_422": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10684,14 +11212,14 @@
 			"name": "chair",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [287, 170, 336],
+			"origin": [266, 170, 336],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 50
 		},
-		"prop_405": {
+		"prop_423": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10715,7 +11243,7 @@
 			"use": "none",
 			"value": 500
 		},
-		"prop_406": {
+		"prop_424": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -10739,7 +11267,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_407": {
+		"prop_425": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10756,14 +11284,14 @@
 			"name": "whiteboard",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [259, 184, 335],
+			"origin": [252, 184, 335],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "ON CALL: nobody. Fung says the model will handle it.",
 			"use": "note",
 			"value": 150
 		},
-		"prop_408": {
+		"prop_426": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10780,14 +11308,14 @@
 			"name": "medkit_station",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [328, 180, 362],
+			"origin": [328, 170, 381],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_409": {
+		"prop_427": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10811,7 +11339,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_410": {
+		"prop_428": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -10835,7 +11363,7 @@
 			"use": "container",
 			"value": 900
 		},
-		"prop_411": {
+		"prop_429": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10859,7 +11387,7 @@
 			"use": "none",
 			"value": 1500
 		},
-		"prop_412": {
+		"prop_430": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10883,7 +11411,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_413": {
+		"prop_431": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10907,7 +11435,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_414": {
+		"prop_432": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10931,7 +11459,7 @@
 			"use": "none",
 			"value": 40
 		},
-		"prop_415": {
+		"prop_433": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10948,14 +11476,14 @@
 			"name": "corkboard_small",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [359, 184, 335],
+			"origin": [358, 184, 335],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "DECON AIRLOCK: outer door seals before the inner door opens. Red clearance beyond.",
 			"use": "note",
 			"value": 40
 		},
-		"prop_416": {
+		"prop_434": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -10979,7 +11507,7 @@
 			"use": "container",
 			"value": 250
 		},
-		"prop_417": {
+		"prop_435": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -10996,14 +11524,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [344, 130, 406],
+			"origin": [387, 130, 406],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_418": {
+		"prop_436": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11020,38 +11548,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [351, 130, 406],
+			"origin": [351, 130, 410],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_419": {
-			"charges": 3,
-			"contents": "",
-			"door": false,
-			"door_ahead": 0,
-			"door_behind": 0,
-			"door_key": "",
-			"door_locked": false,
-			"door_offset": [0, 0, 0],
-			"door_power": false,
-			"door_speed": 2.0,
-			"facing": 2,
-			"finale_seconds": 120.0,
-			"kind": "prop",
-			"name": "counter_sink",
-			"needs_power": false,
-			"on_use": "",
-			"origin": [370, 130, 405],
-			"station_ammo_type": "",
-			"steps": "",
-			"text": "",
-			"use": "none",
-			"value": 1100
-		},
-		"prop_420": {
+		"prop_437": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11065,17 +11569,41 @@
 			"facing": 0,
 			"finale_seconds": 120.0,
 			"kind": "prop",
+			"name": "counter_sink",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [357, 130, 454],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1100
+		},
+		"prop_438": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 1,
+			"finale_seconds": 120.0,
+			"kind": "prop",
 			"name": "bench",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [358, 130, 450],
+			"origin": [335, 130, 428],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
 		},
-		"prop_421": {
+		"prop_439": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11099,7 +11627,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_422": {
+		"prop_440": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11123,7 +11651,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_423": {
+		"prop_441": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11147,7 +11675,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_424": {
+		"prop_442": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11171,7 +11699,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_425": {
+		"prop_443": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11195,7 +11723,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_426": {
+		"prop_444": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11219,7 +11747,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_427": {
+		"prop_445": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11243,7 +11771,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_428": {
+		"prop_446": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11260,14 +11788,14 @@
 			"name": "lab_bench_c",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [287, 130, 208],
+			"origin": [287, 130, 215],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 2500
 		},
-		"prop_429": {
+		"prop_447": {
 			"charges": 3,
 			"contents": "flask_rage",
 			"door": false,
@@ -11284,14 +11812,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [321, 130, 166],
+			"origin": [327, 130, 166],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_430": {
+		"prop_448": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11315,7 +11843,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_431": {
+		"prop_449": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11339,7 +11867,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_432": {
+		"prop_450": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11353,17 +11881,65 @@
 			"facing": 2,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "lab_bench_a",
+			"name": "specimen_jar",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [208, 130, 288],
+			"origin": [227, 142, 290],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 2500
+			"value": 350
 		},
-		"prop_433": {
+		"prop_451": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 1,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "vial_cabinet",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [205, 130, 355],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1800
+		},
+		"prop_452": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "lab_table_gear",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [227, 130, 358],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 3200
+		},
+		"prop_453": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11387,7 +11963,7 @@
 			"use": "none",
 			"value": 2500
 		},
-		"prop_434": {
+		"prop_454": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11404,14 +11980,14 @@
 			"name": "fume_hood",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [252, 130, 293],
+			"origin": [252, 130, 316],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 4000
 		},
-		"prop_435": {
+		"prop_455": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11435,7 +12011,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_436": {
+		"prop_456": {
 			"charges": 3,
 			"contents": "medkit",
 			"door": false,
@@ -11459,7 +12035,7 @@
 			"use": "container",
 			"value": 600
 		},
-		"prop_437": {
+		"prop_457": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11483,7 +12059,7 @@
 			"use": "none",
 			"value": 1100
 		},
-		"prop_438": {
+		"prop_458": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11507,7 +12083,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_439": {
+		"prop_459": {
 			"charges": 3,
 			"contents": "ammo_explosive",
 			"door": false,
@@ -11524,14 +12100,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [208, 130, 211],
+			"origin": [208, 130, 205],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_440": {
+		"prop_460": {
 			"charges": 3,
 			"contents": "ammo_homing",
 			"door": false,
@@ -11548,14 +12124,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [218, 130, 211],
+			"origin": [218, 130, 205],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_441": {
+		"prop_461": {
 			"charges": 3,
 			"contents": "ammo_flame",
 			"door": false,
@@ -11572,14 +12148,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [228, 130, 211],
+			"origin": [228, 130, 205],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_442": {
+		"prop_462": {
 			"charges": 3,
 			"contents": "ammo_ricochet",
 			"door": false,
@@ -11596,14 +12172,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [239, 130, 211],
+			"origin": [239, 130, 205],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_443": {
+		"prop_463": {
 			"charges": 3,
 			"contents": "flask_fire",
 			"door": false,
@@ -11620,14 +12196,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [208, 130, 256],
+			"origin": [205, 130, 262],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_444": {
+		"prop_464": {
 			"charges": 3,
 			"contents": "flask_freeze",
 			"door": false,
@@ -11644,14 +12220,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [218, 130, 256],
+			"origin": [257, 130, 262],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_445": {
+		"prop_465": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11675,7 +12251,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_446": {
+		"prop_466": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11692,14 +12268,14 @@
 			"name": "bench",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [163, 130, 145],
+			"origin": [163, 130, 150],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 120
 		},
-		"prop_447": {
+		"prop_467": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11723,7 +12299,7 @@
 			"use": "none",
 			"value": 20
 		},
-		"prop_448": {
+		"prop_468": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11747,7 +12323,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_449": {
+		"prop_469": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11771,7 +12347,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_450": {
+		"prop_470": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11795,7 +12371,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_451": {
+		"prop_471": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11819,7 +12395,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_452": {
+		"prop_472": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11843,7 +12419,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_453": {
+		"prop_473": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11867,7 +12443,7 @@
 			"use": "none",
 			"value": 300
 		},
-		"prop_454": {
+		"prop_474": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11891,7 +12467,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_455": {
+		"prop_475": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11908,14 +12484,14 @@
 			"name": "ammo_bench",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [188, 130, 98],
+			"origin": [183, 130, 98],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_456": {
+		"prop_476": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11932,14 +12508,14 @@
 			"name": "medkit_station",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [140, 140, 102],
+			"origin": [140, 130, 102],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_457": {
+		"prop_477": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11963,7 +12539,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_458": {
+		"prop_478": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -11987,7 +12563,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_459": {
+		"prop_479": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12011,7 +12587,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_460": {
+		"prop_480": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12035,7 +12611,7 @@
 			"use": "none",
 			"value": 6000
 		},
-		"prop_461": {
+		"prop_481": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12059,7 +12635,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_462": {
+		"prop_482": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12083,7 +12659,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_463": {
+		"prop_483": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12100,14 +12676,14 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [338, 130, 89],
+			"origin": [338, 130, 106],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "CHAMBER 3 CONTROL\nStimulation: OFFLINE\nSubject: budding (6 attached)\n\nNote: the black card opens the cage lift. The dig is below. Nobody has been down since the power went.",
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_464": {
+		"prop_484": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12131,7 +12707,7 @@
 			"use": "none",
 			"value": 600
 		},
-		"prop_465": {
+		"prop_485": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12155,7 +12731,7 @@
 			"use": "none",
 			"value": 50
 		},
-		"prop_466": {
+		"prop_486": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12179,7 +12755,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_467": {
+		"prop_487": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12196,14 +12772,14 @@
 			"name": "locker",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [385, 130, 43],
+			"origin": [385, 130, 56],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 250
 		},
-		"prop_468": {
+		"prop_488": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12227,7 +12803,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_469": {
+		"prop_489": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12244,14 +12820,14 @@
 			"name": "plank_stack",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [405, 30, 117],
+			"origin": [405, 30, 129],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
 		},
-		"prop_470": {
+		"prop_490": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12275,7 +12851,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_471": {
+		"prop_491": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12292,14 +12868,14 @@
 			"name": "barrel",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [406, 30, 106],
+			"origin": [406, 30, 80],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
 		},
-		"prop_472": {
+		"prop_492": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12323,7 +12899,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_473": {
+		"prop_493": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12347,7 +12923,7 @@
 			"use": "none",
 			"value": 25
 		},
-		"prop_474": {
+		"prop_494": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12364,14 +12940,14 @@
 			"name": "plank_stack",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [294, 30, 110],
+			"origin": [320, 30, 110],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 25
 		},
-		"prop_475": {
+		"prop_495": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12395,7 +12971,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_476": {
+		"prop_496": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12412,14 +12988,14 @@
 			"name": "crate_6",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [380, 30, 110],
+			"origin": [379, 30, 110],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
 		},
-		"prop_477": {
+		"prop_497": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12443,7 +13019,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_478": {
+		"prop_498": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12467,7 +13043,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_479": {
+		"prop_499": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12491,7 +13067,7 @@
 			"use": "none",
 			"value": 60
 		},
-		"prop_480": {
+		"prop_500": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12508,14 +13084,14 @@
 			"name": "spore_tank",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [190, 30, 103],
+			"origin": [190, 30, 121],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 6000
 		},
-		"prop_481": {
+		"prop_501": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12532,14 +13108,14 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [164, 30, 125],
+			"origin": [186, 30, 125],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "WATER TABLE LOG\nWeek 1: clear. Week 20: faint glow under UV. Week 31: the glow is in the water now. Pumps running. Where does it go? (It goes to the cooling plant.)",
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_482": {
+		"prop_502": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12553,17 +13129,65 @@
 			"facing": 2,
 			"finale_seconds": 120.0,
 			"kind": "prop",
-			"name": "lab_bench_a",
+			"name": "specimen_jar",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [143, 30, 145],
+			"origin": [163, 45, 194],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
-			"value": 2500
+			"value": 350
 		},
-		"prop_483": {
+		"prop_503": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 1,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "vial_cabinet",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [169, 30, 181],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 1800
+		},
+		"prop_504": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "shroom_pot",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [146, 30, 193],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 90
+		},
+		"prop_505": {
 			"charges": 3,
 			"contents": "ammo_flame,ammo_explosive",
 			"door": false,
@@ -12580,14 +13204,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [191, 30, 150],
+			"origin": [197, 30, 150],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_484": {
+		"prop_506": {
 			"charges": 3,
 			"contents": "ammo_flame,ammo_explosive",
 			"door": false,
@@ -12604,14 +13228,14 @@
 			"name": "glass_case",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [191, 30, 171],
+			"origin": [197, 30, 171],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "glass_case",
 			"value": 150
 		},
-		"prop_485": {
+		"prop_507": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12635,7 +13259,7 @@
 			"use": "note",
 			"value": 40
 		},
-		"prop_486": {
+		"prop_508": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -12652,14 +13276,14 @@
 			"name": "medkit_station",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [183, 40, 140],
+			"origin": [186, 30, 140],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_487": {
+		"prop_509": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12683,7 +13307,7 @@
 			"use": "none",
 			"value": 120
 		},
-		"prop_488": {
+		"prop_510": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12707,7 +13331,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_489": {
+		"prop_511": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12731,7 +13355,7 @@
 			"use": "terminal",
 			"value": 2000
 		},
-		"prop_490": {
+		"prop_512": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12755,7 +13379,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_491": {
+		"prop_513": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12779,7 +13403,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_492": {
+		"prop_514": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12803,7 +13427,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_493": {
+		"prop_515": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12827,7 +13451,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_494": {
+		"prop_516": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12844,14 +13468,14 @@
 			"name": "cabinet",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [211, 30, 276],
+			"origin": [205, 30, 276],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
 		},
-		"prop_495": {
+		"prop_517": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12868,14 +13492,14 @@
 			"name": "cabinet",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [223, 30, 276],
+			"origin": [257, 30, 276],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "container",
 			"value": 300
 		},
-		"prop_496": {
+		"prop_518": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -12892,14 +13516,14 @@
 			"name": "ammo_bench",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [314, 30, 281],
+			"origin": [314, 30, 322],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_ammo",
 			"value": 800
 		},
-		"prop_497": {
+		"prop_519": {
 			"charges": 4,
 			"contents": "",
 			"door": false,
@@ -12916,14 +13540,14 @@
 			"name": "medkit_station",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [328, 40, 377],
+			"origin": [328, 30, 387],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "station_medkit",
 			"value": 400
 		},
-		"prop_498": {
+		"prop_520": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12940,14 +13564,14 @@
 			"name": "crate_8",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [211, 30, 375],
+			"origin": [211, 30, 337],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 30
 		},
-		"prop_499": {
+		"prop_521": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12971,7 +13595,7 @@
 			"use": "none",
 			"value": 30
 		},
-		"prop_500": {
+		"prop_522": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -12988,14 +13612,14 @@
 			"name": "barrel",
 			"needs_power": false,
 			"on_use": "",
-			"origin": [319, 30, 378],
+			"origin": [319, 30, 338],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "",
 			"use": "none",
 			"value": 60
 		},
-		"prop_501": {
+		"prop_523": {
 			"charges": 3,
 			"contents": "",
 			"door": false,
@@ -14156,135 +14780,159 @@
 			"to": [278, 192, 268],
 			"type": "slot"
 		},
-		"spawn_502": {
+		"spawn_524": {
 			"index": 1,
 			"kind": "marker",
 			"position": [242.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_503": {
+		"spawn_525": {
 			"index": 2,
 			"kind": "marker",
 			"position": [257.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_504": {
+		"spawn_526": {
 			"index": 3,
 			"kind": "marker",
 			"position": [272.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"spawn_505": {
+		"spawn_527": {
 			"index": 4,
 			"kind": "marker",
 			"position": [287.5, 290.0, 47.5],
 			"type": "spawn",
 			"yaw": -90.0
 		},
-		"speaker_506": {
+		"speaker_528": {
 			"kind": "marker",
 			"position": [365.0, 315.0, 72.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_511": {
+		"speaker_533": {
 			"kind": "marker",
 			"position": [267.5, 275.0, 137.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_512": {
+		"speaker_534": {
 			"kind": "marker",
 			"position": [267.5, 275.0, 300.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_518": {
+		"speaker_540": {
 			"kind": "marker",
 			"position": [105.0, 235.0, 55.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_519": {
+		"speaker_541": {
 			"kind": "marker",
 			"position": [202.5, 235.0, 235.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_520": {
+		"speaker_542": {
 			"kind": "marker",
 			"position": [202.5, 235.0, 72.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_525": {
+		"speaker_547": {
 			"kind": "marker",
 			"position": [311.25, 195.0, 371.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_526": {
+		"speaker_548": {
 			"kind": "marker",
 			"position": [267.5, 195.0, 137.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_527": {
+		"speaker_549": {
 			"kind": "marker",
 			"position": [365.0, 195.0, 365.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_528": {
+		"speaker_550": {
 			"kind": "marker",
 			"position": [300.0, 155.0, 158.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_529": {
+		"speaker_551": {
 			"kind": "marker",
 			"position": [170.0, 155.0, 123.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_531": {
+		"speaker_553": {
 			"kind": "marker",
 			"position": [365.0, 155.0, 300.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_532": {
+		"speaker_554": {
 			"kind": "marker",
 			"position": [170.0, 155.0, 267.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_535": {
+		"speaker_557": {
 			"kind": "marker",
 			"position": [170.0, 55.0, 176.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_537": {
+		"speaker_559": {
 			"kind": "marker",
 			"position": [47.5, 55.0, 430.0],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_548": {
+		"speaker_570": {
 			"kind": "marker",
 			"position": [72.5, 55.0, 267.5],
 			"type": "speaker",
 			"yaw": 0.0
 		},
-		"speaker_549": {
+		"speaker_571": {
 			"kind": "marker",
 			"position": [267.5, 55.0, 332.5],
 			"type": "speaker",
 			"yaw": 0.0
+		},
+		"specimen": {
+			"charges": 3,
+			"contents": "",
+			"door": false,
+			"door_ahead": 0,
+			"door_behind": 0,
+			"door_key": "",
+			"door_locked": false,
+			"door_offset": [0, 0, 0],
+			"door_power": false,
+			"door_speed": 2.0,
+			"facing": 0,
+			"finale_seconds": 120.0,
+			"kind": "prop",
+			"name": "specimen_case",
+			"needs_power": false,
+			"on_use": "",
+			"origin": [294, 250, 313],
+			"station_ammo_type": "",
+			"steps": "",
+			"text": "",
+			"use": "none",
+			"value": 25000
 		},
 		"stair_g0": {
 			"ceiling": 3,
@@ -14633,7 +15281,7 @@
 			"name": "terminal",
 			"needs_power": false,
 			"on_use": "say_signin",
-			"origin": [377, 290, 34],
+			"origin": [377, 290, 47],
 			"station_ammo_type": "",
 			"steps": "",
 			"text": "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.",

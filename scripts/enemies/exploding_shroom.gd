@@ -3,7 +3,7 @@ extends Enemy
 ## The exploding shroom: a swollen, spotted cap that runs straight at its target. Within FUSE_RANGE
 ## it stops, pulses white and orange and hisses (FUSE_TIME), then blows: it carves the terrain
 ## (WorldSync.carve_sphere, so assets in the blast break and the payroll counts them) and hurts
-## every enemy and player within blast_reach. Killed before then, it still goes off, smaller
+## every enemy and player within blast_reach that the blast center can see (Combat.can_see). Killed before then, it still goes off, smaller
 ## (dud_*). The host decides; the fuse flash and the blast are sent to every peer.
 
 ## Meters from its target at which it lights its fuse.
@@ -66,7 +66,7 @@ func _think(delta: float) -> Dictionary:
 	var target := manager.nearest_player(global_position)
 	if target:
 		var to_target := target.global_position - global_position
-		if Vector2(to_target.x, to_target.z).length() < FUSE_RANGE and absf(to_target.y) < 1.6:
+		if Vector2(to_target.x, to_target.z).length() < FUSE_RANGE and absf(to_target.y) < 1.6 and sees(target):
 			_light_fuse()
 			return {direction = Vector3.ZERO, facing = Vector3(to_target.x, 0.0, to_target.z), breach = false}
 	return super(delta)
@@ -88,7 +88,7 @@ func _fuse_lit() -> void:
 ## Every peer: the fuse flash and hiss.
 func show_fuse() -> void:
 	_pulse = FUSE_TIME
-	Sfx.play_at("fuse", get_center(), 0.0, 0.05)
+	play_sound("fuse", get_center(), 0.0, 0.05)
 
 
 ## Host: blows up (full: the fuse ran out, else the smaller one from being killed). Carves, damages
@@ -106,12 +106,13 @@ func explode(full: bool) -> void:
 		manager.world_sync.carve_sphere(at, radius, blast_power, Vector3.UP)
 	if full:
 		Fire.ignite_at(at, radius + 1.0, 40)
+	# Damage only reaches what the blast center can see (walls and floors shelter).
 	for victim in Combat.sphere_hit(at, reach):
-		if victim != self:
+		if victim != self and Combat.can_see(world, at, victim.get_center()):
 			manager.damage(victim.id, amount, at, "blast")
 	for player in manager.targets():
 		var box := player.get_body_aabb()
-		if at.clamp(box.position, box.end).distance_to(at) <= reach:
+		if at.clamp(box.position, box.end).distance_to(at) <= reach and Combat.sees_player(world, at, player):
 			manager.damage_player(player, amount, at)
 	show_blast(at, radius)
 	for peer_id in manager._peers():
@@ -140,6 +141,7 @@ func show_blast(at: Vector3, radius: float) -> void:
 	var tween := light.create_tween()
 	tween.tween_property(light, "light_energy", 0.0, 0.35)
 	tween.tween_callback(light.queue_free)
+	VoxelFx.blast(manager, at, radius, Color(1.0, 0.6, 0.2))
 
 
 ## Killed (host): goes off small on the way out, unless this is its own blast.

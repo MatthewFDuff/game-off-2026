@@ -2,7 +2,10 @@ extends SceneTree
 ## Headless checks for the generated laboratory (scripts/tools/lab_builder.gd, docs/lab-design.md):
 ##   godot --headless --path . --script res://tests/laboratory_test.gd
 ## Builds the level into a scratch folder and checks the result without playing it: every door has
-## its doorway and slot, props stand in air (none buried in a wall), floor markers stand on floors,
+## its doorway and slot, props stand in air (none buried in a wall), floor props stand on a floor (or
+## another prop) and wall props and hanging props (cases, stations) touch a wall behind them, no
+## prop stands within a meter of a doorway, passage, crawl hole, stair or ladder (lab_builder's
+## keep-out boxes), floor markers stand on floors,
 ## and a walk over the voxels from the spawn (steps up to 4 voxels, any drop, ladders, crouching
 ## through vents, keycard doors opening only once their card has been walked to, story-locked doors
 ## opening at their event) reaches every floor's clone vat, every keycard, the generator and, after
@@ -51,6 +54,8 @@ func _run() -> void:
 
 	_check_doors()
 	_check_props()
+	_check_mounts()
+	_check_clearance(builder)
 	_check_markers()
 
 	_breakables_pass = false
@@ -126,6 +131,90 @@ func _check_props() -> void:
 		if solid > 0:
 			buried.append("%s %s (%d voxels)" % [object.id, object.name, solid])
 	_check("props stand in air (%d props)" % props, buried.is_empty(), ", ".join(buried.slice(0, 12)))
+
+
+## Floor props: solid voxels (or another prop) under at least half of the model's bottom layer.
+## Wall props, and floor props that hang (nothing on their bottom layer): a wall behind at least
+## half of the model's back layer. Vent grates the builder put in a crawl hole are skipped (the
+## hole is behind them).
+func _check_mounts() -> void:
+	var floating := []
+	var off_wall := []
+	var holes: Array[AABB] = []
+	for object in _level.objects.values():
+		if object.kind == "opening" and object.type == "hole":
+			holes.append(LevelSchema.box_of(object).grow(1))
+	var props := _level.objects.values().filter(func(o) -> bool: return o.kind == "prop" and not LevelSchema.is_door(o))
+	for object in props:
+		var model: Dictionary = Props.orient(Props.load_prop(object.name), int(object.facing))
+		if model.is_empty():
+			continue
+		var size: Vector3i = model.size
+		var origin: Vector3i = object.origin
+		var walled: bool = PropCatalog.mount_of(object.name) == "wall" or Builder.hangs(object.name)
+		if not walled:
+			var cells := 0
+			var held := 0
+			for z in size.z:
+				for x in size.x:
+					if model.voxels[x + z * size.x * size.y] == 0:
+						continue
+					cells += 1
+					var below := origin + Vector3i(x, -1, z)
+					if _voxel(below) != M.AIR or _in_other_prop(below, object, props):
+						held += 1
+			if cells == 0 or held * 2 < cells:
+				floating.append("%s %s (%d/%d)" % [object.id, object.name, held, cells])
+			continue
+		var box: AABB = LevelSchema.prop_box(object)
+		if object.name.begins_with("vent_grate") and holes.any(func(h: AABB) -> bool: return h.intersects(box)):
+			continue
+		# The back is opposite the front: facing north (front at -z) backs onto +z, and so on.
+		var back: Vector3i = -[Vector3i(0, 0, -1), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0)][int(object.facing)]
+		var axis := 0 if back.x != 0 else 2
+		var layer := 0 if (back[axis] < 0) else size[axis] - 1
+		var cells := 0
+		var held := 0
+		for y in size.y:
+			for a in (size.z if axis == 0 else size.x):
+				var local := Vector3i(layer, y, a) if axis == 0 else Vector3i(a, y, layer)
+				if model.voxels[local.x + local.y * size.x + local.z * size.x * size.y] == 0:
+					continue
+				cells += 1
+				if _voxel(origin + local + back) != M.AIR:
+					held += 1
+		if cells == 0 or held * 2 < cells:
+			off_wall.append("%s %s (%d/%d)" % [object.id, object.name, held, cells])
+	_check("floor props stand on something", floating.is_empty(), ", ".join(floating.slice(0, 12)))
+	_check("wall and hanging props touch a wall behind them", off_wall.is_empty(), ", ".join(off_wall.slice(0, 12)))
+
+
+func _in_other_prop(cell: Vector3i, object: Dictionary, props: Array) -> bool:
+	for other in props:
+		if other.id != object.id and LevelSchema.prop_box(other).has_point(Vector3(cell) + Vector3(0.5, 0.5, 0.5)):
+			return true
+	return false
+
+
+## No prop within a meter of a doorway's (or passage's, or crawl hole's) footprint, in a door's
+## slot, on the stairs, at a ladder or over the lift hatch, and none dropped for want of a spot.
+func _check_clearance(builder) -> void:
+	var keep_out: Array[AABB] = Builder.keep_out(_level.objects, builder._layout.keep_clear)
+	var holes: Array[AABB] = []
+	for object in _level.objects.values():
+		if object.kind == "opening" and object.type == "hole":
+			holes.append(LevelSchema.box_of(object).grow(1))
+	var blocking := []
+	for object in _level.objects.values():
+		if object.kind != "prop" or LevelSchema.is_door(object):
+			continue
+		var box: AABB = LevelSchema.prop_box(object)
+		if object.name.begins_with("vent_grate") and holes.any(func(h: AABB) -> bool: return h.intersects(box)):
+			continue
+		if keep_out.any(func(k: AABB) -> bool: return k.intersects(box)):
+			blocking.append("%s %s at %s" % [object.id, object.name, object.origin])
+	_check("no prop within 1 m of a doorway, stair, ladder or hatch", blocking.is_empty(), ", ".join(blocking.slice(0, 12)))
+	_check("every prop found a spot clear of the doorways", builder.dropped.is_empty(), ", ".join(builder.dropped))
 
 
 func _check_markers() -> void:

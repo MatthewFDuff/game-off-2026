@@ -22,7 +22,8 @@ const FLOOR := 8
 ## The room, in voxels [from, to).
 const ROOM := [Vector3i(8, FLOOR, 8), Vector3i(248, 72, 248)]
 const PLAYER_SPOT := Vector3(128.0, FLOOR, 220.0)
-const SPAWNER_SPOT := Vector3(40.0, FLOOR, 40.0)
+## Behind the player and over 6 m away, so the director's fair-spawn rule lets it spawn.
+const SPAWNER_SPOT := Vector3(20.0, FLOOR, 236.0)
 
 var _failures := 0
 var lab

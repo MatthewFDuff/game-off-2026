@@ -8,6 +8,11 @@ extends RefCounted
 const LEVEL_NAME := "laboratory"
 ## How thick a glass, plank or plastic patch is (voxels), whatever the gap it closes.
 const FILL_DEPTH := 5
+## How far (voxels) every prop stays from a doorway, an open passage or a crawl hole, on both sides
+## of the wall and to either side of it, so nothing stands in front of a way through.
+const CLEARANCE := 10
+## Which wall a prop's back is against, by its facing (its front points away from it).
+const BACK_WALL := {0: "s", 1: "w", 2: "n", 3: "e"}
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 const P := preload("res://scripts/world/props.gd")
 const Layout := preload("res://scripts/tools/lab_layout.gd")
@@ -15,7 +20,12 @@ const Layout := preload("res://scripts/tools/lab_layout.gd")
 ## After build(): the level and the world it was carved in (the caller frees the world).
 var level: LevelData
 var world: VoxelWorld
+## Props that couldn't be placed clear of the doorways (their names and rooms), for the tests.
+var dropped: Array[String] = []
 var _layout
+## Boxes no prop may overlap (keep_out()), and the boxes of the props placed so far.
+var _keep_out: Array[AABB] = []
+var _placed: Array[AABB] = []
 
 
 ## Builds and saves the level (tests call this with LevelData.save_dir_override set). Returns the
@@ -48,6 +58,7 @@ func build(parent: Node) -> Error:
 		_door(d)
 	for o: Dictionary in _layout.openings:
 		_opening(o)
+	_keep_out = keep_out(level.objects, _layout.keep_clear)
 	for p: Dictionary in _layout.props:
 		_prop(p)
 	for m: Dictionary in _layout.markers:
@@ -189,43 +200,163 @@ func _opening(o: Dictionary) -> void:
 		_add("", LevelSchema.new_prop("vent_grate", origin, facing))
 
 
+## Where props may not go: every doorway, open passage and crawl hole grown by CLEARANCE across
+## and along its wall (not up), every door's slot grown by a voxel, and the extra boxes the layout
+## keeps clear (stairs, ladders, the lift hatch). tests/laboratory_test.gd checks props against it.
+static func keep_out(objects: Dictionary, extra: Array) -> Array[AABB]:
+	var boxes: Array[AABB] = []
+	for object: Dictionary in objects.values():
+		if object.get("kind") != "opening":
+			continue
+		var box := LevelSchema.box_of(object)
+		match str(object.type):
+			"doorway", "hole":
+				boxes.append(AABB(box.position - Vector3(CLEARANCE, 0, CLEARANCE), box.size + Vector3(CLEARANCE, 0, CLEARANCE) * 2.0))
+			"slot":
+				boxes.append(box.grow(1))
+	for box: AABB in extra:
+		boxes.append(box)
+	return boxes
+
+
+## A prop whose model has nothing on its bottom layer hangs off the floor (a glass case, a medkit
+## station: drawn 1 m up in their own frame), so it has to be backed against a wall.
+static func hangs(prop_name: String) -> bool:
+	var model := P.load_prop(prop_name)
+	if model.is_empty():
+		return false
+	var size: Vector3i = model.size
+	var voxels: PackedByteArray = model.voxels
+	for z in size.z:
+		for x in size.x:
+			if voxels[x + z * size.x * size.y] != 0:
+				return false
+	return true
+
+
 func _prop(p: Dictionary) -> void:
 	var r := _room(p.room)
 	if r.is_empty():
 		return
 	var facing: int = p.facing
 	var fields: Dictionary = p.fields
-	var origin := Vector3i.ZERO
-	if p.wall != "":
-		facing = {n = P.SOUTH, s = P.NORTH, e = P.WEST, w = P.EAST}[p.wall]
+	var side: String = p.wall
+	var up: int = int(p.get("up", 0))
+	if side == "" and str(fields.get("on", "")) == "" and hangs(p.name):
+		# Floor props that hang (cases, stations) go flush against the wall behind them.
+		side = BACK_WALL[facing]
+	if side != "":
+		facing = {n = P.SOUTH, s = P.NORTH, e = P.WEST, w = P.EAST}[side]
 	var size := Vector3i(LevelSchema.prop_box({kind = "prop", name = p.name, origin = Vector3i.ZERO, facing = facing}).size)
+	var origin := Vector3i.ZERO
+	var on: String = fields.get("on", "")
+	if on != "":
+		_add(fields.get("id", ""), _prop_object(p.name, _on_top(on, p, size, facing), facing, fields))
+		return
 	var free: Vector3i = r.to - r.from - size
-	origin.y = r.from.y
-	if p.wall == "":
-		origin.x = r.from.x + roundi(float(p.fx) * free.x)
-		origin.z = r.from.z + roundi(float(p.fz) * free.z)
-	else:
-		origin.y = r.from.y + int(p.up)
-		match p.wall:
-			"n":
-				origin.z = r.from.z
-				origin.x = r.from.x + roundi(float(p.fx) * free.x)
-			"s":
-				origin.z = r.to.z - size.z
-				origin.x = r.from.x + roundi(float(p.fx) * free.x)
-			"e":
-				origin.x = r.to.x - size.x
-				origin.z = r.from.z + roundi(float(p.fz) * free.z)
-			"w":
-				origin.x = r.from.x
-				origin.z = r.from.z + roundi(float(p.fz) * free.z)
+	origin.y = r.from.y + up
+	var f_along: float = p.fx if side in ["n", "s"] else p.fz
+	match side:
+		"":
+			origin.x = r.from.x + roundi(float(p.fx) * free.x)
+			origin.z = r.from.z + roundi(float(p.fz) * free.z)
+		"n":
+			origin.z = r.from.z
+			origin.x = r.from.x + roundi(f_along * free.x)
+		"s":
+			origin.z = r.to.z - size.z
+			origin.x = r.from.x + roundi(f_along * free.x)
+		"e":
+			origin.x = r.to.x - size.x
+			origin.z = r.from.z + roundi(f_along * free.z)
+		"w":
+			origin.x = r.from.x
+			origin.z = r.from.z + roundi(f_along * free.z)
 	origin = origin.clamp(r.from, (r.to - size).max(r.from))
-	var prop := LevelSchema.new_prop(p.name, origin, facing)
-	var id: String = fields.get("id", "")
+	var spot: Variant = _clear_spot(r, origin, size, side)
+	if spot == null:
+		push_warning("build_laboratory: dropped %s in %s, no spot clear of the doorways" % [p.name, p.room])
+		dropped.append("%s in %s" % [p.name, p.room])
+		return
+	if spot != origin:
+		print("build_laboratory: moved %s in %s by %s to clear a doorway" % [p.name, p.room, Vector3i(spot) - origin])
+	_placed.append(AABB(Vector3(spot), Vector3(size)))
+	_add(fields.get("id", ""), _prop_object(p.name, spot, facing, fields))
+
+
+func _prop_object(prop_name: String, origin: Vector3i, facing: int, fields: Dictionary) -> Dictionary:
+	var prop := LevelSchema.new_prop(prop_name, origin, facing)
 	for key in fields:
-		if key != "id":
+		if key not in ["id", "on"]:
 			prop[key] = fields[key]
-	_add(id, prop)
+	return prop
+
+
+## A small prop standing on another one (fields.on, a prop id): at fractions (fx, fz) of the free
+## space on that prop's footprint, on the highest voxel of the base's model under it.
+func _on_top(base_id: String, p: Dictionary, size: Vector3i, facing: int) -> Vector3i:
+	var base: Dictionary = level.objects.get(base_id, {})
+	if base.is_empty():
+		push_error("build_laboratory: %s stands on %s, which isn't placed yet" % [p.name, base_id])
+		return Vector3i.ZERO
+	var model := P.orient(P.load_prop(base.name), int(base.facing))
+	var bsize: Vector3i = model.size
+	var origin: Vector3i = base.origin
+	var at := Vector3i(roundi(float(p.fx) * maxi(bsize.x - size.x, 0)), 0, roundi(float(p.fz) * maxi(bsize.z - size.z, 0)))
+	var top := 0
+	for z in range(at.z, mini(at.z + size.z, bsize.z)):
+		for x in range(at.x, mini(at.x + size.x, bsize.x)):
+			for y in range(bsize.y - 1, -1, -1):
+				if model.voxels[x + y * bsize.x + z * bsize.x * bsize.y] != 0:
+					top = maxi(top, y + 1)
+					break
+	return origin + Vector3i(at.x, top, at.z)
+
+
+## origin if the prop's box there is clear of the keep-out boxes, else the nearest clear spot sliding
+## along its wall (a wall prop's own wall, or the wall a floor prop is nearest), else pushed into the
+## room away from that wall (floor props only), clear of the props already placed too. null: none.
+func _clear_spot(r: Dictionary, origin: Vector3i, size: Vector3i, side: String) -> Variant:
+	if _clear(origin, size, false):
+		return origin
+	var wall := side
+	if wall == "":
+		var gaps := {n = origin.z - r.from.z, s = r.to.z - origin.z - size.z, w = origin.x - r.from.x, e = r.to.x - origin.x - size.x}
+		wall = "n"
+		for k: String in gaps:
+			if gaps[k] < gaps[wall]:
+				wall = k
+	var along := 0 if wall in ["n", "s"] else 2
+	var lo: Vector3i = r.from
+	var hi: Vector3i = (r.to - size).max(r.from)
+	for d in range(1, r.to[along] - r.from[along]):
+		for sign in [1, -1]:
+			var o := origin
+			o[along] += sign * d
+			if o[along] >= lo[along] and o[along] <= hi[along] and _clear(o, size, true):
+				return o
+	if side != "":
+		return null
+	var across := 2 if along == 0 else 0
+	var inward := 1 if wall in ["n", "w"] else -1
+	for d in range(1, (r.to[across] - r.from[across]) / 2):
+		var o := origin
+		o[across] += inward * d
+		if o[across] >= lo[across] and o[across] <= hi[across] and _clear(o, size, true):
+			return o
+	return null
+
+
+func _clear(origin: Vector3i, size: Vector3i, check_props: bool) -> bool:
+	var box := AABB(Vector3(origin), Vector3(size))
+	for k: AABB in _keep_out:
+		if box.intersects(k):
+			return false
+	if check_props:
+		for b: AABB in _placed:
+			if box.intersects(b):
+				return false
+	return true
 
 
 func _marker(m: Dictionary) -> void:

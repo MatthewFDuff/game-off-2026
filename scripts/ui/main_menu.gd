@@ -31,6 +31,9 @@ var _intro: Intro
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# The pixel font everywhere on the menu, drawn with nearest filtering.
+	theme = PixelFont.theme()
+	get_viewport().canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	var settings := ConfigFile.new()
 	settings.load(SETTINGS_PATH)
 

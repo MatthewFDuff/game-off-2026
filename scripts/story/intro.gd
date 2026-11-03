@@ -615,6 +615,11 @@ func _rebuild_log() -> void:
 func _build_overlay() -> void:
 	_layer.layer = 10
 	add_child(_layer)
+	# Pixel text (PixelFont) stays hard-edged: everything on the layer draws with nearest filtering.
+	get_viewport().canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_layer.child_entered_tree.connect(func(child: Node) -> void:
+		if child is CanvasItem:
+			PixelFont.nearest(child))
 
 	_use_prompt.text = USE_PROMPT
 	_use_prompt.label_settings = _label(17, Color(1.0, 0.95, 0.8))
@@ -681,11 +686,17 @@ func _build_overlay() -> void:
 	shader.code = """
 shader_type canvas_item;
 uniform float strength : hint_range(0.0, 1.0) = 0.0;
+// Pixel art: 6 px blocks, the darkness in 5 steps, each block on or off by an ordered dither.
 void fragment() {
-	float d = distance(UV, vec2(0.5)) * 1.45;
+	vec2 block = floor(FRAGCOORD.xy / 6.0);
+	vec2 uv = (block * 6.0 + 3.0) * SCREEN_PIXEL_SIZE;
+	float d = distance(uv, vec2(0.5)) * 1.45;
 	float edge = mix(1.2, 0.05, strength);
 	float a = smoothstep(edge - 0.35, edge + 0.25, d);
-	COLOR = vec4(0.05, 0.0, 0.0, clamp(a + strength * 0.25 * a, 0.0, 1.0));
+	a = ceil(clamp(a + strength * 0.25 * a, 0.0, 1.0) * 5.0) / 5.0;
+	ivec2 p = ivec2(mod(block, 4.0));
+	const float bayer[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+	COLOR = vec4(0.05, 0.0, 0.0, a > (bayer[p.y * 4 + p.x] + 0.5) / 16.0 ? 1.0 : 0.0);
 }
 """
 	var material := ShaderMaterial.new()
@@ -742,11 +753,10 @@ void fragment() {
 	_layer.add_child(_skip_panel)
 
 
+## The pixel font (PixelFont) at about size px; the console's small sizes get it at 1x, one screen
+## texel a font pixel.
 static func _label(size: int, color := Color.WHITE) -> LabelSettings:
-	var settings := LabelSettings.new()
-	settings.font_size = size
-	settings.font_color = color
-	return settings
+	return PixelFont.settings(size, color, 0, 1 if size <= 10 else 2)
 
 
 func _panel(fill: Color, border: Color) -> PanelContainer:

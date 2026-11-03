@@ -131,8 +131,9 @@ func alive_count(of_kind := "") -> int:
 # --- Spawning (host) -----------------------------------------------------------------------------
 
 ## Host: spawns an enemy of a kind (see KINDS) standing at feet. Returns it, or null when not in
-## play or at MAX_ENEMIES.
-func spawn(kind: String, feet: Vector3, yaw := randf() * TAU) -> Enemy:
+## play or at MAX_ENEMIES. emerge (spawners): 1 rises out of the floor, -1 drops out of the ceiling
+## (Enemy.begin_emerge), on every peer; 0 just appears.
+func spawn(kind: String, feet: Vector3, yaw := randf() * TAU, emerge := 0) -> Enemy:
 	if not simulating or enemies.size() >= MAX_ENEMIES:
 		return null
 	if not KINDS.has(kind):
@@ -140,9 +141,9 @@ func spawn(kind: String, feet: Vector3, yaw := randf() * TAU) -> Enemy:
 		kind = "basic"
 	var id := _next_id
 	_next_id += 1
-	var enemy := _create(id, kind, feet, yaw)
+	var enemy := _create(id, kind, feet, yaw, emerge)
 	for peer_id in _peers():
-		_spawned.rpc_id(peer_id, id, kind, feet, yaw)
+		_spawned.rpc_id(peer_id, id, kind, feet, yaw, emerge)
 	enemy_spawned.emit(enemy)
 	return enemy
 
@@ -168,7 +169,7 @@ func kill(id: int) -> void:
 		_died.rpc_id(peer_id, id)
 
 
-func _create(id: int, kind: String, feet: Vector3, yaw: float) -> Enemy:
+func _create(id: int, kind: String, feet: Vector3, yaw: float, emerge := 0) -> Enemy:
 	if not _scenes.has(kind):
 		_scenes[kind] = load(KINDS[kind])
 	var enemy: Enemy = _scenes[kind].instantiate()
@@ -181,6 +182,7 @@ func _create(id: int, kind: String, feet: Vector3, yaw: float) -> Enemy:
 	enemy.rotation.y = yaw
 	add_child(enemy)
 	enemies[id] = enemy
+	enemy.begin_emerge(emerge)
 	return enemy
 
 
@@ -209,7 +211,7 @@ func _send_roster(peer_id: int) -> void:
 		return
 	for enemy: Enemy in enemies.values():
 		if enemy.alive:
-			_spawned.rpc_id(peer_id, enemy.id, enemy.kind, enemy.global_position, enemy.rotation.y)
+			_spawned.rpc_id(peer_id, enemy.id, enemy.kind, enemy.global_position, enemy.rotation.y, 0)
 			if not enemy.shown_statuses.is_empty():
 				_statuses.rpc_id(peer_id, enemy.id, enemy.shown_statuses)
 	for cloud: Cloud in clouds.values():
@@ -218,9 +220,9 @@ func _send_roster(peer_id: int) -> void:
 
 
 @rpc("authority", "reliable")
-func _spawned(id: int, kind: String, feet: Vector3, yaw: float) -> void:
+func _spawned(id: int, kind: String, feet: Vector3, yaw: float, emerge: int) -> void:
 	if not enemies.has(id) and KINDS.has(kind):
-		_create(id, kind, feet, yaw)
+		_create(id, kind, feet, yaw, emerge)
 
 
 @rpc("authority", "reliable")
@@ -258,7 +260,7 @@ func _request_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 
 func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 	var enemy: Enemy = enemies.get(id)
-	if enemy == null or not enemy.alive or not simulating:
+	if enemy == null or not enemy.alive or not simulating or enemy.emerging > 0.0:
 		return
 	var zone := enemy.zone_at(point)
 	var crit: float = enemy.hit_zones[zone].get("crit", 1.0) if enemy.hit_zones.has(zone) else 1.0
@@ -273,7 +275,7 @@ func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 ## enemies take more (Enemy.damage_taken), as they do from request_hit.
 func damage(id: int, amount: float, from: Vector3, kind := "enemy", fx := true) -> void:
 	var enemy: Enemy = enemies.get(id)
-	if enemy == null or not enemy.alive or not simulating:
+	if enemy == null or not enemy.alive or not simulating or enemy.emerging > 0.0:
 		return
 	_damage(enemy, clampf(amount, 0.0, MAX_DAMAGE), from, kind, "body", fx)
 

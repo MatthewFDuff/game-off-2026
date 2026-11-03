@@ -11,7 +11,7 @@ const P := preload("res://scripts/world/props.gd")
 
 ## Editor catalog tabs, by prop name prefix. Props from new .vox files that match none go in Other.
 const CATEGORIES := {
-	"Lab": ["lab_bench", "fume_hood", "shelf_lab", "spore_tank", "grow_bed"],
+	"Lab": ["lab_bench", "lab_table", "fume_hood", "shelf_lab", "spore_tank", "grow_bed", "specimen", "vial_cabinet", "shroom_pot"],
 	"Office": ["desk", "chair", "table", "couch", "whiteboard", "corkboard", "locker", "bench", "stool"],
 	"Kitchen": ["counter", "fridge", "water_cooler", "vending_machine", "trash_can"],
 	"Storage": ["shelf_storage", "crate", "barrel", "plank_stack", "sandbags"],
@@ -62,6 +62,7 @@ static func entries() -> Array[Dictionary]:
 	for v in ["a", "b"]:
 		add.call("shelf_lab_" + v, func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "lab"))
 		add.call("shelf_storage_" + v, func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "storage"))
+	add.call("shelf_lab_jars", func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "jars"))
 	add.call("fume_hood", func(p: Props, o: Vector3i) -> void: p.fume_hood(o, P.NORTH))
 	add.call("fridge", func(p: Props, o: Vector3i) -> void: p.fridge(o, P.NORTH))
 	add.call("water_cooler", func(p: Props, o: Vector3i) -> void: p.water_cooler(o, P.NORTH))
@@ -92,6 +93,13 @@ static func entries() -> Array[Dictionary]:
 	add.call("ammo_bench", func(p: Props, o: Vector3i) -> void: p.ammo_bench(o, P.NORTH))
 	add.call("generator", func(p: Props, o: Vector3i) -> void: p.generator(o, P.NORTH))
 	add.call("glass_case", func(p: Props, o: Vector3i) -> void: p.glass_case(o, P.NORTH))
+	add.call("specimen_case", func(p: Props, o: Vector3i) -> void: p.specimen_case(o, P.NORTH))
+	add.call("vial_cabinet", func(p: Props, o: Vector3i) -> void: p.vial_cabinet(o, P.NORTH))
+	add.call("specimen_jar", func(p: Props, o: Vector3i) -> void: p.specimen_jar(o, P.NORTH))
+	for v in ["a", "b"]:
+		add.call("grow_bed_shrooms_" + v, func(p: Props, o: Vector3i) -> void: p.grow_bed_shrooms(o, P.NORTH, 30, 12))
+	add.call("lab_table_gear", func(p: Props, o: Vector3i) -> void: p.lab_table_gear(o, P.NORTH))
+	add.call("shroom_pot", func(p: Props, o: Vector3i) -> void: p.shroom_pot(o))
 	add.call("door_single", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "single"))
 	add.call("door_double", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 24, 22, "single"))
 	add.call("door_security", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "security"))

@@ -15,7 +15,7 @@ var _last_chip_msec := -100000
 
 
 func _ready() -> void:
-	_cube.size = Vector3.ONE * 0.06
+	_cube.size = Vector3.ONE * 0.05
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.roughness = 0.9
@@ -71,8 +71,10 @@ func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: 
 	particles.initial_velocity_min = 1.5
 	particles.initial_velocity_max = 3.5 + minf(size_hint / 200.0, 6.0)
 	particles.gravity = Vector3(0, -12, 0)
-	particles.scale_amount_min = 0.6
-	particles.scale_amount_max = 1.6 + minf(size_hint / 1000.0, 2.0)
+	# Whole voxel sizes, no smooth random scale: 0.05 m chips, 0.1 m chunks from bigger breaks.
+	var chunk := 2.0 if size_hint > 200 else 1.0
+	particles.scale_amount_min = chunk
+	particles.scale_amount_max = chunk
 	particles.color = color
 	if box_extents != Vector3.ZERO:
 		particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX

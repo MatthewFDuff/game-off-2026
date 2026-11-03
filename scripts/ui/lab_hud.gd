@@ -5,7 +5,7 @@ extends CanvasLayer
 
 @export var lab: Lab
 
-var _crosshair := Label.new()
+var _crosshair := PixelMark.create("cross", Color(1.0, 1.0, 1.0, 0.9))
 var _roster := Label.new()
 var _pause := PanelContainer.new()
 var _pause_info := Label.new()
@@ -15,22 +15,18 @@ var _toast_time := 0.0
 var _story: Story
 
 
+## HUD label settings: the pixel font (PixelFont) at about size px, a drop shadow for outline > 0.
 static func _settings(size: int, color := Color.WHITE, outline := 5) -> LabelSettings:
-	var settings := LabelSettings.new()
-	settings.font_size = size
-	settings.font_color = color
-	settings.outline_size = outline
-	settings.outline_color = Color.BLACK
-	return settings
+	return PixelFont.settings(size, color, outline)
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_crosshair.text = "+"
-	_crosshair.label_settings = _settings(22)
-	_crosshair.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_crosshair.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Everything on the HUD draws with nearest filtering: pixel text and marks stay hard-edged.
+	get_viewport().canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	child_entered_tree.connect(func(child: Node) -> void:
+		if child is CanvasItem:
+			PixelFont.nearest(child))
 	add_child(_crosshair)
 
 	_roster.label_settings = _settings(16)
@@ -87,6 +83,7 @@ func _build_pause() -> void:
 	_pause.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_pause.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_pause.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_pause.theme = PixelFont.theme()
 	add_child(_pause)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:

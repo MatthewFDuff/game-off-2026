@@ -1,7 +1,7 @@
 class_name Tentacle
 extends Enemy
 ## Tentacle fungi: a rooted mass with tentacles sprawled on the floor. Every GRAB_INTERVAL it
-## looks for the nearest player within REACH who isn't already held and grabs them
+## looks for the nearest player within REACH (and in sight) who isn't already held and grabs them
 ## (tentacle_grab): the player's own peer drags them toward it at Player.HELD_PULL m/s and holds
 ## them there (no walking or jumping; shooting, melee and throwing still work), and once they're
 ## within HOLD_RANGE it squeezes for SQUEEZE_DPS. It lets go when it has taken BREAK_DAMAGE since
@@ -73,7 +73,7 @@ func _try_grab() -> void:
 			continue
 		var offset := player.global_position - global_position
 		var distance := Vector2(offset.x, offset.z).length()
-		if distance < best_distance and absf(offset.y) < 2.0:
+		if distance < best_distance and absf(offset.y) < 2.0 and sees(player):
 			best_distance = distance
 			best = player
 	if best:

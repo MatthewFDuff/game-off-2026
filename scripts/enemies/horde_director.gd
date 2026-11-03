@@ -23,6 +23,12 @@ extends Node
 ## placed bosses, so it only fires when the spawner can't just spawn another, i.e. it is inactive,
 ## its rate is 0 or its max_alive is 1.
 ##
+## Fair spawns: an enemy never appears within spawn_safe_distance of a living player or in any
+## player's view (within spawn_view_angle of the camera's forward and in line of sight); a spawner
+## with no such spot within its radius (or twice it) waits SPAWN_RETRY and tries again, keeping its
+## budget, and horde spawns go back in the queue. Spawned enemies emerge (Enemy.begin_emerge): out
+## of the floor, or out of the ceiling for on_ceiling spawners.
+##
 ## Player count: the level's rates and caps are tuned for two players; with scale_per_player > 0
 ## they scale by (1 - s + s x players) / (1 + s), so one player gets less and four get more.
 ##
@@ -65,8 +71,20 @@ signal finale_event(kind: String)
 ## A spawner only trickles while a living player is within this many meters of it (straight line);
 ## the finale ignores it. 0 disables. Keeps far floors quiet until the party gets there.
 @export var wake_range := 40.0
+## Fair spawns (_spawn_point, is_fair): no enemy appears within this many meters of a living
+## player, or where a player would see it appear (within this many degrees of their view and in
+## line of sight).
+@export var spawn_safe_distance := 6.0
+@export var spawn_view_angle := 55.0
+
+## Random spots tried within a spawner's radius (and as many again within twice it).
+const SPAWN_TRIES := 8
+## Seconds before a spawner with no fair spot looks again (its budget kept).
+const SPAWN_RETRY := 0.25
 
 var state := "calm"
+## Host: spawns put off for want of a fair spot (for tests and tuning).
+var deferred_spawns := 0
 var running := false
 ## id -> {object, active: bool, budget: float (spawns owed), alive: Array[int] (enemy ids),
 ## rate_mult, alive_mult (finale scaling), spawned (ever), dead_fired (on_dead went)}
@@ -270,9 +288,14 @@ func _physics_process(delta: float) -> void:
 	_burst_timer -= delta
 	while _burst_timer <= 0.0 and not _queue.is_empty():
 		_burst_timer += 1.0 / maxf(burst_rate, 0.1)
-		var enemy := _spawn_from(_queue.pop_front())
+		var source: String = _queue.pop_front()
+		var enemy := _spawn_from(source)
 		if enemy:
 			_horde_ids.append(enemy.id)
+		elif spawners.has(source) and spawners[source].get("deferred", false):
+			# No fair spot there right now: back of the queue, tried again later.
+			_queue.append(source)
+			break
 	if _queue.is_empty():
 		_burst_timer = maxf(_burst_timer, 0.0)
 
@@ -357,50 +380,103 @@ func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 		return
 	if not finale_active and wake_range > 0.0 and enemies.nearest_player_distance(lab.view.to_world(object.position)) > wake_range:
 		return
+	if float(spawner.get("retry", 0.0)) > 0.0:
+		spawner.retry = float(spawner.retry) - delta
 	spawner.budget = minf(spawner.budget + rate / 60.0 * delta, 1.0)
-	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner):
+	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner) or float(spawner.get("retry", 0.0)) > 0.0:
+		return
+	if _spawn_from(id) == null and spawner.get("deferred", false):
+		# No fair spot (every one near or in view of a player): keep the budget, look again soon.
+		spawner.retry = SPAWN_RETRY
 		return
 	spawner.budget -= 1.0
-	_spawn_from(id)
 
 
 ## Spawns one enemy at a spawner: a random kind from its list, somewhere on the floor within its
-## radius. Counts it against the spawner.
+## radius that is fair to the players (_spawn_point). It emerges out of the floor (or the ceiling,
+## for on_ceiling spawners). Counts it against the spawner. Returns null when there's no fair spot
+## (the spawner's `deferred` is then true, and deferred_spawns counts it) or the enemy cap is hit.
 func _spawn_from(id: String) -> Enemy:
 	var spawner: Dictionary = spawners.get(id, {})
 	if spawner.is_empty():
 		return null
 	var object: Dictionary = spawner.object
+	var point := _spawn_point(object)
+	spawner.deferred = point.is_empty()
+	if point.is_empty():
+		deferred_spawns += 1
+		return null
 	var kinds := Array(str(object.get("kinds", "basic")).split(",", false)).map(func(k: String) -> String: return k.strip_edges())
 	var kind: String = kinds.pick_random() if not kinds.is_empty() else "basic"
-	var enemy := enemies.spawn(kind, _spawn_point(object))
+	var enemy := enemies.spawn(kind, point.position, randf() * TAU, point.emerge)
 	if enemy:
 		spawner.alive.append(enemy.id)
 		spawner.spawned = true
 	return enemy
 
 
-## A clear floor spot within the marker's radius, else the marker itself.
-func _spawn_point(object: Dictionary) -> Vector3:
-	var world := lab.world
+## A fair spot for a spawner's next enemy: {position (feet; for ceiling spawners just under the
+## ceiling), emerge (1 floor, -1 ceiling)}, or {} when there's none right now. Up to SPAWN_TRIES
+## random spots within the marker's radius, then as many within twice it, then the marker itself;
+## the first clear one that is_fair wins.
+func _spawn_point(object: Dictionary) -> Dictionary:
 	var base := lab.view.to_world(object.position)
-	if object.get("on_ceiling", false):
-		# Ceiling spawners hang their enemies from the nearest ceiling voxel above the marker.
-		var ceiling: Dictionary = enemies.ceiling_point(base)
-		if not ceiling.is_empty():
-			return ceiling.position - Vector3.UP * 0.5
+	var ceiling_spawner: bool = object.get("on_ceiling", false)
 	var radius := float(object.get("radius", 1.5))
-	for attempt in 8:
-		var angle := randf() * TAU
-		var offset := Vector3(cos(angle), 0.0, sin(angle)) * radius * sqrt(randf())
-		var probe := base + offset + Vector3.UP * 1.0
-		var down: Dictionary = world.raycast(probe, Vector3.DOWN, 3.0)
-		if not down.hit or down.distance < 0.05:
+	for attempt in SPAWN_TRIES * 2 + 1:
+		var offset := Vector3.ZERO
+		if attempt < SPAWN_TRIES * 2:
+			var angle := randf() * TAU
+			var reach := radius * (1.0 if attempt < SPAWN_TRIES else 2.0)
+			offset = Vector3(cos(angle), 0.0, sin(angle)) * reach * sqrt(randf())
+		var spot := _ceiling_spot(base + offset) if ceiling_spawner else _floor_spot(base + offset, attempt == SPAWN_TRIES * 2)
+		if spot.is_empty():
 			continue
+		var body: Vector3 = spot.position + (Vector3.ZERO if ceiling_spawner else Vector3.UP * 0.6)
+		if is_fair(spot.position, body):
+			return spot
+	return {}
+
+
+## A clear floor spot under at (the marker itself, last: anywhere it stands), or {}.
+func _floor_spot(at: Vector3, is_marker: bool) -> Dictionary:
+	var world := lab.world
+	var down: Dictionary = world.raycast(at + Vector3.UP * 1.0, Vector3.DOWN, 3.0)
+	if down.hit and down.distance >= 0.05:
 		var feet: Vector3 = down.position
 		if not world.box_overlaps_solid(AABB(feet + Vector3(-0.35, 0.02, -0.35), Vector3(0.7, 1.2, 0.7))):
-			return feet
-	return base + Vector3.UP * 0.05
+			return {position = feet, emerge = 1}
+	if is_marker:
+		return {position = at + Vector3.UP * 0.05, emerge = 1}
+	return {}
+
+
+## Under the nearest ceiling voxel above at (ceiling spawners hang their enemies there), or {}.
+func _ceiling_spot(at: Vector3) -> Dictionary:
+	var ceiling: Dictionary = enemies.ceiling_point(at)
+	if ceiling.is_empty():
+		return {}
+	return {position = ceiling.position - Vector3.UP * 0.5, emerge = -1}
+
+
+## Whether an enemy can appear with its feet at feet (body: its middle) without being unfair: no
+## living player within spawn_safe_distance of it, and none who would see it appear (body within
+## spawn_view_angle of their camera's forward and in line of sight, Combat.can_see).
+func is_fair(feet: Vector3, body: Vector3) -> bool:
+	var view_cos := cos(deg_to_rad(spawn_view_angle))
+	for player: Player in enemies.targets():
+		if player.global_position.distance_to(feet) < spawn_safe_distance:
+			return false
+		var camera: Camera3D = player.camera
+		if camera == null or not camera.is_inside_tree():
+			continue
+		var eye := camera.global_position
+		var to := body - eye
+		if to.length() < 0.01:
+			return false
+		if (-camera.global_basis.z).dot(to.normalized()) > view_cos and Combat.can_see(lab.world, eye, body):
+			return false
+	return true
 
 
 ## Spawner ids, nearest to any target player first: by walking distance (the flow field, which
