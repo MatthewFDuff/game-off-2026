@@ -23,13 +23,32 @@ signal interacted
 @export_group("Movement")
 @export var walk_speed := 5.5
 @export var crouch_speed := 2.2
-@export var ground_acceleration := 60.0
-@export var air_acceleration := 10.0
+## Quake-style: speed gained per second toward the wish speed is acceleration x wish speed.
+@export var ground_acceleration := 10.0
+## Friction on the ground, per second; below stop_speed it brakes as if moving at stop_speed, so
+## you come to a clean stop.
+@export var ground_friction := 6.0
+@export var stop_speed := 1.5
+## In the air, acceleration only adds speed along the wish direction up to air_wish_speed (m/s), so
+## strafing while turning curves and slowly gains speed (bunny hopping)...
+@export var air_acceleration := 12.0
+@export var air_wish_speed := 1.0
+## ...up to this horizontal speed (m/s); faster than that, the air only steers.
+@export var max_air_speed := 8.8
 @export var jump_velocity := 5.2
+## Letting go of jump while still rising keeps this much of the upward speed.
+@export var jump_cut := 0.5
+## Jump this long after walking off a ledge still works.
+@export var coyote_time := 0.1
+## A jump pressed this long before landing fires on landing (and skips that landing's friction).
+@export var jump_buffer := 0.12
 @export var gravity := 16.0
 @export var step_height := 0.45
 @export var fly_speed := 12.0
 @export var climb_speed := 2.6
+## Camera dip on landing: meters per m/s of fall speed, at most land_dip_max.
+@export var land_dip := 0.012
+@export var land_dip_max := 0.14
 
 @export_group("Body")
 @export var width := 0.6
@@ -69,6 +88,12 @@ var _since_damage := 0.0
 var _ladder_cooldown := 0.0
 var _height := standing_height
 var _step_offset := 0.0
+## Seconds of coyote time and jump buffer left.
+var _coyote := 0.0
+var _buffered := 0.0
+## Rising from a jump (jump_cut applies once if jump is let go).
+var _jumping := false
+var _land_offset := 0.0
 var _eye_height := standing_height - eye_offset
 var _previous_position := Vector3.ZERO
 var _trauma := 0.0
@@ -212,6 +237,7 @@ func _physics_process(delta: float) -> void:
 
 	# Smooth the camera over step-ups instead of snapping it up a ledge.
 	_step_offset = move_toward(_step_offset, 0.0, maxf(absf(_step_offset) * 12.0, 1.0) * delta)
+	_land_offset = lerpf(_land_offset, 0.0, 1.0 - exp(-10.0 * delta))
 	_eye_height = lerpf(_eye_height, _height - eye_offset, 1.0 - exp(-15.0 * delta))
 	_send_state(delta)
 
@@ -229,7 +255,7 @@ func _process(delta: float) -> void:
 	if _previous_position.distance_squared_to(global_position) > MAX_INTERPOLATED_STEP * MAX_INTERPOLATED_STEP:
 		_previous_position = global_position # Moved by something other than walking; don't smear.
 	var smoothed := _previous_position.lerp(global_position, Engine.get_physics_interpolation_fraction())
-	head.position = Vector3(0.0, _eye_height + _step_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
+	head.position = Vector3(0.0, _eye_height + _step_offset - _land_offset, 0.0) + global_basis.inverse() * (smoothed - global_position)
 	_apply_shake(delta)
 	_update_blind(delta)
 
@@ -434,11 +460,21 @@ func _walk(delta: float) -> void:
 	var ladder := _ladder_direction() if _ladder_cooldown <= 0.0 and not held else Vector3.ZERO
 	on_ladder = ladder != Vector3.ZERO and not crouching
 
+	# Coyote time and the jump buffer: a jump goes when both are open.
+	_coyote = coyote_time if on_floor else _coyote - delta
+	_buffered = jump_buffer if _just("jump") else _buffered - delta
+	var jump := not on_ladder and not held and _buffered > 0.0 and _coyote > 0.0
+
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	var acceleration := ground_acceleration if on_floor or on_ladder else air_acceleration
 	if on_ladder:
-		speed = minf(speed, climb_speed)
-	horizontal = horizontal.move_toward(wish * speed, acceleration * delta)
+		horizontal = horizontal.move_toward(wish * minf(speed, climb_speed), ground_acceleration * speed * delta)
+	elif on_floor:
+		# No friction on the frame a buffered jump leaves the ground: chained hops keep their speed.
+		if not jump:
+			horizontal = _friction(horizontal, delta)
+		horizontal = _accelerate(horizontal, wish, speed, ground_acceleration * speed * delta)
+	else:
+		horizontal = _air_accelerate(horizontal, wish, speed, delta)
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 
@@ -452,14 +488,26 @@ func _walk(delta: float) -> void:
 			on_ladder = false
 	else:
 		velocity.y -= gravity * delta
-		if on_floor and not held and _just("jump"):
+		if jump:
 			velocity.y = jump_velocity
+			_coyote = 0.0
+			_buffered = 0.0
+			_jumping = true
+		elif _jumping and velocity.y > 0.0 and not _held("jump"):
+			velocity.y *= jump_cut # Let go early: a shorter hop.
+			_jumping = false
+		if velocity.y <= 0.0:
+			_jumping = false
 
 	var start := global_position
+	var falling := -velocity.y
+	var was_on_floor := on_floor
 	var result: Dictionary = world.move_box(start, get_body_size(), velocity * delta, step_height, on_floor)
 	global_position = result.position
 	on_floor = result.on_floor
 	_step_offset -= result.step_up
+	if on_floor and not was_on_floor and falling > 3.0:
+		_land_offset = minf(falling * land_dip, land_dip_max)
 
 	if (on_floor and velocity.y < 0.0) or (result.hit_ceiling and velocity.y > 0.0):
 		velocity.y = 0.0
@@ -470,16 +518,63 @@ func _walk(delta: float) -> void:
 		velocity.z = moved.z
 
 
+## Crouching on the ground lowers the head; in the air it pulls the feet up instead (a crouch-jump
+## clears higher ledges), and standing back up in the air lets them down if there's room.
 func _update_crouch() -> void:
 	var wants_crouch := _held("crouch")
+	var tuck := standing_height - crouching_height
 	if wants_crouch and not crouching:
 		crouching = true
 		_height = crouching_height
+		if not on_floor:
+			var raised := AABB(global_position + Vector3(-width * 0.5, tuck, -width * 0.5), Vector3(width, crouching_height, width))
+			if not world.box_overlaps_solid(raised):
+				global_position.y += tuck
+				_previous_position.y += tuck
+				_eye_height -= tuck # The head stays put; the feet came up.
 	elif not wants_crouch and crouching:
 		var standing := AABB(global_position - Vector3(width * 0.5, 0.0, width * 0.5), Vector3(width, standing_height, width))
+		var lowered := AABB(standing.position - Vector3(0.0, tuck, 0.0), standing.size)
 		if not world.box_overlaps_solid(standing):
 			crouching = false
 			_height = standing_height
+		elif not on_floor and not world.box_overlaps_solid(lowered):
+			crouching = false
+			_height = standing_height
+			global_position.y -= tuck
+			_previous_position.y -= tuck
+			_eye_height += tuck
+
+
+## Quake friction: slows horizontal speed, braking at least as hard as at stop_speed.
+func _friction(horizontal: Vector3, delta: float) -> Vector3:
+	var speed := horizontal.length()
+	if speed < 0.001:
+		return Vector3.ZERO
+	var drop := maxf(speed, stop_speed) * ground_friction * delta
+	return horizontal * (maxf(speed - drop, 0.0) / speed)
+
+
+## Adds speed along wish (unit) until the speed along it reaches wish_speed, at most step.
+static func _accelerate(horizontal: Vector3, wish: Vector3, wish_speed: float, step: float) -> Vector3:
+	if wish == Vector3.ZERO:
+		return horizontal
+	var add := wish_speed - horizontal.dot(wish)
+	if add <= 0.0:
+		return horizontal
+	return horizontal + wish * minf(step, add)
+
+
+## Air control: only air_wish_speed along the wish direction, so turning while strafing curves the
+## path and gains a little speed each time; past max_air_speed it can steer but not speed up.
+func _air_accelerate(horizontal: Vector3, wish: Vector3, wish_speed: float, delta: float) -> Vector3:
+	var before := horizontal.length()
+	var out := _accelerate(horizontal, wish, minf(wish_speed, air_wish_speed), air_acceleration * wish_speed * delta)
+	var after := out.length()
+	var cap := maxf(before, max_air_speed)
+	if after > cap:
+		out *= cap / after
+	return out
 
 
 func _fly(delta: float) -> void:

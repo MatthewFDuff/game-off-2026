@@ -252,6 +252,8 @@ The HUD shows the loaded ammo and its count in the bottom right, with the type S
 
 Movement: WASD, Space jump, Ctrl crouch (no sprint), E use (doors and props; closes notes), arrow keys look (backup for remote desktop), T flashlight. Combat: LMB shoot the shroom shooter, Shift change ammo (or 1-4), MMB melee (axe), RMB throw the selected flask, Q cycle flask. Fire, poison, freeze and rage clouds put statuses on shrooms (and fire / poison on you: watch for the vignette). F1 shows the controls. Esc releases the mouse (and pauses in solo play). Debug builds only: F fly.
 
+The controller (`Player._walk`, shared with the level editor's walk view) moves like an arena shooter: ground friction and acceleration (Quake style) instead of easing, coyote time (a jump still works 0.1 s after walking off a ledge), a jump buffer (a jump pressed up to 0.12 s before landing fires on landing, without that landing's friction, so chained hops keep their speed), air control that only adds a little speed along the strafe direction (strafing while turning curves and slowly gains speed, up to `max_air_speed`), shorter hops when jump is let go early, crouching in the air pulling the feet up (crouch-jumps clear higher ledges), and a small camera dip on hard landings. All of it is exported on the Player and tunable.
+
 All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets).
 
 `scenes/test_world.tscn` is a gray-box sandbox kept for the voxel core tests. The old mushroom-farming prototype was removed in the pivot (it's in git history).
@@ -266,6 +268,7 @@ godot --headless --path . --script res://tests/weapon_test.gd        # every amm
 godot --headless --path . --script res://tests/status_test.gd        # burning / frozen / raging / poisoned, clouds, fire burning shroom voxels
 godot --headless --path . --script res://tests/fire_test.gd          # fire: spreading through flammable voxels, burning out, elemental reactions
 godot --headless --path . --script res://tests/roster_b_test.gd      # mommy brood, spore blindness, ceiling poison cloud, tentacle grabs
+godot --headless --path . --script res://tests/controller_test.gd    # movement: top speed, stopping, jump height, coyote time, jump buffer, bunny hops, air strafing, crouch-jump
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
 godot --headless --path . --script res://tests/editor_input_test.gd  # editor input rules: wheel over panels, typing, Tab, modals, Esc

@@ -72,6 +72,14 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   you (walk) to them. Tested in `net_test.sh editor_test` (the host sees the client's builder
   camera, the client's lock blocks the host's edit and clears when let go); not yet seen in a
   window with two people.
+- **Step 7 done (2026-11-03)**: the controller in `Player._walk`: Quake friction (6/s, stop speed
+  1.5 m/s) and acceleration (10 x wish speed), coyote time 0.1 s, jump buffer 0.12 s skipping that
+  landing's friction, air acceleration limited to a 1 m/s wish speed with a soft cap of 8.8 m/s
+  (1.6 x walk speed: there's no sprint any more), jump cut to half when released while rising,
+  crouch in the air raising the feet (and standing again lowering them if there's room), landing
+  dip by fall speed. Ladders keep their old easing. Not done from the list: the sprint FOV kick
+  (no sprint). Holding jump doesn't auto-hop; each hop is a press (the buffer makes the timing
+  forgiving). Tested headless (`controller_test`); not yet felt by hand.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast
