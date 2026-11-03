@@ -356,6 +356,14 @@ func _use(id: String, peer_id: int) -> void:
 	prop_used.emit(id, peer_id)
 
 
+## Host: puts a prop back to its starting state (unused, full charges), e.g. a retried generator.
+func reset_prop(id: String) -> void:
+	if not multiplayer.is_server():
+		return
+	var object: Dictionary = lab.level.objects.get(id, {})
+	_set_state(id, {used = false, charges = int(object.get("charges", 0))}, "")
+
+
 ## Host: sets a prop's state everywhere and plays sound (if any) at the prop.
 func _set_state(id: String, state: Dictionary, sound: String) -> void:
 	_apply_state(id, state, sound)

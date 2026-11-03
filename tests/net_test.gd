@@ -147,7 +147,16 @@ func _host(net: Node) -> void:
 	print("HASH ", _item_hash(lab))
 	print("HASH ", _interact_hash(lab))
 	print("HASH ", _status_hash(lab))
-	await _wait_seconds(5.0) # Stay up until the client has hashed too.
+	await _wait_seconds(3.0) # Stay up until the client has hashed too.
+
+	# Finale: a short one; the client counts it down too (after the hashes: it changes power).
+	var survived := [false]
+	lab.director.finale_survived.connect(func() -> void: survived[0] = true)
+	lab.director.finale(3.0)
+	_check("host starts the finale", lab.director.finale_active and lab.play.power == "restored")
+	var ended := await _wait_until(func() -> bool: return survived[0], 10.0)
+	_check("host finale ends in survival", ended and not lab.director.finale_active)
+	await _wait_seconds(4.0)
 
 
 func _client(net: Node) -> void:
@@ -160,6 +169,11 @@ func _client(net: Node) -> void:
 		_check("local player spawned", false)
 		return
 	var me = lab.local_player()
+	var finale_events := []
+	var finale_samples := []
+	lab.director.finale_event.connect(func(kind: String) -> void:
+		finale_events.append(kind)
+		finale_samples.append(lab.director.finale_left))
 	_check("local player is local", me.is_local)
 	_check("host avatar spawned", lab.players.has(1) and not lab.players[1].is_local)
 	var streaming := await _wait_until(func() -> bool: return me.net_peers == [1], 10.0)
@@ -223,6 +237,15 @@ func _client(net: Node) -> void:
 	print("HASH ", _item_hash(lab))
 	print("HASH ", _interact_hash(lab))
 	print("HASH ", _status_hash(lab))
+	# Finale: the host's countdown shows up here and ends in the same outcome.
+	var counting := await _wait_until(func() -> bool:
+		if lab.director.finale_active:
+			finale_samples.append(lab.director.finale_left)
+		return "survived" in finale_events, 30.0)
+	_check("the client sees the finale start and survive", counting and finale_events == ["started", "survived"], str(finale_events))
+	_check("the client's countdown starts near the host's 3 s", finale_samples.size() > 1 and absf(finale_samples[0] - 3.0) < 0.5, str(finale_samples))
+	_check("the client's countdown runs down", finale_samples.any(func(left: float) -> bool: return left < 2.0 and left > 0.0), str(finale_samples))
+	_check("the client finale is over", not lab.director.finale_active)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))

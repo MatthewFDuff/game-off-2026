@@ -5,13 +5,17 @@ extends Control
 ## next), the selected flask left of it (its name in its color and the count, Q to cycle), a toast
 ## with the type's name when it changes, a hit marker on the crosshair when one of this peer's
 ## shots lands on an enemy, a red screen flash when the player takes damage, and a vignette while
-## a status is on the player (green poisoned, orange burning). Hidden while editing. Added by
+## a status is on the player (green poisoned, orange burning), and during the generator finale a
+## "GENERATOR m:ss" countdown at the top (pulsing in the last 10 s) with SURVIVE / SHIFT SURVIVED /
+## SHIFT FAILED banners. Hidden while editing. Added by
 ## LabHud.
 
 const BAR_SIZE := Vector2(220, 14)
 const HIT_MARKER_TIME := 0.12
 const DAMAGE_FLASH_TIME := 0.4
 const AMMO_TOAST_TIME := 1.5
+const BANNER_TIME := 3.0
+const FINALE_COLOR := Color(1.0, 0.35, 0.2)
 ## Player status -> vignette color, strongest first.
 const STATUS_VIGNETTES := {burning = Color(1.0, 0.45, 0.1), poisoned = Color(0.35, 0.95, 0.25)}
 
@@ -37,6 +41,9 @@ var _flask_box := VBoxContainer.new()
 var _flask_name := Label.new()
 var _flask_count := Label.new()
 var _vignette := TextureRect.new()
+var _finale_label := Label.new()
+var _banner := Label.new()
+var _banner_time := 0.0
 
 
 static func create(level: Lab) -> CombatHud:
@@ -99,6 +106,7 @@ func _ready() -> void:
 	add_child(_hit_marker)
 
 	_build_ammo()
+	_build_finale()
 
 	if lab.enemies:
 		lab.enemies.local_hit.connect(func(_enemy: Enemy, _point: Vector3) -> void:
@@ -128,6 +136,7 @@ func _process(delta: float) -> void:
 	_update_ammo(me, delta)
 	_update_flask(me)
 	_update_vignette(me)
+	_update_finale(delta)
 
 
 func _build_ammo() -> void:
@@ -225,3 +234,44 @@ func _update_vignette(me: Player) -> void:
 			_vignette.modulate = Color(STATUS_VIGNETTES[status], 0.8 * pulse)
 			_vignette.visible = true
 			return
+
+
+func _build_finale() -> void:
+	_finale_label.label_settings = LabHud._settings(28, FINALE_COLOR, 4)
+	_finale_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_finale_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_finale_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_finale_label.position.y = 14
+	_finale_label.visible = false
+	add_child(_finale_label)
+	_banner.label_settings = LabHud._settings(54, FINALE_COLOR, 6)
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.position.y -= 120
+	_banner.visible = false
+	add_child(_banner)
+	if lab.director:
+		lab.director.finale_event.connect(_on_finale_event)
+
+
+func _on_finale_event(kind: String) -> void:
+	_banner.text = {started = "SURVIVE", survived = "SHIFT SURVIVED", failed = "SHIFT FAILED"}.get(kind, "")
+	_banner.label_settings.font_color = Color(0.4, 1.0, 0.5) if kind == "survived" else FINALE_COLOR
+	_banner_time = BANNER_TIME
+
+
+## The finale countdown (the director's replicated timer) and the start/end banner.
+func _update_finale(delta: float) -> void:
+	var director := lab.director
+	_finale_label.visible = director != null and director.finale_active
+	if _finale_label.visible:
+		var left := ceili(director.finale_left)
+		_finale_label.text = "GENERATOR %d:%02d" % [left / 60, left % 60]
+		var pulse := 1.0
+		if director.finale_left <= 10.0:
+			pulse = 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.012)
+		_finale_label.modulate.a = pulse
+	_banner_time = maxf(0.0, _banner_time - delta)
+	_banner.visible = _banner_time > 0.0
+	_banner.modulate.a = clampf(_banner_time / 0.6, 0.0, 1.0)
