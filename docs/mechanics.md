@@ -7,6 +7,24 @@ the choice made is marked **decision** and listed again under "Open decisions" a
 The reference screenshots in the doc (GTFO caves / labs / tentacle zone, Portal 2 elevator) are
 tone and art references, not mechanics.
 
+## Status (2026-11-03)
+
+All seven phases are implemented on the `mechanics` branch and covered by headless tests
+(`controls_test`, `enemy_test`, `weapon_test`, `status_test`, `interact_test`, `roster_a_test`,
+`roster_b_test`, `finale_test`, plus the two-process `tools/net_test.sh`). The README documents
+each system. Nothing has been play-tested by hand in a window yet. Where the build differs from
+the plan below:
+
+- Ammo types are a code table (`AmmoType.by_name`), not `.tres` resources.
+- Flasks fly as their item model and use the projectile system; clouds are host-owned `Cloud`
+  nodes with a `spore` type added for the spore shroom.
+- Spore blindness is a per-player screen overlay, not world fog.
+- Ceiling poison clouds climb to the ceiling wherever they spawn; the `on_ceiling` spawner flag
+  places them there directly.
+- Keycards lock a door by themselves (`door_key`); `door_locked` stays a hard story lock.
+- The finale's first burst comes after `finale_burst_interval`, not at the start.
+- Enemy art: one `.vox` per kind and variant under `assets/vox/enemies/`.
+
 ## 1. The list
 
 ### Controls (from the doc, with what they map to)

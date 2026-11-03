@@ -64,6 +64,8 @@ const STATUS_TINTS := {
 ## Seconds it rears back before an attack lands, so players can see it coming.
 @export var attack_windup := 0.3
 @export var attack_sound := "bite"
+## Played on every peer when it dies.
+@export var death_sound := "shroom_pop"
 
 @export_group("Breaching")
 ## Voxels at or below this hardness can be dug through.
@@ -252,6 +254,13 @@ func apply_hit(amount: float, push: Vector3) -> void:
 	health -= amount
 	velocity += push * knockback_scale
 	_squash = 1.0
+
+
+## Host, after every hit (apply_hit, before a lethal one kills it): kind is the damage kind
+## ("rifle", "melee", "status", ...), peer the peer whose attack it was (0: the host's own
+## simulation, statuses, other enemies). For enemies that react to how they were hit.
+func _on_damaged(_amount: float, _kind: String, _peer: int) -> void:
+	pass
 
 
 ## Host: a status effect ("burning", "poisoned", "frozen", "raging", see the top) for seconds. A
@@ -589,7 +598,7 @@ func die() -> void:
 		return
 	alive = false
 	remove_from_group(GROUP)
-	Sfx.play_at("shroom_pop", get_center())
+	Sfx.play_at(death_sound, get_center())
 	if manager and manager.debris:
 		manager.debris.burst(get_center(), Vector3.UP, _debris_counts())
 	queue_free()

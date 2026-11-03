@@ -82,6 +82,7 @@ const MARKERS := {
 		{key = "max_alive", type = "int", min = 0, max = 50, default = 4, label = "Most alive at once"},
 		{key = "active", type = "bool", default = true, label = "Active from the start"},
 		{key = "radius", type = "float", min = 0.0, max = 10.0, default = 1.5, label = "Spawn radius (m)"},
+		{key = "on_ceiling", type = "bool", default = false, label = "Spawns on the ceiling (ceiling_cloud)"},
 	]},
 	clone_vat = {label = "Clone vat", color = Color(0.4, 1.0, 0.8), fields = []},
 	kill_zone = {label = "Kill zone", color = Color(1.0, 0.2, 0.6), fields = [

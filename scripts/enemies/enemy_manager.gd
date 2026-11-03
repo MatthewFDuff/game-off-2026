@@ -32,7 +32,12 @@ const CLOUD_SCENE := preload("res://scenes/cloud.tscn")
 const MAX_CLOUDS := 24
 
 ## kind -> scene. Spawner markers name kinds from here.
-const KINDS := {basic = "res://scenes/enemies/basic.tscn"}
+const KINDS := {basic = "res://scenes/enemies/basic.tscn",
+		fast = "res://scenes/enemies/fast.tscn", exploding = "res://scenes/enemies/exploding.tscn",
+		alarm = "res://scenes/enemies/alarm.tscn", giant = "res://scenes/enemies/giant.tscn",
+		ranged = "res://scenes/enemies/ranged.tscn",
+		mommy = "res://scenes/enemies/mommy.tscn", spore = "res://scenes/enemies/spore.tscn",
+		ceiling_cloud = "res://scenes/enemies/ceiling_cloud.tscn", tentacle = "res://scenes/enemies/tentacle.tscn"}
 ## Most enemies alive at once, whatever the spawners ask for.
 const MAX_ENEMIES := 80
 ## Position updates per second to peers.
@@ -68,6 +73,8 @@ var _next_cloud := 1
 var _flow_timer := 0.0
 var _state_timer := 0.0
 var _scenes := {}
+## Host, during a peer's hit (request_hit): that peer's id, else 0 (Enemy._on_damaged).
+var _hit_peer := 0
 
 
 func _ready() -> void:
@@ -255,7 +262,10 @@ func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 		return
 	var zone := enemy.zone_at(point)
 	var crit: float = enemy.hit_zones[zone].get("crit", 1.0) if enemy.hit_zones.has(zone) else 1.0
+	var sender := multiplayer.get_remote_sender_id()
+	_hit_peer = sender if sender != 0 else multiplayer.get_unique_id()
 	_damage(enemy, clampf(damage, 0.0, MAX_DAMAGE) * crit, point, kind, zone, true)
+	_hit_peer = 0
 
 
 ## Host: damages enemy id directly (statuses, enemies fighting each other). from is where it came
@@ -275,6 +285,7 @@ func _damage(enemy: Enemy, amount: float, point: Vector3, kind: String, zone: St
 	var strength := float(KNOCKBACK.get(kind, 1.0))
 	var push := away.normalized() * strength + Vector3.UP * strength * 0.3
 	enemy.apply_hit(amount, push)
+	enemy._on_damaged(amount, kind, _hit_peer)
 	enemy_damaged.emit(enemy, amount, zone)
 	if fx:
 		_hit_fx(enemy.id, point)
@@ -362,6 +373,33 @@ func _player_status(status: String, seconds: float) -> void:
 	var me := lab.local_player()
 	if me:
 		me.apply_status(status, clampf(seconds, 0.0, MAX_STATUS))
+
+
+## Host: a tentacle (enemy id) grabs a player, or lets go (id 0). The player's own peer runs the
+## pull toward anchor (Player.set_held); the host's copy only records who holds it.
+func hold_player(player: Player, enemy_id: int, anchor: Vector3) -> void:
+	var holder := str(enemy_id) if enemy_id > 0 else ""
+	var peer_id := player.get_multiplayer_authority()
+	player.set_held(holder, anchor)
+	if peer_id != multiplayer.get_unique_id():
+		_player_held.rpc_id(peer_id, holder, anchor)
+
+
+@rpc("authority", "reliable")
+func _player_held(holder: String, anchor: Vector3) -> void:
+	var me := lab.local_player()
+	if me:
+		me.set_held(holder, anchor)
+
+
+## Host: the nearest point under the ceiling straight above at (the bottom face of the first solid
+## voxel within max_up meters), or {} if there's none. {position, voxel (Vector3i)}.
+func ceiling_point(at: Vector3, max_up := 20.0) -> Dictionary:
+	var up: Dictionary = world.raycast(at + Vector3.UP * 0.05, Vector3.UP, max_up)
+	if not up.hit:
+		return {}
+	var point: Vector3 = up.position
+	return {position = point, voxel = world.world_to_voxel(point + Vector3.UP * world.voxel_size * 0.5)}
 
 
 # --- Clouds --------------------------------------------------------------------------------------

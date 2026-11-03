@@ -225,10 +225,12 @@ func _synthesize_all() -> int:
 		"rifle", "blast", "chip", "shroom_hit", "shroom_pop", "harvest_chime", "hurt", "plant", "uproot",
 		"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip",
 		"build_place", "build_denied", "amb_day", "amb_night",
-		"sting_night", "sting_quota", "sting_gameover", "sting_dawn",
+		"sting_night", "sting_finale", "sting_quota", "sting_gameover", "sting_dawn",
 		"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
 		"melee_swing", "melee_hit", "flask_throw", "flask_break",
 		"drawer_open", "terminal_beep", "station_use", "glass_break",
+		"fuse", "shroom_scream", "spit", "giant_slam",
+		"spawn_pop", "burst", "spore_puff", "tentacle_grab",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
@@ -439,6 +441,48 @@ func _make_bite() -> AudioStreamWAV:
 	return _to_wav(buf, RATE)
 
 
+## Exploding shroom's fuse (0.8 s): a fizzing hiss under ticking beeps that speed up and rise.
+func _make_fuse() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.8)
+	_add_noise(buf, RATE, 0.0, 0.8, 0.3, 0.0, 0.0, 3500.0, 0.02, 0.05, 23.0, 0.5)
+	var t := 0.0
+	var gap := 0.17
+	var f := 900.0
+	while t < 0.75:
+		_add_tone(buf, RATE, t, 0.04, f, f, 0.3, 0.015, Shape.SQUARE)
+		t += gap
+		gap *= 0.78
+		f *= 1.08
+	return _to_wav(buf, RATE)
+
+
+## Alarm shroom's scream (1.5 s): a wailing saw that climbs, wavering, over breathy noise.
+func _make_shroom_scream() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.5)
+	_add_tone(buf, RATE, 0.0, 1.5, 420.0, 1250.0, 0.35, 0.0, Shape.SAW, 0.2, 0.15, 7.0, 0.35)
+	_add_tone(buf, RATE, 0.0, 1.5, 633.0, 1880.0, 0.18, 0.0, Shape.TRIANGLE, 0.25, 0.15, 7.0, 0.35)
+	_add_noise(buf, RATE, 0.0, 1.5, 0.22, 0.0, 4000.0, 900.0, 0.3, 0.2)
+	return _to_wav(buf, RATE)
+
+
+## Ranged shroom's spit: a wet hork, a bloop sliding up and a short spray.
+func _make_spit() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_noise(buf, RATE, 0.0, 0.12, 0.5, 0.04, 2500.0, 300.0)
+	_add_tone(buf, RATE, 0.02, 0.14, 160.0, 420.0, 0.45, 0.05)
+	_add_noise(buf, RATE, 0.08, 0.2, 0.25, 0.06, 6000.0, 2000.0)
+	return _to_wav(buf, RATE)
+
+
+## Giant's swing: a deep whoosh into a heavy ground thud.
+func _make_giant_slam() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.7)
+	_add_noise(buf, RATE, 0.0, 0.3, 0.4, 0.0, 900.0, 120.0, 0.12, 0.08)
+	_add_tone(buf, RATE, 0.22, 0.45, 95.0, 34.0, 0.85, 0.16)
+	_add_noise(buf, RATE, 0.22, 0.4, 0.5, 0.1, 700.0)
+	return _to_wav(buf, RATE)
+
+
 ## Breaching: a gritty scrape of low-passed noise, three crunches, and a dull knock.
 func _make_dig() -> AudioStreamWAV:
 	var buf := _buffer(RATE, 0.35)
@@ -484,6 +528,45 @@ func _make_station_use() -> AudioStreamWAV:
 	_add_noise(buf, RATE, 0.0, 0.35, 0.35, 0.12, 0.0, 1800.0)
 	_add_tone(buf, RATE, 0.05, 0.25, 660.0, 660.0, 0.2, 0.1, Shape.TRIANGLE)
 	_add_tone(buf, RATE, 0.18, 0.4, 990.0, 990.0, 0.2, 0.14, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Mommy shroom births one: a wet low squelch rising into a soft pop.
+func _make_spawn_pop() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.5)
+	_add_tone(buf, RATE, 0.0, 0.3, 80.0, 160.0, 0.5, 0.12)
+	_add_noise(buf, RATE, 0.0, 0.3, 0.35, 0.1, 600.0, 0.0, 0.05)
+	_add_tone(buf, RATE, 0.25, 0.12, 260.0, 620.0, 0.4, 0.04)
+	_add_noise(buf, RATE, 0.28, 0.2, 0.25, 0.05, 2200.0)
+	return _to_wav(buf, RATE)
+
+
+## Ceiling sac bursts: a heavy wet splat, a gush of low noise and a drippy tail.
+func _make_burst() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.8)
+	_add_tone(buf, RATE, 0.0, 0.25, 220.0, 60.0, 0.6, 0.08)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.7, 0.15, 1400.0)
+	_add_noise(buf, RATE, 0.05, 0.75, 0.3, 0.3, 500.0, 0.0, 0.05)
+	for i in 4:
+		_add_tone(buf, RATE, 0.3 + i * 0.11, 0.06, 900.0 - i * 90.0, 400.0, 0.12, 0.02)
+	return _to_wav(buf, RATE)
+
+
+## Spore shroom puffs: a breathy hiss swelling and fading with a soft low cough under it.
+func _make_spore_puff() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.1)
+	_add_noise(buf, RATE, 0.0, 1.1, 0.5, 0.0, 3500.0, 300.0, 0.25, 0.6)
+	_add_tone(buf, RATE, 0.0, 0.2, 120.0, 70.0, 0.45, 0.06)
+	return _to_wav(buf, RATE)
+
+
+## Tentacle grabs: a fleshy whip crack, then a slow wet creak as it tightens.
+func _make_tentacle_grab() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.7)
+	_add_noise(buf, RATE, 0.0, 0.08, 0.7, 0.02, 5000.0, 800.0)
+	_add_tone(buf, RATE, 0.0, 0.15, 500.0, 140.0, 0.4, 0.05)
+	_add_tone(buf, RATE, 0.1, 0.6, 70.0, 95.0, 0.3, 0.0, Shape.SAW, 0.1, 0.2, 9.0, 0.5)
+	_add_noise(buf, RATE, 0.1, 0.55, 0.2, 0.0, 700.0, 0.0, 0.1, 0.2)
 	return _to_wav(buf, RATE)
 
 
@@ -588,6 +671,18 @@ func _make_sting_night() -> AudioStreamWAV:
 	_add_tone(buf, LOW_RATE, 0.5, 1.9, 1318.5, 1318.5, 0.05, 0.7, Shape.SINE, 0.5, 0.6, 5.0, 0.4)
 	_add_tone(buf, LOW_RATE, 0.5, 1.9, 1327.0, 1327.0, 0.05, 0.7, Shape.SINE, 0.5, 0.6, 5.0, 0.4)
 	_add_tone(buf, LOW_RATE, 0.65, 0.5, 80.0, 38.0, 0.45, 0.14)
+	return _to_wav(buf, LOW_RATE)
+
+
+## Finale (2.0 s): two harsh low saw stabs a tritone apart (A2, Eb3) with a deep thud under each, and a
+## rising triangle sweep over the second half.
+func _make_sting_finale() -> AudioStreamWAV:
+	var buf := _buffer(LOW_RATE, 2.0)
+	for i in 2:
+		_add_tone(buf, LOW_RATE, i * 0.5, 0.7, 110.0, 108.0, 0.14, 0.4, Shape.SAW, 0.02, 0.2)
+		_add_tone(buf, LOW_RATE, i * 0.5, 0.7, 155.6, 153.0, 0.1, 0.4, Shape.SAW, 0.02, 0.2)
+		_add_tone(buf, LOW_RATE, i * 0.5, 0.4, 70.0, 36.0, 0.4, 0.15)
+	_add_tone(buf, LOW_RATE, 1.0, 1.0, 330.0, 660.0, 0.08, 0.6, Shape.TRIANGLE, 0.2, 0.4)
 	return _to_wav(buf, LOW_RATE)
 
 

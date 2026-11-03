@@ -8,7 +8,8 @@ extends Node3D
 ## freeing it on its own timer.
 ##
 ## Types (TYPES): fire (a burning pool that also burns SHROOM_* voxels away through WorldSync),
-## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once).
+## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once),
+## spore (a thick grey-white cloud that blinds players inside, from spore shrooms).
 ##
 ## Spawn one from any peer with Cloud.spawn(type, at, radius, seconds); it goes through the host.
 
@@ -27,6 +28,10 @@ const TYPES := {
 	rage = {color = Color(1.0, 0.2, 0.25), radius = 3.0, seconds = 4.0, status = "raging", status_seconds = 5.0},
 	freeze = {color = Color(0.55, 0.85, 1.0), radius = 3.0, seconds = 0.5, status = "frozen", status_seconds = 5.0,
 			instant = true},
+	# Spore shrooms: no damage, players inside are blinded (Player fogs their screen). particles /
+	# puff make it a dense, thick cloud.
+	spore = {color = Color(0.82, 0.82, 0.78), radius = 4.0, seconds = 8.0, status = "",
+			player_status = "blinded", player_seconds = 3.0, particles = 140, puff = 0.35, alpha = 0.5, sound = "spore_puff"},
 }
 
 ## Unique per session, the same on every peer (the node is named after it).
@@ -163,7 +168,7 @@ func _build() -> void:
 
 	_particles = CPUParticles3D.new()
 	_particles.name = "Particles"
-	_particles.amount = 24 if instant else 40
+	_particles.amount = 24 if instant else int(defs.get("particles", 40))
 	_particles.lifetime = 0.5 if instant else 1.6
 	_particles.explosiveness = 1.0 if instant else 0.0
 	_particles.one_shot = instant
@@ -183,7 +188,7 @@ func _build() -> void:
 	ramp.set_color(1, Color(color.darkened(0.3), 0.0))
 	_particles.color_ramp = ramp
 	var puff := BoxMesh.new()
-	puff.size = Vector3.ONE * (0.08 if type == "fire" else 0.18)
+	puff.size = Vector3.ONE * (0.08 if type == "fire" else float(defs.get("puff", 0.18)))
 	var puff_material := StandardMaterial3D.new()
 	puff_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	puff_material.vertex_color_use_as_albedo = true
@@ -204,7 +209,7 @@ func _process(_delta: float) -> void:
 	var fade := clampf((seconds - age) / minf(1.0, seconds), 0.0, 1.0)
 	_sphere.scale = Vector3.ONE * radius * lerpf(0.3 if instant else 0.6, 1.0, grow)
 	var flicker := 1.0 + (sin(age * 23.0) * 0.15 if type == "fire" else 0.0)
-	_material.albedo_color.a = (0.5 * (1.0 - t) if instant else 0.28) * fade
+	_material.albedo_color.a = (0.5 * (1.0 - t) if instant else float(settings(type).get("alpha", 0.28))) * fade
 	_light.light_energy = 2.0 * fade * flicker
 	if not instant and age > seconds - 0.8:
 		_particles.emitting = false
