@@ -48,6 +48,7 @@ const EDITOR_KEYS := {
 	editor_cut_up = ["PageUp"],
 	editor_cut_down = ["PageDown"],
 	editor_cut_mode = ["C"],
+	editor_walls_down = ["H"],
 	editor_fly = ["F"],
 	editor_brush_smaller = ["BracketLeft"],
 	editor_brush_bigger = ["BracketRight"],

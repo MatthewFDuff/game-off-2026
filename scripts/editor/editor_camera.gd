@@ -8,6 +8,9 @@ extends Node3D
 ## Cutaway: voxels at or above cut_layer aren't drawn (the terrain shader's cut_height) and the
 ## aim ray passes through them. Where the cut goes through solid voxels, a cap plane shows the cross
 ## section in the voxels' own colors, darkened and hatched, so walls read as walls from above.
+## Walls-down (H) hides, above knee height, whatever is between the camera and the pivot, so a room
+## can be seen into from a low angle (the shaders' walls_down_*; the aim ray skips it too).
+##
 ## Auto puts the cut at the ceiling of the selected room, or else of the room the pivot stands in; Manual is moved with
 ## Page Up / Down; C cycles Off / Auto / Manual.
 
@@ -48,6 +51,9 @@ var cut_mode := Cut.AUTO
 var cut_layer := 0
 ## Page Up / Down step, in voxels (the editor keeps it at the grid snap).
 var cut_step := 5
+## Walls-down on, and how high the walls stay (meters above the pivot).
+var walls_down := false
+const WALLS_DOWN_HEIGHT := 0.6
 ## Off while a tool step uses the wheel to size things.
 var zoom_enabled := true
 ## Auto cut: the ceiling layer of the room being worked on (the selected one), -1 for the room under
@@ -92,7 +98,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	active = false
 	_set_shader_cut(NO_CUT)
+	if is_instance_valid(lab):
+		_set_shader_walls_down()
 
 
 func set_active(on: bool) -> void:
@@ -101,6 +110,7 @@ func set_active(on: bool) -> void:
 	if not on:
 		_cap.visible = false
 		_set_shader_cut(NO_CUT)
+		_set_shader_walls_down()
 		_drag_button = MOUSE_BUTTON_NONE
 
 
@@ -161,7 +171,7 @@ func cut_y() -> float:
 func raycast(origin: Vector3, direction: Vector3, reach := REACH) -> Dictionary:
 	var world := lab.world
 	if not is_cutting():
-		return world.raycast(origin, direction, reach)
+		return _raycast_walls_down(origin, direction, reach)
 	var top := cut_y() - 0.001
 	var start := origin
 	var skipped := 0.0
@@ -170,7 +180,7 @@ func raycast(origin: Vector3, direction: Vector3, reach := REACH) -> Dictionary:
 			return {hit = false}
 		skipped = (origin.y - top) / -direction.y
 		start = origin + direction * skipped
-	var hit: Dictionary = world.raycast(start, direction, reach - skipped)
+	var hit: Dictionary = _raycast_walls_down(start, direction, reach - skipped)
 	if not hit.hit:
 		return hit
 	if hit.voxel.y >= cut_layer:
@@ -180,6 +190,56 @@ func raycast(origin: Vector3, direction: Vector3, reach := REACH) -> Dictionary:
 		hit.cap = true
 	hit.distance += skipped
 	return hit
+
+
+## True where walls-down hides things (the shader's test): above the walls' height on the
+## camera's side of the pivot.
+func _hidden_by_walls_down(point: Vector3) -> bool:
+	if not active or not walls_down:
+		return false
+	return point.y > _shown_pivot.y + WALLS_DOWN_HEIGHT and _side_of_pivot(point) < -0.3
+
+
+func _forward_flat() -> Vector2:
+	return Vector2(-sin(deg_to_rad(_shown_yaw)), -cos(deg_to_rad(_shown_yaw)))
+
+
+func _side_of_pivot(point: Vector3) -> float:
+	return (Vector2(point.x, point.z) - Vector2(_shown_pivot.x, _shown_pivot.z)).dot(_forward_flat())
+
+
+## How far along the ray it leaves the walls-down hidden region (0 if it starts outside): where it
+## drops below the walls' height or crosses to the pivot's side, whichever comes first.
+func _exit_walls_down(origin: Vector3, direction: Vector3) -> float:
+	if not _hidden_by_walls_down(origin):
+		return 0.0
+	var leave := INF
+	if direction.y < 0.0:
+		leave = (origin.y - (_shown_pivot.y + WALLS_DOWN_HEIGHT)) / -direction.y
+	var along := Vector2(direction.x, direction.z).dot(_forward_flat())
+	if along > 0.0:
+		leave = minf(leave, (-0.3 - _side_of_pivot(origin)) / along)
+	return leave + 0.001 if leave < INF else INF
+
+
+## VoxelWorld.raycast past what walls-down hides.
+func _raycast_walls_down(origin: Vector3, direction: Vector3, reach: float) -> Dictionary:
+	var travelled := _exit_walls_down(origin, direction.normalized())
+	if travelled >= reach:
+		return {hit = false}
+	var from := origin + direction.normalized() * travelled
+	var step := direction.normalized() * lab.world.voxel_size * 0.5
+	for i in 64:
+		var hit: Dictionary = lab.world.raycast(from, direction, reach - travelled)
+		if not hit.hit or not _hidden_by_walls_down(lab.view.to_world(Vector3(hit.voxel) + Vector3.ONE * 0.5)):
+			if hit.hit:
+				hit.distance += travelled
+			return hit
+		# Step just past the hidden voxel and look again.
+		var past: Vector3 = hit.position + step
+		travelled += from.distance_to(past)
+		from = past
+	return {hit = false}
 
 
 # --- Input ---------------------------------------------------------------------------------------
@@ -234,6 +294,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			move_cut(-cut_step)
 		elif InputSetup.pressed(event, "editor_cut_mode") and not event.echo:
 			set_cut_mode((cut_mode + 1) % CUT_NAMES.size() as Cut)
+		elif InputSetup.pressed(event, "editor_walls_down") and not event.echo:
+			set_walls_down(not walls_down)
 		else:
 			used = false
 		if used:
@@ -274,6 +336,11 @@ func set_cut_mode(mode: Cut) -> void:
 	lab.notify("Cutaway: %s" % CUT_NAMES[mode], false)
 
 
+func set_walls_down(on: bool) -> void:
+	walls_down = on
+	lab.notify("Walls down" if on else "Walls up", false)
+
+
 func move_cut(voxels: int) -> void:
 	if cut_mode != Cut.MANUAL:
 		if not is_cutting():
@@ -303,6 +370,7 @@ func _process(delta: float) -> void:
 	_shown_distance = lerpf(_shown_distance, distance, blend)
 	_place_camera()
 	_update_cut()
+	_set_shader_walls_down()
 
 
 func _place_camera() -> void:
@@ -350,6 +418,17 @@ func _update_cut() -> void:
 	if layer != _cap_layer or _cap_dirty:
 		_rebuild_cap(layer)
 	_cap.visible = true
+
+
+## Walls-down uniforms, on the terrain and the cap.
+func _set_shader_walls_down() -> void:
+	var on := active and walls_down
+	var forward := Vector2(-sin(deg_to_rad(_shown_yaw)), -cos(deg_to_rad(_shown_yaw)))
+	for material in [lab.world.material as ShaderMaterial, _cap_material]:
+		if material:
+			material.set_shader_parameter("walls_down_point", _shown_pivot)
+			material.set_shader_parameter("walls_down_dir", forward if on else Vector2.ZERO)
+			material.set_shader_parameter("walls_down_height", _shown_pivot.y + WALLS_DOWN_HEIGHT if on else NO_CUT)
 
 
 func _set_shader_cut(height: float) -> void:

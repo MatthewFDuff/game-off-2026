@@ -238,7 +238,7 @@ func _gizmo(object: Dictionary) -> Node3D:
 	var label := Label3D.new()
 	label.text = "%s\n%s" % [object.id, info.label]
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
+	# Depth-tested, so markers in rooms out of sight (under the cutaway's rock) don't show through.
 	label.fixed_size = true
 	label.pixel_size = 0.0009
 	label.font_size = 22

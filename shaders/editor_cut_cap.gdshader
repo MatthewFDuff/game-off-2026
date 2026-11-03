@@ -8,6 +8,10 @@ uniform sampler2D ids : filter_nearest; // R8: material id / 255
 uniform sampler2D palette : source_color, filter_nearest;
 uniform vec3 origin;
 uniform float voxel_size = 0.1;
+// Walls-down, as in voxel_terrain.gdshader.
+uniform vec3 walls_down_point;
+uniform vec2 walls_down_dir;
+uniform float walls_down_height = 1e9;
 
 varying vec3 world_position;
 
@@ -16,6 +20,9 @@ void vertex() {
 }
 
 void fragment() {
+	if (dot(world_position.xz - walls_down_point.xz, walls_down_dir) < -0.3 && world_position.y > walls_down_height) {
+		discard;
+	}
 	ivec2 cell = ivec2(floor((world_position.xz - origin.xz) / voxel_size));
 	ivec2 size = textureSize(ids, 0);
 	if (any(lessThan(cell, ivec2(0))) || any(greaterThanEqual(cell, size))) {

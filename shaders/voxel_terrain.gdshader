@@ -16,6 +16,12 @@ uniform float facility_power : hint_range(0.0, 1.0) = 1.0;
 // Level editor cutaway: nothing above this world height is drawn (EditorCamera sets it; the cut
 // face itself is EditorCamera's cap plane).
 uniform float cut_height = 1e9;
+// Level editor walls-down: above walls_down_height, nothing between the camera and the point it
+// orbits (walls_down_point, looking along walls_down_dir in x / z) is drawn, so you can see into
+// a room from a low angle. Off when walls_down_dir is zero.
+uniform vec3 walls_down_point;
+uniform vec2 walls_down_dir;
+uniform float walls_down_height = 1e9;
 
 varying vec3 world_position;
 varying vec3 world_normal;
@@ -31,6 +37,9 @@ void vertex() {
 
 void fragment() {
 	if (world_position.y > cut_height) {
+		discard;
+	}
+	if (dot(world_position.xz - walls_down_point.xz, walls_down_dir) < -0.3 && world_position.y > walls_down_height) {
 		discard;
 	}
 	int id = int(round(COLOR.g * 255.0));

@@ -127,6 +127,12 @@ var _dab_timer := 0.0
 var _cursor_lines := MeshInstance3D.new()
 var _volume := MeshInstance3D.new()
 var _ghost := MeshInstance3D.new()
+## The preview box's edges, drawn over everything (its fill is hidden by what's in front, so a room
+## dug into rock reads as a hole, not a tower).
+var _volume_lines := MeshInstance3D.new()
+## A faint grid on the surface under the cursor (builder view).
+var _grid := MeshInstance3D.new()
+const GRID_RADIUS := 3.0
 ## Width, height and length labels on the sized box's edges (Vector3 axis order).
 var _size_labels: Array[Label3D] = []
 
@@ -145,8 +151,16 @@ func _ready() -> void:
 	volume_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	volume_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	volume_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	volume_material.no_depth_test = true
 	_volume.material_override = volume_material
+	_volume_lines.mesh = ImmediateMesh.new()
+	_volume_lines.material_override = LevelView._line_material(Color.WHITE)
+	var plane := PlaneMesh.new()
+	plane.size = Vector2.ONE * GRID_RADIUS * 2.0
+	_grid.mesh = plane
+	var grid_material := ShaderMaterial.new()
+	grid_material.shader = preload("res://shaders/editor_grid.gdshader")
+	grid_material.set_shader_parameter("radius", GRID_RADIUS)
+	_grid.material_override = grid_material
 	_ghost.transparency = 0.45
 	_invalid_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_invalid_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -165,7 +179,7 @@ func _ready() -> void:
 		label.outline_modulate = Color(0.06, 0.09, 0.12)
 		label.render_priority = 10
 		_size_labels.append(label)
-	for node in [_cursor_lines, _volume, _ghost] + _size_labels:
+	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid] + _size_labels:
 		node.visible = false
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		lab.view.add_child.call_deferred(node)
@@ -189,7 +203,7 @@ func _load_room_defaults() -> void:
 
 
 func _exit_tree() -> void:
-	for node in [_cursor_lines, _volume, _ghost, camera] + _size_labels:
+	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, camera] + _size_labels:
 		if is_instance_valid(node):
 			node.queue_free()
 	handles.free_meshes()
@@ -326,7 +340,7 @@ func _process(delta: float) -> void:
 		_apply_view()
 	camera.zoom_enabled = not volume.is_active() and not handles.is_busy()
 	if not is_active():
-		for node in [_cursor_lines, _volume, _ghost] + _size_labels:
+		for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid] + _size_labels:
 			node.visible = false
 		return
 	if not selected.is_empty() and not lab.level.objects.has(selected):
@@ -1078,6 +1092,27 @@ func presence_state() -> Dictionary:
 	return out
 
 
+## The builder view's grid: on the floor under the cursor (or the floor being sized), at the snap.
+func _update_grid() -> void:
+	var sizing_floor := volume.is_active() and volume.step == VolumeSteps.Step.FLOOR
+	_grid.visible = builder and (sizing_floor or (has_cursor and cursor_normal == Vector3i.UP and tool != Tool.SELECT and tool != Tool.BRUSH))
+	if not _grid.visible:
+		return
+	var center: Vector3 = lab.view.to_world(Vector3(cell) + Vector3(0.5, 0.0, 0.5))
+	var y := volume.plane_y() if sizing_floor else center.y
+	if sizing_floor:
+		var ray_y := _aim_direction.y
+		if absf(ray_y) > 1e-4:
+			var t := (y - _aim_from.y) / ray_y
+			if t > 0.0:
+				center = _aim_from + _aim_direction * t
+	_grid.global_position = Vector3(center.x, y + 0.003, center.z)
+	var material := _grid.material_override as ShaderMaterial
+	material.set_shader_parameter("origin", lab.world.global_position)
+	material.set_shader_parameter("spacing", snap() * lab.world.voxel_size)
+	material.set_shader_parameter("center", center)
+
+
 ## Width / height / length on the edges of the box (world space) nearest the camera; active_axis is
 ## highlighted (-1: none), and show_height false leaves the height off.
 func _place_size_labels(box: AABB, active_axis: int, show_height: bool, typed := "") -> void:
@@ -1168,6 +1203,12 @@ func _update_previews() -> void:
 			if handles.active[a] != 0:
 				axis = a
 		_place_size_labels(AABB(lab.view.to_world(Vector3(box_preview.from)), size), axis, true)
+	# The fill hides behind walls; its edges always show.
+	_volume_lines.visible = _volume.visible
+	if _volume.visible:
+		(_volume_lines.material_override as StandardMaterial3D).albedo_color = Color((_volume.material_override as StandardMaterial3D).albedo_color, 0.9)
+		lab.view.draw_box(_volume_lines.mesh, _preview_box)
+	_update_grid()
 	# Ghost of the prop being placed or moved, or of a moved marker's box.
 	var ghost := {}
 	if not _grab.is_empty() and not LevelSchema.is_structure(_grab):

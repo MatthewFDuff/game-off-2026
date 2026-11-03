@@ -80,6 +80,15 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   dip by fall speed. Ladders keep their old easing. Not done from the list: the sprint FOV kick
   (no sprint). Holding jump doesn't auto-hop; each hop is a press (the buffer makes the timing
   forgiving). Tested headless (`controller_test`); not yet felt by hand.
+- **Step 8 (polish) done (2026-11-03)**: walls-down (H, a Walls chip; shader discard on the
+  camera's side of the pivot above 0.6 m, on the terrain and the cut cap, and the aim ray skips that
+  region), the grid overlay on the floor under the cursor (builder view), marker labels
+  depth-tested (no longer showing through rock), the sizing preview depth-tested with its edges
+  always on top (a room dug into rock reads as a hole), a floor handle on rooms, a room list in the
+  Select tool, and `net_test.sh editor_test` waiting for the restored world instead of a fixed
+  time. Left over: rotating rooms (openings and doors would have to turn with them), arches,
+  editor sounds beyond the UI clicks, ceiling props in the catalog, showing someone's brush stroke
+  and jumping to someone by clicking them in the world.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast
@@ -432,7 +441,8 @@ play-test movement sooner.
 
 ## Open questions
 
-- Walls-down: shader trick (fast, approximate) or real per-room hiding (exact, more work)?
+- Walls-down: shader trick (fast, approximate) or real per-room hiding (exact, more work)? Went
+  with the shader trick (step 8); per-room hiding can come later if it reads badly in big levels.
 
 Decided 2026-11-02: free cut height only (no floor selector); dark blue-gray accent; doors cut
 their own opening, openings never add doors.

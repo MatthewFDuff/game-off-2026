@@ -39,6 +39,7 @@ var _free_cursor_button: Button
 var _view_buttons: Array[Button] = []
 var _cut_buttons: Array[Button] = []
 var _cut_row: HBoxContainer
+var _walls_button: Button
 var _drawer: PanelContainer
 var _drawer_header := HBoxContainer.new()
 var _drawer_tabs := HBoxContainer.new()
@@ -143,6 +144,7 @@ func _process(delta: float) -> void:
 	_cut_row.visible = tool.builder
 	for i in _cut_buttons.size():
 		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
+	_walls_button.set_pressed_no_signal(tool.camera.walls_down)
 	_hint_label.text = _hint_text()
 	var readout := tool.volume_readout()
 	_readout.visible = readout != ""
@@ -443,6 +445,10 @@ func _build_inspector() -> void:
 		chip.toggle_mode = true
 		_cut_row.add_child(chip)
 		_cut_buttons.append(chip)
+	_walls_button = _button("Walls", "ChipButton", "Walls down: hide walls between the camera and the room you're looking at (%s)" % InputSetup.describe("editor_walls_down"),
+			func() -> void: tool.camera.set_walls_down(not tool.camera.walls_down))
+	_walls_button.toggle_mode = true
+	_cut_row.add_child(_walls_button)
 	column.add_child(_cut_row)
 
 
@@ -634,6 +640,7 @@ func _build_help() -> Control:
 		["Builder view", [["Switch view", "editor_view"], ["Orbit", "RMB / MMB drag"], ["Pan", "WASD, Shift+MMB drag"],
 			["Zoom", "Wheel"], ["Turn 45°", "editor_orbit_left", "editor_orbit_right"], ["Frame selection", "editor_frame"],
 			["Whole level", "editor_frame_all"], ["Cut height", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
+			["Walls down", "editor_walls_down"],
 			["Brush carve", "Shift+LMB"]]],
 		["Walk view", [["Move", "WASD, Space / Ctrl"], ["Fly on / off", "editor_fly"], ["Fly speed", "Wheel, Shift fast"]]],
 		["Room, Box, Replace", [["Corner, floor, height", "LMB ×3"], ["Size", "Wheel"], ["Other floor side", "Shift+Wheel"],
@@ -813,6 +820,22 @@ func _selection() -> void:
 			for problem: Dictionary in _problems:
 				var id: String = problem.id
 				var entry := _button("%s: %s" % [id, problem.reason], "ChipButton", "Select it", func() -> void:
+					if lab.level.objects.has(id):
+						tool.select(id)
+						if tool.builder:
+							tool.frame_selection())
+				entry.alignment = HORIZONTAL_ALIGNMENT_LEFT
+				entry.clip_text = true
+				_content.add_child(entry)
+		# Every room, to pick one that's hard to click (under rock, far away).
+		var rooms: Array = lab.level.objects.values().filter(func(o: Dictionary) -> bool: return o.kind == "room")
+		if not rooms.is_empty():
+			_heading("Rooms")
+			rooms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a.id) < str(b.id))
+			for room: Dictionary in rooms:
+				var id: String = room.id
+				var size: Vector3 = Vector3(room.to - room.from) * lab.world.voxel_size
+				var entry := _button("%s  %.1f × %.1f × %.1f m" % [room.name if room.name != "" else id, size.x, size.z, size.y], "ChipButton", "Select it", func() -> void:
 					if lab.level.objects.has(id):
 						tool.select(id)
 						if tool.builder:

@@ -1,16 +1,17 @@
 class_name RoomHandles
 extends RefCounted
-## Resize handles on the selected room (Select tool): one on each wall, one on the ceiling and one on
-## each corner (two walls at once). Press on a handle and drag, or click it to pick it up (it follows
+## Resize handles on the selected room (Select tool): one on each wall, the ceiling and the floor,
+## and one on each corner (two walls at once). Press on a handle and drag, or click it to pick it up (it follows
 ## the aim until the next click); the wheel nudges it a grid step outward or back. Dropping it gives
 ## the resized room; EditorTool turns that into one edit with RoomTools.carry.
 ##
 ## Handles are picked on screen (within PICK_PIXELS of the pointer), so they're as easy to grab at
 ## any zoom, and they're drawn on top of everything.
 
-## Outward directions: four walls, the ceiling, four corners.
+## Outward directions: four walls, the ceiling, the floor, four corners. (Straight from above the
+## ceiling and floor handles line up; the ceiling comes first, so it wins.)
 const DIRECTIONS: Array[Vector3i] = [Vector3i(-1, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 0, -1), Vector3i(0, 0, 1), Vector3i(0, 1, 0),
-		Vector3i(-1, 0, -1), Vector3i(1, 0, -1), Vector3i(-1, 0, 1), Vector3i(1, 0, 1)]
+		Vector3i(0, -1, 0), Vector3i(-1, 0, -1), Vector3i(1, 0, -1), Vector3i(-1, 0, 1), Vector3i(1, 0, 1)]
 const PICK_PIXELS := 18.0
 ## Pointer travel before a press on a handle counts as a drag.
 const DRAG_PIXELS := 4.0

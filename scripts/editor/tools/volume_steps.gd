@@ -41,6 +41,11 @@ func is_active() -> bool:
 	return step != Step.NONE
 
 
+## World height of the floor step's plane.
+func plane_y() -> float:
+	return _plane_y
+
+
 ## Starts sizing at corner. plane_y is the world height of the surface it was picked on.
 ## height_sign: which way the height goes by default (+1 up, -1 down into the floor).
 func begin(corner: Vector3i, plane_y: float, grid: int, height_sign: int) -> void:

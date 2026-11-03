@@ -45,6 +45,17 @@ func _run() -> void:
 	tool.set_tool(2)
 	await _frames(20)
 	await _shot("builder_auto_cut")
+	# Low angle with walls down: the near walls are gone above knee height.
+	camera.pitch = 22.0
+	camera.distance = 14.0
+	camera.walls_down = true
+	camera.snap_to_target()
+	await _frames(6)
+	await _shot("builder_walls_down")
+	camera.walls_down = false
+	camera.pitch = 50.0
+	camera.distance = 22.0
+	camera.snap_to_target()
 	# A room being dug down from the cut beside the atrium, on its height step: labels and readout.
 	tool.set_tool(1)
 	var cut: int = camera.cut_layer

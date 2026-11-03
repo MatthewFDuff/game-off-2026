@@ -192,10 +192,14 @@ func _client(net: Node) -> void:
 	_check("play mode reached the client", not lab.local_player().editing)
 	await _wait_seconds(3.0) # Door, shot, snapshot.
 	_print_hashes(lab, "play")
+	# Back in edit the host resends the edit world; wait for it rather than a fixed time.
+	var restored := [false]
+	lab.world_sync.snapshot_applied.connect(func() -> void: restored[0] = true)
 	if not await _wait_until(func() -> bool: return lab.mode == "edit", 30.0):
 		_check("switched back to edit", false)
 		return
-	await _wait_seconds(2.0)
+	_check("edit world came back", await _wait_until(func() -> bool: return restored[0], 30.0))
+	await _wait_seconds(0.5)
 	_print_hashes(lab, "edit again")
 
 

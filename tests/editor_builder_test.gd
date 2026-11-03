@@ -110,6 +110,29 @@ func _run() -> void:
 	await _frames(2)
 	_check("C cycles to Auto: the atrium ceiling again", camera.cut_mode == 1 and camera.cut_layer == ceiling)
 
+	# Walls-down: from a low angle the near wall is in the way; with H it's hidden and the cursor
+	# goes through to the floor.
+	camera.look_from(ATRIUM, 0.0)
+	camera.pitch = 25.0
+	camera.distance = 14.0
+	camera.snap_to_target()
+	await _move_mouse(center)
+	await _frames(3)
+	var blocked: Vector3i = tool.solid_cell
+	await _key(KEY_H)
+	await _frames(3)
+	_check("H turns walls-down on", camera.walls_down and world.material.get_shader_parameter("walls_down_dir") != Vector2.ZERO)
+	_check("the near wall was in the way", blocked.y > 41, str(blocked))
+	_check("...and walls-down looks past it to the floor", tool.has_cursor and tool.solid_cell.y == 39, str(tool.solid_cell))
+	await _key(KEY_H)
+	await _frames(2)
+	_check("H again: walls up", not camera.walls_down and world.material.get_shader_parameter("walls_down_dir") == Vector2.ZERO)
+	camera.look_from(ATRIUM, 0.0)
+	camera.pitch = 89.0
+	camera.distance = 6.0
+	camera.snap_to_target()
+	await _frames(3)
+
 	# V drops into the walk view where the mouse points, and back.
 	await _key(KEY_V)
 	await _frames(2)
