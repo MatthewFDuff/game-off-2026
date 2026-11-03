@@ -687,9 +687,10 @@ func _build_model() -> void:
 	_flash_mesh.visible = false
 	_pivot.add_child(_flash_mesh)
 
-	# The flame cone: 0.1 m cubes on the effect grid, hot white -> orange -> red -> a dithered wisp.
+	# The flame cone: 0.1 m cubes on the effect grid, hot white -> orange -> red -> dark red, opaque,
+	# shrinking away at the end of their life.
 	_flame = VoxelFx.particles(0.1, [Color(1.0, 0.95, 0.6), Color(1.0, 0.7, 0.2), Color(1.0, 0.4, 0.08),
-			Color(0.75, 0.15, 0.05, 0.6)], 0.45)
+			Color(0.75, 0.15, 0.05)], 0.45)
 	_flame.amount = 48
 	_flame.lifetime = 0.35
 	_flame.direction = Vector3.FORWARD

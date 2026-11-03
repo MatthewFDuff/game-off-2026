@@ -65,7 +65,7 @@ func _ready() -> void:
 		_mesh.visible = false
 		_light.light_energy = 0.6
 	elif ammo:
-		_trail = VoxelFx.particles(0.05, [color, ammo.color, Color(ammo.color.darkened(0.5), 0.5)], 0.3)
+		_trail = VoxelFx.particles(0.05, [color, ammo.color, ammo.color.darkened(0.5)], 0.3)
 		_trail.name = "Trail"
 		_trail.amount = 10
 		_trail.lifetime = 0.25

@@ -152,6 +152,11 @@ func _add(left: String, right: String, color: Color, size: int) -> void:
 	label.label_settings = LabHud._settings(size, color, 0)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# A wrapped label only measures its height once it knows its width, so a full-width line (the
+	# title, the note) gets the column's width up front; _fit would otherwise size the panel for a
+	# one-word-per-line note and leave a gap above the button.
+	if right == "":
+		label.custom_minimum_size.x = _column_width()
 	row.add_child(label)
 	if right != "":
 		var amount := Label.new()
@@ -164,11 +169,16 @@ func _add(left: String, right: String, color: Color, size: int) -> void:
 	_scroll.scroll_vertical = 100000
 
 
+## The statement column's width: the panel's width less its margins.
+func _column_width() -> float:
+	return minf(MAX_WIDTH, get_viewport_rect().size.x - 40.0) - 48.0
+
+
 ## Centered, never wider or taller than the viewport.
 func _fit() -> void:
 	var viewport := get_viewport_rect().size
 	var width := minf(MAX_WIDTH, viewport.x - 40.0)
-	_column.custom_minimum_size.x = width - 48.0
+	_column.custom_minimum_size.x = _column_width()
 	_scroll.custom_minimum_size = Vector2(width - 40.0, minf(_column.get_combined_minimum_size().y + 4.0, viewport.y * 0.7))
 	_panel.size = _panel.get_combined_minimum_size()
 	_panel.position = (viewport - _panel.size) * 0.5

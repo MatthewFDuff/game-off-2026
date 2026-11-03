@@ -125,6 +125,11 @@ func _ready() -> void:
 	_build_fx()
 
 
+## Seeds the fire's random rolls (spread, burn-out, trails), so a test can replay them.
+func seed_rng(value: int) -> void:
+	_rng.seed = value
+
+
 func _build_tables() -> void:
 	_burn.resize(256)
 	_catch.resize(256)

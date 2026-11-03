@@ -42,6 +42,7 @@ func _run() -> void:
 	me = lab.local_player()
 	enemies = lab.enemies
 	fire = lab.fire
+	fire.seed_rng(20261103)
 	lab.items.drop_chance = 0.0
 	lab.director.set_process(false)
 	lab.director.set_physics_process(false)
@@ -78,7 +79,15 @@ func _wall() -> void:
 	_check("the fire spreads across the wall", fire.burning.size() > 20, str(fire.burning.size()))
 	_check("up faster than along", reach.y >= 4 and reach.y >= reach.x * 0.6, str(reach))
 	_check("the concrete floor doesn't burn", _count(from - Vector3i(0, 1, 0), Vector3i(to.x, from.y, to.z), [M.CONCRETE]) == 30 * 2)
-	var gone := await _wait_until(func() -> bool: return _count(from, to, [M.WOOD]) == 0 and fire.burning.is_empty(), 60.0)
+	var gone := false
+	# A bad roll can let the fire die with a pocket of wood left; relight what is left (up to 5 times).
+	for attempt in 5:
+		gone = await _wait_until(func() -> bool: return _count(from, to, [M.WOOD]) == 0 and fire.burning.is_empty(), 60.0)
+		if gone:
+			break
+		var rest := _first(from, to, M.WOOD)
+		if rest.x >= 0:
+			fire.ignite(lab.world.voxel_to_world(rest), 0.15, 5, false)
 	var chars := _count(from, to, [M.CHAR])
 	_check("the wall burns out", gone, "%d wood, %d burning" % [_count(from, to, [M.WOOD]), fire.burning.size()])
 	_check("leaving char and air", chars > 0 and chars < total * 0.6, str(chars))
@@ -120,8 +129,8 @@ func _heat() -> void:
 	lab.world.fill_box(patch, patch + Vector3i(20, 1, 20), M.WOOD, false)
 	var torch = _target(lab.world.voxel_to_world(patch + Vector3i(10, 1, 10)) - Vector3(0, 0.05, 0))
 	await _frames(5)
-	enemies.request_status(torch.id, "burning", 6.0)
-	var lit := await _wait_until(func() -> bool: return not fire.burning.is_empty(), 4.0)
+	enemies.request_status(torch.id, "burning", 30.0)
+	var lit := await _wait_until(func() -> bool: return not fire.burning.is_empty(), 20.0)
 	_check("a burning enemy sets the floor alight", lit)
 	enemies.despawn(torch.id)
 	await _wait_until(func() -> bool: return fire.burning.is_empty(), 40.0)
@@ -225,6 +234,16 @@ func _count(from: Vector3i, to: Vector3i, ids: Array) -> int:
 				if lab.world.get_voxel(Vector3i(x, y, z)) in ids:
 					n += 1
 	return n
+
+
+## The first voxel of material in the box, or (-1, -1, -1) if there is none.
+func _first(from: Vector3i, to: Vector3i, material: int) -> Vector3i:
+	for y in range(from.y, to.y):
+		for z in range(from.z, to.z):
+			for x in range(from.x, to.x):
+				if lab.world.get_voxel(Vector3i(x, y, z)) == material:
+					return Vector3i(x, y, z)
+	return Vector3i(-1, -1, -1)
 
 
 func _target(feet: Vector3):

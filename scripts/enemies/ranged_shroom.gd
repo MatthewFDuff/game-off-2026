@@ -23,7 +23,7 @@ const POISON_SECONDS := 3.0
 ## pierce and color).
 const SPIT := {label = "Spit", color = Color(0.45, 1.0, 0.25), mode = "projectile", damage = SPIT_DAMAGE,
 		speed = 12.0, gravity = 3.0, reach = 36.0, pierce = true, sound = "spit", kind = "spit"}
-const SPLAT_COLOR := Color(0.35, 0.9, 0.2, 0.85)
+const SPLAT_COLOR := Color(0.35, 0.9, 0.2)
 ## Seconds a splat stays (fading out over the last of them).
 const SPLAT_TIME := 5.0
 const PROJECTILE_SCENE := preload("res://scenes/projectile.tscn")
@@ -227,10 +227,9 @@ func splat(at: Vector3, normal: Vector3) -> void:
 	if normal == Vector3.ZERO or manager == null:
 		return
 	var disc := MeshInstance3D.new()
-	# A ragged patch of voxel squares (VoxelFx.splat) that fades out as a pixel dither.
+	# A ragged patch of voxel squares (VoxelFx.splat) that stays opaque, then shrinks away.
 	disc.mesh = VoxelFx.splat(randf_range(0.2, 0.32))
-	var material := VoxelFx.material(1.0, false, SPLAT_COLOR)
-	disc.material_override = material
+	disc.material_override = VoxelFx.material(1.0, false, SPLAT_COLOR)
 	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	manager.add_child(disc)
 	var up := normal.normalized()
@@ -238,6 +237,5 @@ func splat(at: Vector3, normal: Vector3) -> void:
 	disc.global_position = at + up * 0.012
 	var tween := disc.create_tween()
 	tween.tween_interval(SPLAT_TIME - 1.5)
-	tween.tween_method(func(a: float) -> void: material.set_shader_parameter("tint", Color(SPLAT_COLOR, a)),
-			SPLAT_COLOR.a, 0.0, 1.5)
+	tween.tween_property(disc, "scale", Vector3(0.01, 1.0, 0.01), 1.5)
 	tween.tween_callback(disc.queue_free)
