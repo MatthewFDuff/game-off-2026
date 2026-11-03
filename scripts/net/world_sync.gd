@@ -147,6 +147,9 @@ static func op_bounds(op: Dictionary) -> Array[Vector3i]:
 ##            into neighbouring rooms stay open (rock levels); otherwise the shell is built (empty levels)
 ##   sphere   {center: Vector3, radius, material}  voxel units
 ##   replace  {from, to, material, source}         swap source for material inside the box
+##   structure {from, to, before_rooms, after_rooms, before_openings, after_openings, base, base_set}
+##            a room / opening change over [from, to): VoxelWorld.apply_structure (LevelEdits
+##            builds it from the level's room and opening objects)
 @rpc("authority", "reliable")
 func _apply_op(op: Dictionary) -> void:
 	run_op(world, op)
@@ -177,6 +180,8 @@ static func run_op(world: VoxelWorld, op: Dictionary) -> void:
 			world.fill_sphere(world.global_position + op.center * world.voxel_size, float(op.radius) * world.voxel_size, op.material, false)
 		"replace":
 			world.replace_in_box(op.from, op.to, op.material, PackedByteArray([op.source]))
+		"structure":
+			world.apply_structure(op.from, op.to, op.before_rooms, op.after_rooms, op.before_openings, op.after_openings, op.base, op.base_set)
 
 
 ## Sends a box of voxels in slices so no RPC gets near the size ENet drops. mode: 0 stamp,

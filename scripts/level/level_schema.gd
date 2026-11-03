@@ -3,8 +3,14 @@ class_name LevelSchema
 ## built from these field lists, and new objects start from their defaults.
 ##
 ## Objects are dictionaries. Every one has `id` (unique, editable, what story scripts look up) and
-## `kind` ("prop" or "marker"). Props have `name`, `origin` (Vector3i, voxel min corner) and
-## `facing`; markers have `type`, `position` (Vector3, voxel units) and `yaw` (degrees).
+## `kind` ("prop", "marker", "room" or "opening"). Props have `name`, `origin` (Vector3i, voxel min
+## corner) and `facing`; markers have `type`, `position` (Vector3, voxel units) and `yaw` (degrees).
+## Rooms and openings are the level's structure (editor v2): a room has `from` / `to` (Vector3i, its
+## inside, the air, as [from, to)), `floor` / `wall` / `ceiling` materials lining it `thickness`
+## voxels thick, and `order` (where linings overlap the newest wins). An opening is a box cut
+## through linings (`from` / `to`), part of the wall of `room` (moves with it) and, if a door prop
+## made it, linked to that `door`. Changing either goes through LevelEdits' structure edits, which
+## rewrite only the voxels nobody painted (VoxelWorld.apply_structure).
 ##
 ## Field types: "string", "text" (multi-line string), "int", "float", "bool", "color", "vector3i",
 ## "enum" (with `options`).
@@ -93,6 +99,23 @@ const MARKERS := {
 	]},
 }
 
+const ROOM_FIELDS := [
+	{key = "id", type = "string"},
+	{key = "name", type = "string", default = ""},
+	{key = "thickness", type = "int", min = 1, max = 10, default = 3, label = "Lining thickness (voxels)"},
+	{key = "from", type = "vector3i", label = "Inside from (voxels)"},
+	{key = "to", type = "vector3i", label = "Inside to (voxels)"},
+]
+
+const OPENING_TYPES := ["doorway", "window", "hole"]
+
+const OPENING_FIELDS := [
+	{key = "id", type = "string"},
+	{key = "type", type = "enum", options = OPENING_TYPES, default = "doorway"},
+	{key = "from", type = "vector3i", label = "From (voxels)"},
+	{key = "to", type = "vector3i", label = "To (voxels)"},
+]
+
 ## Placeholder asset prices for the payroll, by prop name prefix. Change freely, or per prop in the
 ## editor.
 const ASSET_VALUES := {
@@ -127,6 +150,32 @@ static func new_prop(prop_name: String, origin: Vector3i, facing: int) -> Dictio
 	return prop
 
 
+## A room around the inside box [from, to).
+static func new_room(from: Vector3i, to: Vector3i, floor: int, wall: int, ceiling: int, thickness: int, order: int) -> Dictionary:
+	return {kind = "room", name = "", from = from.min(to), to = from.max(to), floor = floor, wall = wall, ceiling = ceiling,
+			thickness = thickness, order = order}
+
+
+static func new_opening(from: Vector3i, to: Vector3i, room: String, type := "doorway", door := "") -> Dictionary:
+	return {kind = "opening", type = type, from = from.min(to), to = from.max(to), room = room, door = door}
+
+
+## Rooms and openings: changed through structure edits.
+static func is_structure(object: Dictionary) -> bool:
+	return object.get("kind") in ["room", "opening"]
+
+
+## A prop that's a door (it cuts its own opening).
+static func is_door(object: Dictionary) -> bool:
+	return object.get("kind") == "prop" and object.get("door", false)
+
+
+## A room's inside plus its lining.
+static func room_outer(room: Dictionary) -> AABB:
+	var t := Vector3.ONE * int(room.thickness)
+	return AABB(Vector3(room.from) - t, Vector3(room.to - room.from) + t * 2.0)
+
+
 static func new_marker(type: String, position: Vector3, yaw := 0.0) -> Dictionary:
 	var marker := {kind = "marker", type = type, position = position, yaw = yaw}
 	for field: Dictionary in MARKERS[type].fields:
@@ -143,6 +192,15 @@ static func fill_defaults(object: Dictionary) -> void:
 			object.use = default_use(str(object.get("name", "")))
 	elif object.get("kind") == "marker" and MARKERS.has(object.get("type")):
 		fields = MARKERS[object.type].fields
+	elif object.get("kind") == "room":
+		fields = ROOM_FIELDS
+		for key in ["floor", "wall", "ceiling", "order"]:
+			if object.get(key) is float:
+				object[key] = int(object[key])
+	elif object.get("kind") == "opening":
+		fields = OPENING_FIELDS
+		object.room = str(object.get("room", ""))
+		object.door = str(object.get("door", ""))
 	for field: Dictionary in fields:
 		if not field.has("default"):
 			continue
@@ -156,6 +214,10 @@ static func fill_defaults(object: Dictionary) -> void:
 static func fields_for(object: Dictionary) -> Array:
 	if object.kind == "prop":
 		return PROP_FIELDS
+	if object.kind == "room":
+		return ROOM_FIELDS
+	if object.kind == "opening":
+		return OPENING_FIELDS
 	return [{key = "id", type = "string"}, {key = "yaw", type = "float", min = -180.0, max = 180.0}] + MARKERS[object.type].fields
 
 
@@ -180,4 +242,8 @@ static func marker_box(object: Dictionary) -> AABB:
 
 
 static func box_of(object: Dictionary) -> AABB:
-	return prop_box(object) if object.kind == "prop" else marker_box(object)
+	if object.kind == "prop":
+		return prop_box(object)
+	if is_structure(object):
+		return AABB(Vector3(object.from), Vector3(object.to - object.from))
+	return marker_box(object)

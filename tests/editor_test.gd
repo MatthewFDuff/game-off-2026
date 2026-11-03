@@ -20,6 +20,9 @@ const BOX_A := [Vector3i(220, 60, 220), Vector3i(224, 64, 224)]
 const BOX_B := [Vector3i(230, 60, 230), Vector3i(234, 64, 234)]
 const BOX_C := [Vector3i(240, 60, 240), Vector3i(244, 64, 244)]
 const DOOR_OFFSET := Vector3i(-8, 0, 0)
+## A room the client builds and resizes in solid rock high above the lab (inside), plus its doorway.
+const ROOM := [Vector3i(100, 200, 100), Vector3i(130, 230, 120)]
+const ROOM_GROWN := Vector3i(140, 230, 120)
 
 var _failures := 0
 var _port := PORT
@@ -67,6 +70,10 @@ func _host(net: Node) -> void:
 	_check("client moved the fridge", fridge.origin == Vector3i(113, 40, 226), str(fridge.get("origin")))
 	var tank := _find(lab, "spore_tank", true)
 	_check("client made a door", not tank.is_empty() and tank.door_offset == DOOR_OFFSET)
+	var room := _find_room(lab)
+	_check("client's room arrived, resized", not room.is_empty() and room.to == ROOM_GROWN, str(room))
+	_check("client's room is carved here", _all(lab.world, [ROOM[0], ROOM_GROWN], M.AIR) and lab.world.get_voxel(ROOM_GROWN + Vector3i(1, -5, -5)) == M.WALL_PAINT)
+	_check("client's doorway is cut", _all(lab.world, [Vector3i(110, 200, 97), Vector3i(122, 222, 100)], M.AIR))
 
 	# Host edits and undoes its own.
 	var before: PackedByteArray = lab.world.get_box(BOX_C[0], BOX_C[1])
@@ -138,6 +145,15 @@ func _client(net: Node) -> void:
 	tank.door_offset = DOOR_OFFSET
 	tank.door_speed = 4.0
 	lab.edits.put_object(tank, tank.id)
+	# A room as an object: build it with a doorway, then grow it east in one edit.
+	lab.edits.put_objects([["", LevelSchema.new_room(ROOM[0], ROOM[1], M.TILE_LIGHT, M.WALL_PAINT, M.CONCRETE, 3, 1000)],
+			["", LevelSchema.new_opening(Vector3i(110, 200, 97), Vector3i(122, 222, 100), "$0")]])
+	if not await _wait_until(func() -> bool: return not _find_room(lab).is_empty(), 20.0):
+		_check("room came back from the host", false)
+		return
+	var grown := _find_room(lab).duplicate()
+	grown.to = ROOM_GROWN
+	lab.edits.put_object(grown, grown.id)
 	lab.edits.put_object(LevelSchema.new_marker("trigger", Vector3(260, 41, 260)).merged({id = "client_done"}))
 
 	if not await _wait_until(func() -> bool: return lab.level.objects.has("host_done"), 60.0):
@@ -166,6 +182,13 @@ func _copy_level() -> void:
 
 
 ## The first prop with this name (only door ones if door is set).
+func _find_room(lab) -> Dictionary:
+	for object: Dictionary in lab.level.objects.values():
+		if object.kind == "room" and object.from == ROOM[0]:
+			return object
+	return {}
+
+
 func _find(lab, prop_name: String, door := false) -> Dictionary:
 	var ids: Array = lab.level.objects.keys()
 	ids.sort()

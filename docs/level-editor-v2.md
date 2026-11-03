@@ -31,6 +31,22 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   the cut reaches the floor under the camera's pivot so it lines up with the room beside it; looking
   almost straight down, the mouse doesn't set the height (wheel and typing do). Tested headless
   (`editor_volume_test`, `editor_tool_test`) and in screenshots.
+- **Step 4 done (2026-11-03)**: `room` and `opening` objects (`LevelSchema`), structure edits in
+  `LevelEdits` (`put_objects` batches, `$n` ids for objects made in the same edit, door props keep a
+  linked opening), the `structure` op (`LevelStructure` builds it, `VoxelWorld.apply_structure`
+  runs it), the Room tool making room objects, Room from space (Alt+click), room selection and
+  handles (`scripts/editor/tools/room_handles.gd`), room inspector (linings from the catalog, exact
+  corners), Move / Duplicate with openings, doors and contents (`room_tools.gd`), Delete filling
+  back in, and the Opening tool (doorway / window / hole). Choices made while building it: any
+  natural rock (dirt, clay, sand, gravel pockets) counts as untouched base, and filling back uses
+  plain rock; a room's inside and an opening are always cut, and a cell no room claims any more
+  always goes back to base, but a new or moved lining only replaces untouched base (so it never
+  walls up hand-carved spaces) and a re-line only what still has the old lining; Room from space
+  adopts without touching voxels; Auto cut follows the selected room's ceiling. Deferred to later
+  steps: the floor handle, rotating rooms, arches, a room list in the inspector, and warnings for
+  props left floating after a resize (step 5). Tested
+  headless (`editor_room_test`, `editor_room_tool_test`, `net_test.sh editor_test` with a client's
+  room and resize) and in screenshots.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast

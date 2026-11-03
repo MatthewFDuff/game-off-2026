@@ -8,7 +8,7 @@ extends Node3D
 ## Cutaway: voxels at or above cut_layer aren't drawn (the terrain shader's cut_height) and the
 ## aim ray passes through them. Where the cut goes through solid voxels, a cap plane shows the cross
 ## section in the voxels' own colors, darkened and hatched, so walls read as walls from above.
-## Auto puts the cut at the ceiling of the room the pivot stands in; Manual is moved with
+## Auto puts the cut at the ceiling of the selected room, or else of the room the pivot stands in; Manual is moved with
 ## Page Up / Down; C cycles Off / Auto / Manual.
 
 ## RMB went down and up without orbiting.
@@ -50,6 +50,9 @@ var cut_layer := 0
 var cut_step := 5
 ## Off while a tool step uses the wheel to size things.
 var zoom_enabled := true
+## Auto cut: the ceiling layer of the room being worked on (the selected one), -1 for the room under
+## the pivot.
+var focus_ceiling := -1
 
 var camera := Camera3D.new()
 
@@ -132,6 +135,10 @@ func frame_world() -> void:
 	var size := Vector3(lab.world.get_size_in_voxels()) * lab.world.voxel_size
 	pivot = Vector3(lab.world.global_position.x + size.x * 0.5, pivot.y, lab.world.global_position.z + size.z * 0.5)
 	distance = clampf(maxf(size.x, size.z) * 1.1, 4.0, DISTANCE_MAX)
+
+
+func mouse_position() -> Vector2:
+	return _mouse
 
 
 ## The camera ray through the mouse, as [origin, direction].
@@ -306,6 +313,9 @@ func _place_camera() -> void:
 ## Auto cut: the ceiling over the pivot. Over solid ground (between rooms) it keeps the last one, so
 ## panning across a wall doesn't flash the whole roof back. force also takes it from solid.
 func _update_auto_cut(force: bool) -> void:
+	if focus_ceiling > 0:
+		cut_layer = focus_ceiling
+		return
 	var world := lab.world
 	var cell: Vector3i = world.world_to_voxel(pivot + Vector3.UP * 0.05)
 	if not force and world.get_voxel(cell) != 0:

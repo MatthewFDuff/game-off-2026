@@ -763,6 +763,103 @@ int VoxelWorld::set_box(const Vector3i &from, const Vector3i &to, const PackedBy
 	return changed;
 }
 
+namespace {
+
+enum StructureRole { ROLE_OUTSIDE, ROLE_LINING, ROLE_INTERIOR, ROLE_OPENING };
+
+struct StructureCell {
+	int role = ROLE_OUTSIDE;
+	uint8_t material = 0;
+};
+
+constexpr int ROOM_STRIDE = 10;
+constexpr int OPENING_STRIDE = 6;
+
+inline bool inside(const int32_t *box, int x, int y, int z, int grow) {
+	return x >= box[0] - grow && y >= box[1] - grow && z >= box[2] - grow && x < box[3] + grow && y < box[4] + grow && z < box[5] + grow;
+}
+
+StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array &openings, int base, int x, int y, int z) {
+	StructureCell cell;
+	cell.material = uint8_t(base);
+	const int32_t *o = openings.ptr();
+	for (int64_t i = 0; i + OPENING_STRIDE <= openings.size(); i += OPENING_STRIDE) {
+		if (inside(o + i, x, y, z, 0)) {
+			cell.role = ROLE_OPENING;
+			cell.material = 0;
+			return cell;
+		}
+	}
+	const int32_t *r = rooms.ptr();
+	int lining = -1;
+	for (int64_t i = 0; i + ROOM_STRIDE <= rooms.size(); i += ROOM_STRIDE) {
+		if (inside(r + i, x, y, z, 0)) {
+			cell.role = ROLE_INTERIOR;
+			cell.material = 0;
+			return cell;
+		}
+		if (inside(r + i, x, y, z, r[i + 9])) {
+			lining = int(i);
+		}
+	}
+	if (lining >= 0) {
+		const int32_t *room = r + lining;
+		cell.role = ROLE_LINING;
+		cell.material = uint8_t(y < room[1] ? room[6] : (y >= room[4] ? room[8] : room[7]));
+	}
+	return cell;
+}
+
+} // namespace
+
+int VoxelWorld::apply_structure(const Vector3i &from, const Vector3i &to, const PackedInt32Array &before_rooms, const PackedInt32Array &after_rooms,
+		const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set) {
+	ERR_FAIL_COND_V_MSG(before_rooms.size() % ROOM_STRIDE != 0 || after_rooms.size() % ROOM_STRIDE != 0, 0, "apply_structure: rooms are 10 ints each.");
+	ERR_FAIL_COND_V_MSG(before_openings.size() % OPENING_STRIDE != 0 || after_openings.size() % OPENING_STRIDE != 0, 0, "apply_structure: openings are 6 ints each.");
+	bool is_base[256] = {};
+	for (int64_t i = 0; i < base_set.size(); i++) {
+		is_base[base_set[i]] = true;
+	}
+	const Vector3i lo_box = from.max(Vector3i());
+	const Vector3i hi_box = to.min(get_size_in_voxels());
+	int changed = 0;
+	Vector3i lo = hi_box;
+	Vector3i hi = lo_box;
+	for (int z = lo_box.z; z < hi_box.z; z++) {
+		for (int y = lo_box.y; y < hi_box.y; y++) {
+			for (int x = lo_box.x; x < hi_box.x; x++) {
+				const StructureCell was = structure_at(before_rooms, before_openings, base, x, y, z);
+				const StructureCell now = structure_at(after_rooms, after_openings, base, x, y, z);
+				if (was.role == now.role && was.material == now.material) {
+					continue;
+				}
+				const uint8_t current = read(x, y, z);
+				if (current == BOUNDARY_MATERIAL) {
+					continue;
+				}
+				// A room's inside and an opening are always air; a cell no room claims any more goes
+				// back to base. Linings only replace what's still untouched.
+				const bool forced = (now.role == ROLE_OPENING && was.role != ROLE_OPENING) ||
+						(now.role == ROLE_INTERIOR && was.role != ROLE_INTERIOR && was.role != ROLE_OPENING) ||
+						(now.role == ROLE_OUTSIDE && was.role != ROLE_OUTSIDE);
+				const bool untouched = was.role == ROLE_OUTSIDE ? is_base[current] : current == was.material;
+				if ((!forced && !untouched) || current == now.material) {
+					continue;
+				}
+				write(x, y, z, now.material);
+				const Vector3i p(x, y, z);
+				lo = lo.min(p);
+				hi = hi.max(p);
+				changed++;
+			}
+		}
+	}
+	if (changed > 0) {
+		finish_edit(lo, hi);
+	}
+	return changed;
+}
+
 int VoxelWorld::count_matching(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const {
 	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "count_matching: voxels.size() must equal size.x * size.y * size.z.");
 	const uint8_t *r = voxels.ptr();
@@ -1307,6 +1404,7 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("erase_stamp", "origin", "size", "voxels"), &VoxelWorld::erase_stamp);
 	ClassDB::bind_method(D_METHOD("get_box", "from", "to"), &VoxelWorld::get_box);
 	ClassDB::bind_method(D_METHOD("set_box", "from", "to", "voxels"), &VoxelWorld::set_box);
+	ClassDB::bind_method(D_METHOD("apply_structure", "from", "to", "before_rooms", "after_rooms", "before_openings", "after_openings", "base", "base_set"), &VoxelWorld::apply_structure);
 	ClassDB::bind_method(D_METHOD("count_matching", "origin", "size", "voxels"), &VoxelWorld::count_matching);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));

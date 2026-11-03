@@ -3,6 +3,10 @@ extends Node
 ## Co-op level editing. Everyone calls the same API; requests go to the host, which applies them
 ## (voxels through WorldSync, objects through _object_set), replays them to every peer, and keeps
 ## each person's own undo / redo history. Undo is per person but, like any edit, shared.
+##
+## Rooms, openings and door props change through structure edits: the objects change and the voxels
+## follow (WorldSync's "structure" op, built by LevelStructure), as one undo step. A door prop keeps
+## an opening the size of its box linked to it (opening.door), made, moved and removed with it.
 
 ## On every peer, after an object was added, changed, renamed or removed. remove_id is the id that
 ## went away ("" if none); object is the new state ({} if removed).
@@ -38,6 +42,13 @@ func remove_object(id: String) -> void:
 	_call("_do_put", [id, {}])
 
 
+## Several objects changed together as one edit (a room resized with the openings and props that
+## move with it). puts: [old_id, object] pairs as for put_object ({} removes). A string field "$n"
+## in a later object stands for the id the n-th put ended up with (an opening of a new room).
+func put_objects(puts: Array) -> void:
+	_call("_do_puts", [puts])
+
+
 ## Everything between begin_group and end_group undoes as one step (a brush stroke).
 func begin_group() -> void:
 	_call("_do_begin", [])
@@ -64,7 +75,7 @@ func _call(method: String, args: Array) -> void:
 
 @rpc("any_peer", "reliable")
 func _request(method: String, args: Array) -> void:
-	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
+	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_puts", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
 		callv(method, [multiplayer.get_remote_sender_id()] + args)
 
 
@@ -93,6 +104,9 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 	if lab.mode != "edit":
 		return
 	var level: LevelData = lab.level
+	if LevelSchema.is_structure(object) or LevelSchema.is_door(object) or LevelSchema.is_structure(level.objects.get(old_id, {})) 			or LevelSchema.is_door(level.objects.get(old_id, {})):
+		_do_puts(peer, [[old_id, object]])
+		return
 	var before: Dictionary = level.objects.get(old_id, {})
 	if old_id != "" and before.is_empty():
 		return # Someone else already removed or renamed it.
@@ -103,6 +117,103 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 			after.id = level.new_id(after.get("type", after.kind))
 	_transition(before, after)
 	_record(peer, {type = "object", before = before, after = after})
+
+
+func _do_puts(peer: int, puts: Array) -> void:
+	if lab.mode != "edit":
+		return
+	var level: LevelData = lab.level
+	var after := level.objects.duplicate()
+	var changes: Array[Dictionary] = [] # {before, after}
+	var ids: Array[String] = []
+	for put: Array in puts:
+		var old_id: String = put[0]
+		var object: Dictionary = put[1].duplicate(true)
+		var before: Dictionary = after.get(old_id, {})
+		if old_id != "" and before.is_empty():
+			ids.append("")
+			continue # Someone else already removed or renamed it.
+		for key: String in object:
+			var value = object[key]
+			if value is String and value.begins_with("$") and value.substr(1).is_valid_int() and int(value.substr(1)) < ids.size():
+				object[key] = ids[int(value.substr(1))]
+		if not object.is_empty():
+			var id: String = object.get("id", "")
+			if id == "" or (id != old_id and after.has(id)):
+				object.id = level.new_id(object.get("type", object.kind))
+		after.erase(old_id)
+		if not object.is_empty():
+			after[object.id] = object
+		changes.append({before = before, after = object})
+		ids.append(object.get("id", ""))
+	for change in changes.duplicate():
+		if LevelSchema.is_door(change.before) or LevelSchema.is_door(change.after):
+			var link := _door_opening(change.before, change.after, after)
+			if not link.is_empty():
+				changes.append(link)
+	if changes.is_empty():
+		return
+
+	var touched: Array = []
+	for change in changes:
+		touched.append(change.before)
+		touched.append(change.after)
+	var op := LevelStructure.op(level.objects, after, touched, level.settings, lab.world.get_size_in_voxels())
+	var group: Array = []
+	if not op.is_empty():
+		var size: Vector3i = op.to - op.from
+		var undoable: bool = size.x * size.y * size.z <= MAX_UNDO_VOXELS
+		var voxels_before: PackedByteArray = lab.world.get_box(op.from, op.to) if undoable else PackedByteArray()
+		lab.world_sync.apply_op(op)
+		if undoable:
+			group.append({type = "voxels", from = op.from, to = op.to, before = voxels_before, after = lab.world.get_box(op.from, op.to)})
+		else:
+			lab.notify_peer(peer, "That edit was too big to undo")
+	for change in changes:
+		_transition(change.before, change.after)
+		group.append({type = "object", before = change.before, after = change.after})
+	_redo.erase(peer)
+	if _open.has(peer):
+		_open[peer].append_array(group)
+	else:
+		_push(peer, group)
+
+
+## A door prop changed (door_before -> door_after, either may be {} or not a door): its linked
+## opening follows its box, in the room whose wall it's in. Updates `objects` and returns the
+## {before, after} change, or {} if none.
+func _door_opening(door_before: Dictionary, door_after: Dictionary, objects: Dictionary) -> Dictionary:
+	var linked: Dictionary = {}
+	for id in [door_before.get("id", ""), door_after.get("id", "")]:
+		if id == "":
+			continue
+		for object: Dictionary in objects.values():
+			if object.kind == "opening" and object.door == id:
+				linked = object
+				break
+		if not linked.is_empty():
+			break
+	var opening := {}
+	if LevelSchema.is_door(door_after):
+		var box := LevelSchema.prop_box(door_after)
+		var from := Vector3i(box.position)
+		var to := Vector3i(box.end)
+		opening = linked.duplicate() if not linked.is_empty() else LevelSchema.new_opening(from, to, "", "doorway")
+		opening.from = from
+		opening.to = to
+		opening.door = door_after.id
+		opening.room = LevelStructure.room_at(objects, box)
+		if opening == linked:
+			return {}
+		if not opening.has("id"):
+			opening.id = lab.level.new_id("doorway")
+	if linked.is_empty() and opening.is_empty():
+		return {}
+	if not linked.is_empty():
+		objects.erase(linked.id)
+	if not opening.is_empty():
+		objects[opening.id] = opening
+	return {before = linked, after = opening}
 
 
 func _do_begin(peer: int) -> void:

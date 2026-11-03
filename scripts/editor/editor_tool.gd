@@ -18,27 +18,29 @@ signal changed
 ## Esc asked for the menu (nothing left to back out of).
 signal menu_requested
 
-enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, PROP, MARKER }
+enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, OPENING, PROP, MARKER }
 
-const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Prop", "Marker"]
+const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Opening", "Prop", "Marker"]
 const TOOL_ACTIONS := ["editor_tool_select", "editor_tool_room", "editor_tool_box", "editor_tool_brush",
-		"editor_tool_replace", "editor_tool_prop", "editor_tool_marker"]
+		"editor_tool_replace", "editor_tool_opening", "editor_tool_prop", "editor_tool_marker"]
 ## Short how-tos for tooltips.
 const TOOL_ABOUT := [
-	"Pick a prop or marker to move, rotate or change it",
-	"Carve a room and line its floor, walls and ceiling",
+	"Pick a room, opening, prop or marker to move, resize or change it",
+	"Carve a room and line its floor, walls and ceiling; it stays resizable",
 	"Fill a box with a material, or carve one out",
 	"Paint or carve freehand",
 	"Swap one material for another inside a box",
+	"Cut a doorway, window or hole through a wall (doors cut their own)",
 	"Place props from the catalog",
 	"Place spawns, lights, triggers and other markers",
 ]
 const TOOL_HINTS := [
-	"LMB select · M move · Ctrl+D duplicate · R rotate · Delete",
-	"LMB corner, LMB floor, LMB height (the inside of the room) · wheel / type sizes · Tab next size · RMB back",
+	"LMB select · drag a room's handles to resize · M move · Ctrl+D duplicate · R rotate · Delete",
+	"LMB corner, LMB floor, LMB height (the inside of the room) · wheel / type sizes · Alt+LMB: room from a carved space",
 	"LMB corner, floor, height: fill · RMB first: carve · wheel / type sizes · Tab next size",
 	"LMB hold: paint · RMB hold: carve · [ ] size",
 	"LMB on the material to replace, then floor and height · wheel / type sizes · RMB back",
+	"LMB on a wall: cut the opening through it",
 	"LMB place · R / RMB rotate · Alt+LMB pick a placed prop's type",
 	"LMB place the marker · facing follows your view",
 ]
@@ -83,14 +85,25 @@ var object_under := ""
 var volume := VolumeSteps.new()
 var _volume_carve := false
 var _replace_source := 0
+## Opening tool: what it cuts and its size in voxels (sill: a window's height off the floor).
+var opening_type := "doorway"
+var opening_width := 12
+var opening_height := 22
+var opening_sill := 10
+## Moving or duplicating a room takes the props and markers inside along.
+var move_contents := true
+## Resize handles on a selected room.
+var handles := RoomHandles.new()
 ## Last height built per tool, in voxels: the next one starts there.
 var _last_height := {Tool.ROOM: 30, Tool.BOX: 10, Tool.REPLACE: 10}
 ## This frame's aim ray (mouse or crosshair).
 var _aim_from := Vector3.ZERO
 var _aim_direction := Vector3.FORWARD
-## Object being moved / duplicated (a copy with the pending changes), its original id ("" = new).
+## Object being moved / duplicated (a copy with the pending changes), its original id ("" = new),
+## and for a duplicate, the id it was copied from.
 var _grab := {}
 var _grab_id := ""
+var _grab_source := ""
 ## 0 none, 1 painting, 2 carving
 var _stroke := 0
 var _dab_timer := 0.0
@@ -120,6 +133,8 @@ func _ready() -> void:
 	_volume.material_override = volume_material
 	_ghost.transparency = 0.45
 	volume.world = lab.world
+	handles.world = lab.world
+	handles.build.call_deferred(lab.view)
 	for i in 3:
 		var label := Label3D.new()
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -158,6 +173,7 @@ func _exit_tree() -> void:
 	for node in [_cursor_lines, _volume, _ghost, camera] + _size_labels:
 		if is_instance_valid(node):
 			node.queue_free()
+	handles.free_meshes()
 
 
 func is_active() -> bool:
@@ -176,8 +192,16 @@ func set_tool(new_tool: Tool) -> void:
 
 func select(id: String) -> void:
 	selected = id
+	handles.cancel()
+	var object: Dictionary = lab.level.objects.get(id, {})
+	handles.room = object if object.get("kind") == "room" else {}
 	lab.view.set_selected(id)
 	changed.emit()
+
+
+## The selected object, {} when none.
+func selection() -> Dictionary:
+	return lab.level.objects.get(selected, {}) if selected != "" else {}
 
 
 ## Switches between the builder view and the walk view. Into the walk view you land where the
@@ -230,6 +254,11 @@ func resume() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Where the tools aim on screen: the mouse in the builder view, the crosshair in the walk view.
+func pointer() -> Vector2:
+	return camera.mouse_position() if builder else get_viewport().get_visible_rect().size * 0.5
+
+
 ## The pointer aims the tools: over the world (not a panel) in the builder view, captured in the
 ## walk view.
 func is_aiming() -> bool:
@@ -238,9 +267,10 @@ func is_aiming() -> bool:
 	return InputSetup.is_playing()
 
 
-## Drops the pending volume / move / stroke.
+## Drops the pending volume / handle / move / stroke.
 func cancel() -> void:
 	volume.cancel()
+	handles.cancel()
 	_grab = {}
 	_grab_id = ""
 	_end_stroke()
@@ -250,13 +280,13 @@ func cancel() -> void:
 
 ## Something to back out of with Esc: a volume being sized, a move or a stroke.
 func has_step() -> bool:
-	return volume.is_active() or not _grab.is_empty() or _stroke != 0
+	return volume.is_active() or handles.is_busy() or not _grab.is_empty() or _stroke != 0
 
 
 func _process(delta: float) -> void:
 	if camera.active != (builder and is_active()):
 		_apply_view()
-	camera.zoom_enabled = not volume.is_active()
+	camera.zoom_enabled = not volume.is_active() and not handles.is_busy()
 	if not is_active():
 		for node in [_cursor_lines, _volume, _ghost] + _size_labels:
 			node.visible = false
@@ -267,6 +297,13 @@ func _process(delta: float) -> void:
 	_update_cursor()
 	if volume.is_active() and is_aiming():
 		volume.aim(_aim_from, _aim_direction)
+	# Keep the handles on the room as it is now (someone else may have changed it); the auto cut
+	# opens the selected room.
+	var focus := selection()
+	camera.focus_ceiling = int(focus.to.y) if focus.get("kind") == "room" else -1
+	if not handles.is_busy():
+		handles.room = focus if focus.get("kind") == "room" and tool == Tool.SELECT else {}
+	handles.update(get_viewport().get_camera_3d(), pointer(), _aim_from, _aim_direction, snap())
 	if _stroke != 0:
 		_dab_timer -= delta
 		if _dab_timer <= 0.0:
@@ -293,7 +330,7 @@ func _update_cursor() -> void:
 	var object_distance := INF
 	var cutting := camera.is_cutting()
 	for object: Dictionary in lab.level.objects.values():
-		if object.id == _grab_id:
+		if object.id == _grab_id or object.kind == "room" or (object.kind == "opening" and tool != Tool.SELECT):
 			continue
 		var box := LevelSchema.box_of(object)
 		if cutting and box.position.y >= camera.cut_layer:
@@ -319,6 +356,32 @@ func _update_cursor() -> void:
 	# Props and markers aren't voxels while editing; placing on top of one uses its surface.
 	if object_under != "" and (not hit.hit or object_distance < hit.distance) and tool in [Tool.PROP, Tool.MARKER, Tool.SELECT]:
 		cell = world.world_to_voxel(from + direction * (object_distance - 0.05))
+	elif object_under != "" and hit.hit and hit.distance < object_distance:
+		object_under = "" # Behind a wall.
+	if tool == Tool.SELECT and object_under == "" and hit.hit:
+		object_under = room_under()
+
+
+## The room the cursor is in (the air in front of the aimed surface is inside it) or on (the aimed
+## voxel is in its lining); the newest wins. "" when none.
+func room_under() -> String:
+	var inside_best := ""
+	var lining_best := ""
+	var inside_order := -1
+	var lining_order := -1
+	var air := Vector3(cell) + Vector3.ONE * 0.5
+	var wall := Vector3(solid_cell) + Vector3.ONE * 0.5
+	for object: Dictionary in lab.level.objects.values():
+		if object.kind != "room":
+			continue
+		var order := int(object.order)
+		if LevelSchema.box_of(object).has_point(air) and order > inside_order:
+			inside_best = object.id
+			inside_order = order
+		elif LevelSchema.room_outer(object).has_point(wall) and order > lining_order:
+			lining_best = object.id
+			lining_order = order
+	return inside_best if inside_best != "" else lining_best
 
 
 ## A cell snapped down to the grid.
@@ -354,6 +417,10 @@ func _start_cell(carve: bool) -> Vector3i:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and not event.pressed and event.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 		_end_stroke()
+		if event.button_index == MOUSE_BUTTON_LEFT and handles.is_busy() and is_active():
+			var resized := handles.release(pointer())
+			if not resized.is_empty():
+				_commit_resize(resized)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -392,6 +459,11 @@ func back() -> void:
 
 
 func _mouse(event: InputEventMouseButton) -> void:
+	# A room handle held or picked up: the wheel nudges it.
+	if handles.is_busy() and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		handles.nudge(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+		get_viewport().set_input_as_handled()
+		return
 	# Sizing a volume: the wheel grows or shrinks the active size (Shift: the other floor size).
 	if volume.is_active() and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
 		var grow := event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_RIGHT]
@@ -419,6 +491,8 @@ func _mouse(event: InputEventMouseButton) -> void:
 		return
 	if not event.pressed:
 		_end_stroke()
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.press(pointer(), _aim_from, _aim_direction):
 		return
 	if event.alt_pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_pick()
@@ -493,6 +567,8 @@ func _primary() -> void:
 	match tool:
 		Tool.BOX, Tool.ROOM, Tool.REPLACE:
 			_volume_click(false)
+		Tool.OPENING:
+			_place_opening()
 		Tool.BRUSH:
 			_begin_stroke(1)
 		Tool.PROP:
@@ -512,6 +588,9 @@ func _primary() -> void:
 
 func _secondary() -> void:
 	# RMB steps back while sizing a volume, starts a carve with Box, and backs out of other steps.
+	if handles.is_busy():
+		handles.cancel()
+		return
 	if volume.is_active():
 		volume.back()
 		changed.emit()
@@ -590,8 +669,8 @@ func _build_volume() -> void:
 		Tool.BOX:
 			lab.edits.voxel_op({type = "box", from = box[0], to = box[1], material = VoxelMaterials.AIR if _volume_carve else material})
 		Tool.ROOM:
-			lab.edits.voxel_op({type = "room", from = box[0], to = box[1], floor = room_floor, wall = room_wall,
-					ceiling = room_ceiling, thickness = room_thickness, solid_only = lab.level.settings.get("fill", "rock") == "rock"})
+			lab.edits.put_object(LevelSchema.new_room(box[0], box[1], room_floor, room_wall, room_ceiling, room_thickness,
+					LevelStructure.next_order(lab.level.objects)))
 		Tool.REPLACE:
 			if _replace_source != 0:
 				lab.edits.voxel_op({type = "replace", from = box[0], to = box[1], material = material, source = _replace_source})
@@ -642,6 +721,18 @@ func next_size() -> void:
 ## The sized volume for the HUD's readout, as BBCode ("" when not sizing): name, the three sizes in
 ## meters (the active one highlighted, with what's being typed) and in voxels.
 func volume_readout() -> String:
+	var box := {}
+	if handles.is_busy() and not handles.resized.is_empty():
+		box = handles.resized
+	elif LevelSchema.is_structure(_grab) and has_cursor:
+		box = _grab.duplicate()
+		_place_grab(box)
+	if not box.is_empty():
+		var size: Vector3i = box.to - box.from
+		var meters := Vector3(size) * lab.world.voxel_size
+		var title := "Resize room" if handles.is_busy() else ("Duplicate " if _grab_id == "" else "Move ") + str(box.kind)
+		return "[b]%s[/b]   %.1f × %.1f × %.1f m   [color=#%s](%d × %d × %d voxels)[/color]" % [title, meters.x, meters.z, meters.y,
+				PaperPalette.INK_MUTED.to_html(false), size.x, size.z, size.y]
 	if not volume.is_active():
 		return ""
 	var size := volume.size()
@@ -683,8 +774,12 @@ func _dab() -> void:
 		lab.edits.voxel_op({type = "sphere", center = Vector3(target) + Vector3.ONE * 0.5, radius = float(brush_size), material = paint})
 
 
-## Alt+LMB: take the material (voxel tools) or the prop type (prop tool) under the cursor.
+## Alt+LMB: take the material (voxel tools) or the prop type (prop tool) under the cursor; with the
+## Room tool, adopt the carved space under it as a room.
 func _pick() -> void:
+	if tool == Tool.ROOM:
+		_room_from_space()
+		return
 	if tool == Tool.PROP and object_under != "" and lab.level.objects[object_under].kind == "prop":
 		prop_name = lab.level.objects[object_under].name
 		facing = lab.level.objects[object_under].facing
@@ -695,6 +790,8 @@ func _pick() -> void:
 
 
 func _rotate() -> void:
+	if LevelSchema.is_structure(_grab) or (tool == Tool.SELECT and LevelSchema.is_structure(selection())):
+		return # Rooms and openings don't turn (yet).
 	if not _grab.is_empty():
 		_turn(_grab)
 	elif tool == Tool.PROP:
@@ -715,9 +812,19 @@ func _turn(object: Dictionary) -> void:
 
 
 func delete_selected() -> void:
-	if selected != "":
+	if selected == "":
+		return
+	var object := selection()
+	if object.get("kind") == "room":
+		# The room fills back in, with its openings; door props in its walls go too.
+		var puts: Array = [[selected, {}]]
+		for other: Dictionary in lab.level.objects.values():
+			if other.kind == "opening" and other.room == selected:
+				puts.append([other.door if other.door != "" and lab.level.objects.has(other.door) else other.id, {}])
+		lab.edits.put_objects(puts)
+	else:
 		lab.edits.remove_object(selected)
-		select("")
+	select("")
 
 
 func _start_move() -> void:
@@ -733,21 +840,92 @@ func _duplicate() -> void:
 	_grab = lab.level.objects[selected].duplicate()
 	_grab.id = ""
 	_grab_id = ""
+	_grab_source = selected
 
 
-## Puts the moved / duplicated object where the cursor is.
+## Puts the moved / duplicated object where the cursor is. A room takes its openings, doors and
+## (move_contents) what's inside along.
 func _commit_move() -> void:
 	var object := _grab.duplicate()
 	_place_grab(object)
-	lab.edits.put_object(object, _grab_id)
+	if object.kind == "room":
+		var objects: Dictionary = lab.level.objects
+		if _grab_id != "" and objects.has(_grab_id):
+			lab.edits.put_objects(RoomTools.carry(objects, objects[_grab_id], object, move_contents))
+		elif objects.has(_grab_source):
+			var source: Dictionary = objects[_grab_source]
+			lab.edits.put_objects(RoomTools.duplicate(objects, source, object.from - source.from, move_contents))
+	else:
+		lab.edits.put_object(object, _grab_id)
 	cancel()
 
 
 func _place_grab(object: Dictionary) -> void:
-	if object.kind == "prop":
-		object.origin = _prop_origin(object.name, object.facing)
-	else:
-		object.position = _marker_position()
+	match object.kind:
+		"prop":
+			object.origin = _prop_origin(object.name, object.facing)
+		"room", "opening":
+			# Centered on the cursor; it stands on the floor there, or keeps its height over cut rock.
+			var size: Vector3i = object.to - object.from
+			var corner := snapped_cell(cell - Vector3i(size.x / 2, 0, size.z / 2))
+			var y: int = cell.y if cursor_normal == Vector3i.UP and not cursor_on_cap and object.kind == "room" else object.from.y
+			object.from = Vector3i(corner.x, y, corner.z)
+			object.to = object.from + size
+		_:
+			object.position = _marker_position()
+
+
+## Drops a resized room: one edit with the openings (and doors) in the walls that moved.
+func _commit_resize(resized: Dictionary) -> void:
+	var objects: Dictionary = lab.level.objects
+	if not objects.has(resized.id) or resized == objects[resized.id]:
+		return
+	lab.edits.put_objects(RoomTools.carry(objects, objects[resized.id], resized, false))
+
+
+## Room tool, Alt+click: the carved space under the cursor becomes a room object (the voxels stay as
+## they are), so rooms built by hand or converted from old levels can be resized too.
+func _room_from_space() -> void:
+	if not has_cursor:
+		return
+	var space := RoomTools.space_around(lab.world, cell)
+	if space.is_empty():
+		lab.notify("Alt+click inside a carved space to make it a room", false)
+		return
+	for object: Dictionary in lab.level.objects.values():
+		if object.kind == "room" and object.from == space.from and object.to == space.to:
+			select(object.id)
+			return
+	var room := LevelSchema.new_room(space.from, space.to, space.floor, space.wall, space.ceiling, space.thickness,
+			LevelStructure.next_order(lab.level.objects))
+	lab.edits.put_object(room)
+	var size: Vector3 = Vector3(space.to - space.from) * lab.world.voxel_size
+	lab.notify("Room from space: %.1f × %.1f × %.1f m" % [size.x, size.z, size.y], false)
+
+
+## Opening tool: the box it would cut at the cursor ([] when not aimed at a wall), and the room
+## whose wall it's in.
+func opening_at_cursor() -> Dictionary:
+	if not has_cursor or cursor_normal.y != 0:
+		return {}
+	var objects: Dictionary = lab.level.objects
+	var room_id := LevelStructure.room_at(objects, AABB(Vector3(solid_cell) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
+	var bottom := RoomTools.floor_under(lab.world, cell) if room_id == "" else int(objects[room_id].from.y)
+	match opening_type:
+		"window":
+			bottom += opening_sill
+		"hole":
+			bottom = cell.y - opening_height / 2
+	var box := RoomTools.opening_box(lab.world, solid_cell, cursor_normal, opening_width, opening_height, bottom, snap())
+	return {} if box.is_empty() else {from = box[0], to = box[1], room = room_id}
+
+
+func _place_opening() -> void:
+	var at := opening_at_cursor()
+	if at.is_empty():
+		lab.notify("Aim at a wall to cut an opening", false)
+		return
+	lab.edits.put_object(LevelSchema.new_opening(at.from, at.to, at.room, opening_type))
 
 
 ## A prop's origin when placed at the cursor: footprint centered on the cell, snapped to the grid.
@@ -764,8 +942,9 @@ func _marker_position() -> Vector3:
 	return Vector3(snapped.x + s * 0.5, cell.y, snapped.z + s * 0.5) if s > 1 else Vector3(cell) + Vector3(0.5, 0.0, 0.5)
 
 
-## Width / height / length on the edges of the box (world space) nearest the camera.
-func _place_size_labels(box: AABB) -> void:
+## Width / height / length on the edges of the box (world space) nearest the camera; active_axis is
+## highlighted (-1: none), and show_height false leaves the height off.
+func _place_size_labels(box: AABB, active_axis: int, show_height: bool, typed := "") -> void:
 	var eye := get_viewport().get_camera_3d().global_position if get_viewport().get_camera_3d() else box.get_center()
 	var near_x := box.end.x if eye.x > box.get_center().x else box.position.x
 	var near_z := box.end.z if eye.z > box.get_center().z else box.position.z
@@ -777,12 +956,12 @@ func _place_size_labels(box: AABB) -> void:
 	]
 	for a in 3:
 		var label := _size_labels[a]
-		if a == Vector3.AXIS_Y and volume.step == VolumeSteps.Step.FLOOR:
+		if a == Vector3.AXIS_Y and not show_height:
 			continue
 		label.text = "%.1f m" % box.size[a]
-		if a == volume.axis and volume.typed != "":
-			label.text = volume.typed + "_"
-		var active := a == volume.axis
+		if a == active_axis and typed != "":
+			label.text = typed + "_"
+		var active := a == active_axis
 		label.modulate = LABEL_ACTIVE_COLOR if active else LABEL_COLOR
 		label.font_size = 32 if active else 24
 		label.position = spots[a]
@@ -824,10 +1003,33 @@ func _update_previews() -> void:
 		_volume.scale = size
 		_volume.position = lab.view.to_world(Vector3(box[0])) + size * 0.5
 		_volume.visible = true
-		_place_size_labels(AABB(lab.view.to_world(Vector3(box[0])), size))
+		_place_size_labels(AABB(lab.view.to_world(Vector3(box[0])), size), volume.axis, volume.step == VolumeSteps.Step.HEIGHT, volume.typed)
+	# A room being resized or moved, an opening about to be cut or moved: its box.
+	var box_preview := {}
+	var preview_color := Color(0.3, 0.6, 1.0)
+	if handles.is_busy() and not handles.resized.is_empty():
+		box_preview = handles.resized
+	elif LevelSchema.is_structure(_grab) and has_cursor:
+		box_preview = _grab.duplicate()
+		_place_grab(box_preview)
+	elif tool == Tool.OPENING:
+		box_preview = opening_at_cursor()
+	if box_preview.get("kind", "opening") == "opening":
+		preview_color = Color(1.0, 0.6, 0.2)
+	if not box_preview.is_empty():
+		(_volume.material_override as StandardMaterial3D).albedo_color = Color(preview_color, 0.25)
+		var size := Vector3(box_preview.to - box_preview.from) * lab.world.voxel_size
+		_volume.scale = size
+		_volume.position = lab.view.to_world(Vector3(box_preview.from)) + size * 0.5
+		_volume.visible = true
+		var axis := -1
+		for a in 3:
+			if handles.active[a] != 0:
+				axis = a
+		_place_size_labels(AABB(lab.view.to_world(Vector3(box_preview.from)), size), axis, true)
 	# Ghost of the prop being placed or moved, or of a moved marker's box.
 	var ghost := {}
-	if not _grab.is_empty():
+	if not _grab.is_empty() and not LevelSchema.is_structure(_grab):
 		ghost = _grab.duplicate()
 		_place_grab(ghost)
 	elif tool == Tool.PROP:

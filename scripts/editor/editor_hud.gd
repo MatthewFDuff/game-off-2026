@@ -46,6 +46,7 @@ var _drawer_open := true
 var _category := "All"
 ## Which lining the catalog sets for the room tool.
 var _room_target := "wall"
+var _rail: PanelContainer
 var _hint: PanelContainer
 var _hint_label := Label.new()
 var _toast: PanelContainer
@@ -313,6 +314,7 @@ func _update_roster() -> void:
 
 func _build_tool_rail() -> void:
 	var rail := _surface("PaperCard")
+	_rail = rail
 	rail.position = Vector2(MARGIN, BAR_HEIGHT + MARGIN)
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 4)
@@ -329,6 +331,7 @@ func _build_tool_rail() -> void:
 		column.add_child(button)
 		_tool_buttons.append(button)
 	_root.add_child(rail)
+	rail.resized.connect(_layout)
 
 
 func _build_inspector() -> void:
@@ -442,14 +445,16 @@ func _build_drawer() -> void:
 func _build_hint() -> void:
 	_hint = _surface("PaperPill")
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hint.anchor_left = 0.5
-	_hint.anchor_right = 0.5
+	# Between the tool rail and the inspector (_layout), wrapping when it's long.
+	_hint.anchor_left = 0.0
+	_hint.anchor_right = 1.0
 	_hint.anchor_top = 1.0
 	_hint.anchor_bottom = 1.0
-	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_hint.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_hint_label.theme_type_variation = "MutedLabel"
 	_hint_label.add_theme_font_size_override("font_size", 12)
+	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.add_child(_hint_label)
 	_root.add_child(_hint)
 
@@ -494,13 +499,27 @@ func _show_toast(text: String) -> void:
 
 
 ## Where the drawer, inspector and hint sit, depending on whether the drawer is showing.
+## The catalog has something for the tool: everything but Select and Opening, and Select with a room
+## (its linings).
+func _drawer_has_content() -> bool:
+	if tool.tool == EditorTool.Tool.OPENING:
+		return false
+	return tool.tool != EditorTool.Tool.SELECT or _room_selected()
+
+
+func _room_selected() -> bool:
+	return tool.tool == EditorTool.Tool.SELECT and tool.selection().get("kind") == "room"
+
+
 func _layout() -> void:
-	var drawer_shown := _drawer_open and tool != null and tool.tool != EditorTool.Tool.SELECT
+	var drawer_shown := _drawer_open and tool != null and _drawer_has_content()
 	_drawer.visible = drawer_shown
 	var bottom := DRAWER_HEIGHT + MARGIN * 2 if drawer_shown else MARGIN
 	_inspector.offset_bottom = -MARGIN
 	_hint.offset_bottom = -bottom
 	_hint.offset_top = -bottom
+	_hint.offset_left = _rail.position.x + _rail.size.x + MARGIN
+	_hint.offset_right = -(INSPECTOR_WIDTH + MARGIN * 2)
 
 
 # --- Modals --------------------------------------------------------------------------------------
@@ -562,7 +581,7 @@ func _build_help() -> Control:
 	body.add_child(columns)
 	var sections := [
 		["Tools", [["Select", "editor_tool_select"], ["Room", "editor_tool_room"], ["Box", "editor_tool_box"],
-			["Brush", "editor_tool_brush"], ["Replace", "editor_tool_replace"], ["Prop", "editor_tool_prop"],
+			["Brush", "editor_tool_brush"], ["Replace", "editor_tool_replace"], ["Opening", "editor_tool_opening"], ["Prop", "editor_tool_prop"],
 			["Marker", "editor_tool_marker"], ["Brush size", "editor_brush_smaller", "editor_brush_bigger"]]],
 		["Editing", [["Rotate", "editor_rotate"], ["Grid snap", "editor_grid"], ["Free cursor", "editor_free_cursor"],
 			["Move selection", "editor_move"], ["Duplicate", "editor_duplicate"], ["Delete", "editor_delete"],
@@ -620,7 +639,7 @@ func _build_menu() -> Control:
 func _refresh() -> void:
 	if tool == null:
 		return
-	var tool_changed := tool.tool != _shown_tool
+	var tool_changed := tool.tool != _shown_tool or (tool.tool == EditorTool.Tool.SELECT and tool.selected != _shown_selection)
 	_shown_tool = tool.tool
 	_shown_selection = tool.selected
 	for child in _content.get_children():
@@ -648,6 +667,28 @@ func _refresh() -> void:
 		EditorTool.Tool.MARKER:
 			_heading(LevelSchema.MARKERS[tool.marker_type].label)
 			_note("Facing follows your view. Select a placed marker to change its properties.")
+		EditorTool.Tool.OPENING:
+			var types := HBoxContainer.new()
+			types.add_theme_constant_override("separation", 4)
+			var group := ButtonGroup.new()
+			for type: String in LevelSchema.OPENING_TYPES:
+				var chip := _button(type.capitalize(), "ChipButton", "", func() -> void:
+					tool.opening_type = type
+					var sizes := {doorway = [12, 22], window = [12, 10], hole = [10, 10]}
+					tool.opening_width = sizes[type][0]
+					tool.opening_height = sizes[type][1]
+					_refresh())
+				chip.toggle_mode = true
+				chip.button_group = group
+				chip.button_pressed = type == tool.opening_type
+				types.add_child(chip)
+			_content.add_child(types)
+			var meters: float = lab.world.voxel_size
+			_number_row("Width (m)", tool.opening_width * meters, 0.1, 20.0, 0.1, func(v: float) -> void: tool.opening_width = maxi(roundi(v / meters), 1))
+			_number_row("Height (m)", tool.opening_height * meters, 0.1, 20.0, 0.1, func(v: float) -> void: tool.opening_height = maxi(roundi(v / meters), 1))
+			if tool.opening_type == "window":
+				_number_row("Sill (m)", tool.opening_sill * meters, 0.0, 10.0, 0.1, func(v: float) -> void: tool.opening_sill = roundi(v / meters))
+			_note("Click a wall to cut it through. Doorways start at the room's floor, windows at the sill, holes at the cursor. Door props cut their own opening; this never adds a door.")
 		EditorTool.Tool.SELECT:
 			_selection()
 	if tool_changed:
@@ -712,13 +753,32 @@ func _selection() -> void:
 	var object: Dictionary = lab.level.objects.get(tool.selected, {})
 	if object.is_empty():
 		_inspector_title.text = "Select"
-		_note("Click a prop or marker in the world to select it.")
+		_note("Click a room, opening, prop or marker in the world to select it.")
 		return
-	_inspector_title.text = object.name.replace("_", " ").capitalize() if object.kind == "prop" else LevelSchema.MARKERS[object.type].label
+	match object.kind:
+		"prop":
+			_inspector_title.text = object.name.replace("_", " ").capitalize()
+		"room":
+			_inspector_title.text = object.name if object.name != "" else "Room"
+		"opening":
+			_inspector_title.text = str(object.type).capitalize()
+		_:
+			_inspector_title.text = LevelSchema.MARKERS[object.type].label
+	if object.kind == "room":
+		var size: Vector3 = Vector3(object.to - object.from) * lab.world.voxel_size
+		_note("%.1f × %.1f × %.1f m. Drag the handles on its walls, ceiling and corners to resize it (or click one to pick it up; the wheel nudges it)." % [size.x, size.z, size.y])
+		for target: String in ROOM_TARGETS:
+			var row := _material_row(ROOM_TARGETS[target], object[target])
+			row.modulate.a = 1.0 if target == _room_target else 0.7
+	elif object.kind == "opening" and object.door != "":
+		_note("Cut by the door %s: move or delete the door to change it." % object.door)
 	for field: Dictionary in LevelSchema.fields_for(object):
 		_field(object, field)
-	var buttons := HBoxContainer.new()
-	buttons.add_theme_constant_override("separation", 6)
+	if object.kind == "room":
+		_check_row("Move contents with it", tool.move_contents, func(on: bool) -> void: tool.move_contents = on)
+	var buttons := HFlowContainer.new()
+	buttons.add_theme_constant_override("h_separation", 6)
+	buttons.add_theme_constant_override("v_separation", 6)
 	for action in [["Move", "Button", "editor_move", tool._start_move], ["Duplicate", "Button", "editor_duplicate", tool._duplicate],
 			["Delete", "DangerButton", "editor_delete", tool.delete_selected]]:
 		var button := _button(action[0], action[1], InputSetup.describe(action[2]), func() -> void:
@@ -783,15 +843,22 @@ func _field(object: Dictionary, field: Dictionary) -> void:
 			var row := HBoxContainer.new()
 			var fields: Array[PaperNumber] = []
 			for axis in 3:
-				var number := PaperNumber.make(value[axis], -500, 500)
-				number.custom_minimum_size.x = 44
+				var number := PaperNumber.make(value[axis], field.get("min", -1024), field.get("max", 1024))
+				number.custom_minimum_size.x = 40
+				number.add_theme_constant_override("minimum_character_width", 1)
+				number.add_theme_font_size_override("font_size", 14)
 				number.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				fields.append(number)
 				row.add_child(number)
 			for number in fields:
 				number.committed.connect(func(_v: float) -> void:
 					commit.call(Vector3i(int(fields[0].value), int(fields[1].value), int(fields[2].value))))
-			_row(label, row)
+			# Label above, so three numbers get the card's width.
+			var block := VBoxContainer.new()
+			block.add_theme_constant_override("separation", 2)
+			block.add_child(_label(label + "  (x, y, z)", "Label", 13))
+			block.add_child(row)
+			_content.add_child(block)
 
 
 func _on_object_set(remove_id: String, object: Dictionary) -> void:
@@ -823,8 +890,10 @@ func _fill_drawer() -> void:
 	var filter := _search.text.strip_edges().to_lower()
 	var group := ButtonGroup.new()
 	match tool.tool:
-		EditorTool.Tool.BOX, EditorTool.Tool.BRUSH, EditorTool.Tool.REPLACE, EditorTool.Tool.ROOM:
-			if tool.tool == EditorTool.Tool.ROOM:
+		EditorTool.Tool.BOX, EditorTool.Tool.BRUSH, EditorTool.Tool.REPLACE, EditorTool.Tool.ROOM, EditorTool.Tool.SELECT:
+			if tool.tool == EditorTool.Tool.SELECT and not _room_selected():
+				return
+			if tool.tool == EditorTool.Tool.ROOM or _room_selected():
 				_drawer_tabs.add_child(_label("Lines the", "MutedLabel", 12))
 				var tabs := ButtonGroup.new()
 				for target: String in ROOM_TARGETS:
@@ -916,6 +985,8 @@ func _sync_drawer() -> void:
 			current = tool.material
 		EditorTool.Tool.ROOM:
 			current = tool.get("room_" + _room_target)
+		EditorTool.Tool.SELECT:
+			current = tool.selection().get(_room_target)
 		EditorTool.Tool.PROP:
 			current = tool.prop_name
 		EditorTool.Tool.MARKER:
@@ -926,7 +997,12 @@ func _sync_drawer() -> void:
 
 
 func _pick_material(id: int) -> void:
-	if tool.tool == EditorTool.Tool.ROOM:
+	if _room_selected():
+		var room := tool.selection().duplicate()
+		if room.get(_room_target) != id:
+			room[_room_target] = id
+			lab.edits.put_object(room, room.id)
+	elif tool.tool == EditorTool.Tool.ROOM:
 		tool.set("room_" + _room_target, id)
 	else:
 		tool.material = id

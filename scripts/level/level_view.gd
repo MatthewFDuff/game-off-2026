@@ -130,8 +130,8 @@ func _process(delta: float) -> void:
 func _add(object: Dictionary) -> void:
 	if object.kind == "marker" and object.type == "light":
 		_add_light(object)
-	if mode != "edit":
-		return
+	if mode != "edit" or LevelSchema.is_structure(object):
+		return # Rooms and openings are the voxels themselves; the selection outline shows them.
 	var node: Node3D
 	if object.kind == "prop":
 		var mesh_instance := MeshInstance3D.new()

@@ -1,8 +1,8 @@
 extends SceneTree
 ## Screenshots of the level editor (needs a window, not --headless):
 ##   godot --path . --script res://tests/editor_screenshots.gd -- <output_dir>
-## Works on a scratch copy of the lab. Shoots the builder view (auto cut, a room being sized, whole
-## level, manual cut),
+## Works on a scratch copy of the lab. Shoots the builder view (auto cut, a room being sized, a room
+## object selected with its handles, whole level, manual cut),
 ## then paints a strip of each pattern material on the atrium's west wall and shoots the box tool, the room tool, the prop browser, markers, the inspector and a
 ## play-test view.
 ##
@@ -54,6 +54,17 @@ func _run() -> void:
 	await _frames(4)
 	await _shot("builder_room_sizing")
 	tool.cancel()
+	# Built as a room object with a doorway into the atrium, selected: its handles.
+	lab.edits.put_objects([["", LevelSchema.new_room(Vector3i(170, 40, 225), Vector3i(200, 70, 245), M.TILE_LIGHT, M.WALL_PAINT, M.CONCRETE, 3, 1000)],
+			["", LevelSchema.new_opening(Vector3i(200, 40, 229), Vector3i(209, 62, 241), "$0")]])
+	await _frames(4)
+	tool.set_tool(0)
+	for object in lab.level.objects.values():
+		if object.kind == "room" and object.from == Vector3i(170, 40, 225):
+			tool.select(object.id)
+	await _frames(6)
+	await _shot("builder_room_selected")
+	tool.select("")
 	tool.set_tool(2)
 	camera.frame_world()
 	camera.pitch = 70.0
@@ -96,7 +107,7 @@ func _run() -> void:
 
 	# Prop browser: give the thumbnails time to render.
 	_look(me, Vector3(40.0, 5.5, 25.0), Vector3(44.0, 4.0, 25.0))
-	tool.set_tool(5)
+	tool.set_tool(6)
 	tool.prop_name = "fume_hood"
 	await _frames(90)
 	lab.get_node("EditorHud")._refresh()

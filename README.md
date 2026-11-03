@@ -72,7 +72,7 @@ Levels live in `levels/<name>/` (`level.json`: settings, props and markers, read
 
 In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
 
-The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules, paper UI), 2 (builder view) and 3 (three-click volumes) are in. There are two views, and **V** switches between them:
+The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules, paper UI), 2 (builder view), 3 (three-click volumes) and 4 (rooms as objects, openings) are in. There are two views, and **V** switches between them:
 
 - **Builder view** (the default): an orbit camera from above with the mouse always free; the tools aim through the mouse. Right or middle drag orbits (a right click without dragging is the tool's RMB), Shift+middle drag or WASD pans (Shift fast), the wheel zooms, Q / E turn 45°, F frames the selection, Home the whole level. The **cutaway** hides everything above a height so you can see into rooms in rock: Auto cuts at the ceiling of the room you're looking at, Page Up / Down sets it by hand, C cycles Off / Auto / Manual. Cut rock shows as a darkened cross section.
 - **Walk view**: first person, for detail work and checking scale. You land where the mouse pointed, facing the same way, and walk with gravity; F toggles flying (Space up, Ctrl down). Click the world to aim with the crosshair.
@@ -83,7 +83,7 @@ The editor is being redesigned (`docs/level-editor-v2.md`); steps 1 (input rules
 
 | Key | |
 |---|---|
-| 1-5, 7, 8 | Select, Room, Box, Brush, Replace, Prop, Marker (6 is kept for the coming Opening tool) |
+| 1-8 | Select, Room, Box, Brush, Replace, Opening, Prop, Marker |
 | LMB / RMB | Use the tool (brush: hold, and in the builder view Shift+LMB carves since a right drag orbits). RMB backs out of a step |
 | Alt+LMB | Pick the material (or, with the prop tool, a placed prop's type) under the cursor |
 | G | Grid snap 1 / 5 / 10 voxels (10 = 1 m) |
@@ -104,9 +104,10 @@ The editor's UI uses the paper style from Puzzle Pals (`assets/ui/editor_theme.t
 - **Props** have an asset value (the payroll loses its share as the prop's voxels are destroyed in play) and can be made into doors (slide offset, speed, locked; E opens them in play). Doors can also need a keycard (`door_key`: `red`, `blue`, ...) or power (`door_power`: refuses on backup power).
 - **Using props** (E in play, see Interactables below): a prop's `use` field makes it a container, terminal, note, station, generator or glass case. New props start with a sensible `use` for their name.
 - **Level settings**: `start_power` (`facility` or `backup`) in `level.json`'s settings, the power state play starts in. There's no panel for settings yet; edit the file.
-- **Room tool**: the corners mark the inside of the room. In rock levels the lining only recolors rock, so a new room opens into any room it touches.
+- **Rooms are objects**: the Room tool's box is the room's inside, lined with its floor, wall and ceiling materials. Select a room (click its floor or a wall) to resize it with the handles on its walls, ceiling and corners (drag one, or click to pick it up and click again to drop it; the wheel nudges it a grid step), re-line it from the catalog (Floor / Walls / Ceiling), type exact corners, or Move (M), Duplicate (Ctrl+D, a copy with its openings, doors and contents) and Delete it (it fills back in with rock). A resize rewrites only the voxels nobody painted, so detail on walls that stay put survives; where a wall moved away it goes. A new room's lining never walls up a space carved by hand, so rooms join whatever they touch. **Alt+click** with the Room tool inside a carved space (old levels, hand-dug rooms) adopts it as a room without changing a voxel, so it can be resized too.
+- **Openings** (Opening tool, 6): click a wall to cut a doorway (from the floor), window (at a sill height) or hole through it, sized in the inspector. An opening belongs to the wall it's in and moves with it. **Door props cut their own opening** (any prop with "Is a door" on), which follows the door when it moves and goes when it's deleted; the Opening tool never adds a door.
 
-Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, builder camera and cutaway, input rules, HUD, paper widgets, prop thumbnails).
+Code: `scripts/level/` (data, schema, rooms and openings to voxels in `level_structure.gd`, edits with undo, view, play runtime), `scripts/editor/` (tool, builder camera and cutaway, input rules, HUD, paper widgets, prop thumbnails) and `scripts/editor/tools/` (three-click sizing, room handles, room helpers). The voxel side of rooms is `VoxelWorld.apply_structure` in C++.
 
 ### Interactables and power
 
@@ -257,12 +258,15 @@ godot --headless --path . --script res://tests/enemy_test.gd         # enemies: 
 godot --headless --path . --script res://tests/finale_test.gd        # generator finale: ramp, survive, wipe and retry
 godot --headless --path . --script res://tests/weapon_test.gd        # every ammo type, ricochet, blast carving, homing, Shift cycling, pickups, melee, flasks
 godot --headless --path . --script res://tests/status_test.gd        # burning / frozen / raging / poisoned, clouds, fire burning shroom voxels
+godot --headless --path . --script res://tests/fire_test.gd          # fire: spreading through flammable voxels, burning out, elemental reactions
 godot --headless --path . --script res://tests/roster_b_test.gd      # mommy brood, spore blindness, ceiling poison cloud, tentacle grabs
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
 godot --headless --path . --script res://tests/editor_input_test.gd  # editor input rules: wheel over panels, typing, Tab, modals, Esc
 godot --headless --path . --script res://tests/editor_builder_test.gd # builder view: mouse aiming, orbit vs right click, pan, cutaway, walk view drop-in
 godot --headless --path . --script res://tests/editor_volume_test.gd  # three-click volumes: sizing rules, wheel, typing, Tab, back, a room dug from the cut
+godot --headless --path . --script res://tests/editor_room_test.gd    # rooms and openings as objects: resize, re-line, detail kept, doors, undo, delete, save
+godot --headless --path . --script res://tests/editor_room_tool_test.gd # room tools by mouse: select, handles, Opening tool, move with contents, Room from space
 godot --headless --path . --script res://tests/interact_test.gd      # containers, notes, terminals, stations, keycards, glass, generator, power
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, play-test, save

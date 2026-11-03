@@ -245,6 +245,17 @@ public:
 	// world reads as air. set_box writes them all back (air included), for undo and restores.
 	PackedByteArray get_box(const Vector3i &from, const Vector3i &to) const;
 	int set_box(const Vector3i &from, const Vector3i &to, const PackedByteArray &voxels);
+	// Level editor rooms (see WorldSync's "structure" op). Rooms are 10 ints each, oldest first:
+	// interior from (x, y, z), interior to (x, y, z, exclusive), floor, wall, ceiling, thickness;
+	// openings 6 ints each (from, to). Each cell of [from, to) gets a role before and after: in an
+	// opening -> air; in a room's interior -> air; in a room's lining -> that room's floor / wall /
+	// ceiling (the newest room wins); else outside -> `base`. A cell whose role or material changes is
+	// rewritten when it still holds what it was (outside: any material in `base_set`), and always when
+	// it becomes an opening or a room's inside (a new room, or a wall that moved away) or leaves every
+	// room. So hand detail on walls that stay walls survives a resize or a new lining, and a new
+	// room's lining doesn't wall up spaces carved by hand. Returns how many voxels changed.
+	int apply_structure(const Vector3i &from, const Vector3i &to, const PackedInt32Array &before_rooms, const PackedInt32Array &after_rooms,
+			const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set);
 	// How many of the model's solid voxels the world still has, unchanged, at origin.
 	int count_matching(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;
 	// Returns {free: model voxels over air, supported: model voxels touching or overlapping existing

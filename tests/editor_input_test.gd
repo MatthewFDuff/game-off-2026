@@ -31,7 +31,7 @@ func _run() -> void:
 	var tool = me.get_node("EditorTool")
 	var hud = lab.get_node("EditorHud")
 	await _frames(5)
-	tool.set_tool(5) # Prop: the catalog drawer is up.
+	tool.set_tool(6) # Prop: the catalog drawer is up.
 	await _frames(3)
 
 	# Buttons never take keyboard focus.

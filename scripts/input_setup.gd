@@ -33,6 +33,7 @@ const EDITOR_KEYS := {
 	editor_tool_box = ["3"],
 	editor_tool_brush = ["4"],
 	editor_tool_replace = ["5"],
+	editor_tool_opening = ["6"],
 	editor_tool_prop = ["7"],
 	editor_tool_marker = ["8"],
 	editor_rotate = ["R"],

@@ -33,7 +33,8 @@ func _ready() -> void:
 	alignment = HORIZONTAL_ALIGNMENT_CENTER
 	focus_mode = Control.FOCUS_CLICK
 	mouse_default_cursor_shape = Control.CURSOR_HSIZE
-	custom_minimum_size.x = 56
+	if custom_minimum_size.x == 0.0:
+		custom_minimum_size.x = 56
 	select_all_on_focus = true
 	text = _format(value)
 	text_submitted.connect(func(_text: String) -> void: release_focus())
