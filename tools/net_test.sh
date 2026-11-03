@@ -12,7 +12,7 @@ cd "$ROOT"
 
 "$GODOT_BIN" --headless --path . --script res://tests/net_test.gd -- --role=host > "$OUT/host.log" 2>&1 &
 HOST=$!
-for _ in $(seq 120); do
+for _ in $(seq 240); do # Up to 2 minutes: cold Godot starts are slow on Windows.
 	grep -q READY "$OUT/host.log" && break
 	sleep 0.5
 done

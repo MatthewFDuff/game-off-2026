@@ -221,13 +221,16 @@ public:
 	// to `undulation` voxels following smooth noise with the given wavelength (in voxels).
 	void fill_layers(const Vector3i &from, const Vector3i &to, const PackedByteArray &materials, const PackedFloat32Array &tops, float undulation, float wavelength, int seed);
 
-	// Meshes a standalone voxel model (each side at most 32) with the same format as the world's
+	// Meshes a standalone voxel model (each side at most 256) with the same format as the world's
 	// chunks, so it can use the world's material. Vertices start at the model's corner.
 	Ref<ArrayMesh> build_model_mesh(const Vector3i &size, const PackedByteArray &voxels);
 
 	// Model voxels are indexed x + y * size.x + z * size.x * size.y; 0 entries are skipped.
 	// stamp writes the model at origin (voxel space) and returns how many voxels changed.
 	int stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels, bool only_air);
+	// Undoes a stamp: turns to air every voxel where the model has a voxel and the world still has
+	// that same material, so damage and anything built over it since are left alone.
+	int erase_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels);
 	// Returns {free: model voxels over air, supported: model voxels touching or overlapping existing
 	// solid voxels}, so callers can reject pieces that would float or place nothing.
 	Dictionary check_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;

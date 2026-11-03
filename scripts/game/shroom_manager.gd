@@ -24,6 +24,23 @@ var _glow := 0.0
 var _models := {}
 
 
+func _ready() -> void:
+	var watch := get_node_or_null("/root/VoxWatch")
+	if watch:
+		watch.changed.connect(_on_vox_changed)
+
+
+## Live reload: drop the cached meshes and re-skin every spore and shroom.
+func _on_vox_changed(paths: PackedStringArray) -> void:
+	if not Array(paths).any(func(p: String) -> bool: return p.begins_with("res://assets/vox/shrooms/")):
+		return
+	_models.clear()
+	for spore in spores:
+		spore.refresh_model()
+	for shroom in shrooms:
+		shroom.refresh_model()
+
+
 ## The world's terrain material with its own glow, so shrooms can light up at night on their own.
 func get_material() -> ShaderMaterial:
 	if _material == null:
@@ -33,10 +50,14 @@ func get_material() -> ShaderMaterial:
 
 
 ## Cached voxel mesh for a growth stage: {mesh, offset} where offset centers it on its feet.
+## Comes from assets/vox/shrooms/stage<stage>_<variant>[_eyes].vox, or is generated if that's missing.
 func get_model(stage: int, variant: int, eyes: bool) -> Dictionary:
 	var key := "%d:%d:%s" % [stage, variant, eyes]
 	if not _models.has(key):
-		var model := ShroomModels.build(stage, variant, eyes)
+		var path := "res://assets/vox/shrooms/stage%d_%d%s.vox" % [stage, variant, "_eyes" if eyes and stage == ShroomModels.MAX_STAGE else ""]
+		var model := VoxFile.load_model(path) if FileAccess.file_exists(path) else {}
+		if model.is_empty():
+			model = ShroomModels.build(stage, variant, eyes)
 		var size: Vector3i = model.size
 		var offset := Vector3(-size.x * 0.5, 0.0, -size.z * 0.5) * world.voxel_size
 		_models[key] = {mesh = world.build_model_mesh(size, model.voxels), offset = offset}

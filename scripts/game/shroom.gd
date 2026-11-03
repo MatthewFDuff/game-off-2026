@@ -54,6 +54,7 @@ var _flash := 0.0
 var _chitter_time := randf_range(1.0, 4.0)
 var _visual := Node3D.new()
 var _mesh: MeshInstance3D
+var _variant := 0
 ## Own copy of the shared material, swapped in only while flashing so night glow still applies.
 var _flash_material: ShaderMaterial
 
@@ -61,13 +62,19 @@ var _flash_material: ShaderMaterial
 func setup(manager_node: ShroomManager, variant: int) -> void:
 	manager = manager_node
 	health = max_health
-	var model := manager.get_model(ShroomModels.MAX_STAGE, variant, true)
+	_variant = variant
 	_mesh = MeshInstance3D.new()
-	_mesh.mesh = model.mesh
-	_mesh.position = model.offset
 	_mesh.material_override = manager.get_material()
+	refresh_model()
 	_visual.add_child(_mesh)
 	add_child(_visual)
+
+
+## Reads the grown model for this shroom's variant (again, after live reload).
+func refresh_model() -> void:
+	var model := manager.get_model(ShroomModels.MAX_STAGE, _variant, true)
+	_mesh.mesh = model.mesh
+	_mesh.position = model.offset
 
 
 ## Center of the body, for distance checks.

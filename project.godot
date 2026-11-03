@@ -34,3 +34,4 @@ renderer/rendering_method.mobile="gl_compatibility"
 
 SfxBank="*res://scripts/audio/sfx.gd"
 Net="*res://scripts/net/net.gd"
+VoxWatch="*res://scripts/voxel/vox_watch.gd"

@@ -10,6 +10,8 @@ var _roster := Label.new()
 var _pause := PanelContainer.new()
 var _pause_info := Label.new()
 var _waiting := Label.new()
+var _toast := Label.new()
+var _toast_time := 0.0
 
 
 static func _settings(size: int, color := Color.WHITE, outline := 5) -> LabelSettings:
@@ -40,6 +42,15 @@ func _ready() -> void:
 	_waiting.visible = not multiplayer.is_server()
 	add_child(_waiting)
 
+	_toast.label_settings = _settings(16, Color(0.75, 1.0, 0.8))
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_toast.position += Vector2(16, -60)
+	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	add_child(_toast)
+	lab.assets_reloaded.connect(func(text: String) -> void:
+		_toast.text = text
+		_toast_time = 4.0)
+
 	_build_pause()
 	Net.players_changed.connect(_update_roster)
 	lab.player_spawned.connect(func(_p: Player) -> void: _update_roster())
@@ -47,7 +58,9 @@ func _ready() -> void:
 	_update_roster()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_toast_time -= delta
+	_toast.visible = _toast_time > 0.0
 	var playing := InputSetup.is_playing()
 	_pause.visible = not playing and not _waiting.visible
 	_crosshair.visible = playing

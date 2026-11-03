@@ -1,7 +1,8 @@
 class_name FacilityBuilder
 extends RefCounted
 ## Generates the underground facility: layered ground, then rooms lined with painted concrete and
-## joined by corridors, the hatch shaft with its ladder, lights, and furniture.
+## joined by corridors, the hatch shaft with its ladder, lights, and furniture from the prop
+## library (assets/vox/props).
 ##
 ## Layout (voxel coordinates, 10cm voxels, floor at y = 40):
 ##   Atrium (center) with the hatch shaft in its north ceiling and a ladder up the north wall.
@@ -40,7 +41,8 @@ var rng := RandomNumberGenerator.new()
 
 ## Builds everything and returns {spawn, spawn_yaw, hatch_from, hatch_to, hatch_control,
 ## ladder_foot (world space, on the atrium floor in front of the ladder), hatch_height, shaft_top,
-## spore_beds: Array[AABB] (world space, the substrate surfaces)}.
+## spore_beds: Array[AABB] (world space, the substrate surfaces), props: Props (with every
+## placement, for live reload)}.
 func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Dictionary:
 	world = voxel_world
 	lights = lights_parent
@@ -68,6 +70,7 @@ func build(voxel_world: VoxelWorld, lights_parent: Node3D, seed: int) -> Diction
 	var size: Vector3i = world.get_size_in_voxels()
 	var top := world.voxel_to_world(Vector3i(0, size.y - 1, 0)).y
 	return {
+		props = props,
 		spawn = _to_world(Vector3(256, FLOOR_Y, 270)),
 		spawn_yaw = PI, # Forward is -Z at yaw 0; PI faces +Z, down the storage corridor to the grow hall.
 		hatch_from = Vector3i(SHAFT_FROM.x, SHAFT_FROM.y, LADDER_Z + 1),
@@ -165,20 +168,20 @@ func _atrium() -> void:
 
 	# Lockers along the west wall, with a bench in front of them.
 	for z in range(222, 292, 5):
-		props.locker(Vector3i(r.from.x, f, z), P.EAST)
-	props.bench(Vector3i(r.from.x + 10, f, 235), P.EAST, 14)
-	props.bench(Vector3i(r.from.x + 10, f, 262), P.EAST, 14)
+		props.place("locker", Vector3i(r.from.x, f, z), P.EAST)
+	props.place("bench", Vector3i(r.from.x + 10, f, 235), P.EAST)
+	props.place("bench", Vector3i(r.from.x + 10, f, 262), P.EAST)
 
 	# Control desk beside the ladder, crates and barrels in the south-east corner.
-	props.desk(Vector3i(272, f, r.from.z), P.SOUTH, 16)
-	props.chair(Vector3i(278, f, r.from.z + 9), P.NORTH)
-	props.crate(Vector3i(286, f, 286), 8)
-	props.crate(Vector3i(296, f, 288), 6)
-	props.crate(Vector3i(288, f + 8, 287), 5)
-	props.barrel(Vector3i(298, f, 276), true)
-	props.barrel(Vector3i(292, f, 278))
-	props.wall_board(Vector3i(r.to.x - 1, f + 14, 230), P.WEST, 16, 9, false)
-	props.trash_can(Vector3i(214, f, 300))
+	props.place("desk", Vector3i(272, f, r.from.z), P.SOUTH)
+	props.place("chair", Vector3i(278, f, r.from.z + 9), P.NORTH)
+	props.place("crate_8", Vector3i(286, f, 286))
+	props.place("crate_6", Vector3i(296, f, 288))
+	props.place("crate_5", Vector3i(288, f + 8, 287))
+	props.place("barrel_hazard", Vector3i(298, f, 276))
+	props.place("barrel", Vector3i(292, f, 278))
+	props.place("corkboard_a", Vector3i(r.to.x - 1, f + 14, 230), P.WEST)
+	props.place("trash_can", Vector3i(214, f, 300))
 
 	_ceiling_light(r, 222, 256, Color(1, 0.88, 0.7), 2.2, 14.0, true)
 	_ceiling_light(r, 290, 256, Color(1, 0.88, 0.7), 1.8, 12.0)
@@ -220,22 +223,24 @@ func _lab() -> void:
 
 	# Sample shelves along the north wall.
 	for x in range(362, 444, 14):
-		props.shelf(Vector3i(x, f, r.from.z), P.SOUTH, 12, 20, 4, "lab")
+		props.place("shelf_lab_" + "ab"[(x / 14) % 2], Vector3i(x, f, r.from.z), P.SOUTH)
 	# Two rows of lab benches with stools.
+	var bench := 0
 	for x in [372, 410]:
 		for z in [236, 266]:
-			props.lab_bench(Vector3i(x, f, z), P.NORTH if z == 236 else P.SOUTH, 26, 7)
+			props.place("lab_bench_" + "abc"[bench % 3], Vector3i(x, f, z), P.NORTH if z == 236 else P.SOUTH)
+			bench += 1
 			for sx in range(x + 3, x + 24, 7):
-				props.stool(Vector3i(sx, f, z - 5 if z == 236 else z + 9))
+				props.place("stool", Vector3i(sx, f, z - 5 if z == 236 else z + 9))
 	# Fume hoods on the east wall, desks with computers along the south wall.
-	props.fume_hood(Vector3i(r.to.x - 8, f, 220), P.WEST)
-	props.fume_hood(Vector3i(r.to.x - 8, f, 236), P.WEST)
+	props.place("fume_hood", Vector3i(r.to.x - 8, f, 220), P.WEST)
+	props.place("fume_hood", Vector3i(r.to.x - 8, f, 236), P.WEST)
 	for x in [366, 392, 418]:
-		props.desk(Vector3i(x, f, r.to.z - 7), P.NORTH, 16)
-		props.chair(Vector3i(x + 6, f, r.to.z - 12), P.SOUTH)
-	props.wall_board(Vector3i(r.from.x, f + 14, 214), P.EAST, 18, 9, true)
-	props.spore_tank(Vector3i(r.to.x - 6, f, 290))
-	props.spore_tank(Vector3i(r.to.x - 6, f, 284))
+		props.place("desk", Vector3i(x, f, r.to.z - 7), P.NORTH)
+		props.place("chair", Vector3i(x + 6, f, r.to.z - 12), P.SOUTH)
+	props.place("whiteboard", Vector3i(r.from.x, f + 14, 214), P.EAST)
+	props.place("spore_tank", Vector3i(r.to.x - 6, f, 290))
+	props.place("spore_tank", Vector3i(r.to.x - 6, f, 284))
 
 	_ceiling_light(r, 386, 250, Color(0.85, 0.95, 1.0), 2.0, 13.0, true)
 	_ceiling_light(r, 430, 250, Color(0.85, 0.95, 1.0), 1.8, 12.0)
@@ -251,22 +256,22 @@ func _break_room() -> void:
 		world.fill_box(Vector3i(r.from.x, f - 1, z), Vector3i(r.to.x, f, z + 3), M.WOOD if (z / 3) % 2 == 0 else M.PLANK)
 
 	# Kitchen along the north wall: counters, fridge, coffee, water cooler.
-	props.counter(Vector3i(84, f, r.from.z), P.SOUTH, 16, true)
-	props.counter(Vector3i(100, f, r.from.z), P.SOUTH, 12, false)
-	props.fridge(Vector3i(113, f, r.from.z), P.SOUTH)
-	props.water_cooler(Vector3i(124, f, r.from.z), P.SOUTH)
-	props.vending_machine(Vector3i(r.from.x, f, 262), P.EAST)
-	props.trash_can(Vector3i(130, f, r.from.z + 1))
+	props.place("counter_sink", Vector3i(84, f, r.from.z), P.SOUTH)
+	props.place("counter_coffee", Vector3i(100, f, r.from.z), P.SOUTH)
+	props.place("fridge", Vector3i(113, f, r.from.z), P.SOUTH)
+	props.place("water_cooler", Vector3i(124, f, r.from.z), P.SOUTH)
+	props.place("vending_machine", Vector3i(r.from.x, f, 262), P.EAST)
+	props.place("trash_can", Vector3i(130, f, r.from.z + 1))
 
 	# Table with chairs in the middle, couch against the south wall.
-	props.table(Vector3i(104, f, 248), P.NORTH, 16, 10)
+	props.place("table_large", Vector3i(104, f, 248), P.NORTH)
 	for x in [106, 114]:
-		props.chair(Vector3i(x, f, 243), P.SOUTH)
-		props.chair(Vector3i(x, f, 259), P.NORTH)
-	props.couch(Vector3i(96, f, r.to.z - 8), P.NORTH)
-	props.table(Vector3i(100, f, r.to.z - 18), P.NORTH, 10, 6)
-	props.wall_board(Vector3i(r.from.x + 30, f + 16, r.to.z - 1), P.NORTH, 12, 8, false)
-	props.wall_board(Vector3i(r.from.x, f + 15, 230), P.EAST, 10, 12, false)
+		props.place("chair", Vector3i(x, f, 243), P.SOUTH)
+		props.place("chair", Vector3i(x, f, 259), P.NORTH)
+	props.place("couch", Vector3i(96, f, r.to.z - 8), P.NORTH)
+	props.place("table_small", Vector3i(100, f, r.to.z - 18), P.NORTH)
+	props.place("corkboard_small", Vector3i(r.from.x + 30, f + 16, r.to.z - 1), P.NORTH)
+	props.place("corkboard_tall", Vector3i(r.from.x, f + 15, 230), P.EAST)
 
 	_ceiling_light(r, 116, 256, Color(1, 0.85, 0.65), 1.8, 11.0, true)
 	_emergency_light(116, r.to.y - 1, 292)
@@ -277,15 +282,15 @@ func _storage() -> void:
 	var f: int = r.from.y
 	# Back-to-back shelving with an aisle down the middle to the grow hall corridor.
 	for x in [222, 236, 264, 278]:
-		props.shelf(Vector3i(x, f, r.from.z + 18), P.SOUTH, 12, 20, 4, "storage")
-		props.shelf(Vector3i(x, f, r.from.z + 23), P.NORTH, 12, 20, 4, "storage")
+		props.place("shelf_storage_a", Vector3i(x, f, r.from.z + 18), P.SOUTH)
+		props.place("shelf_storage_b", Vector3i(x, f, r.from.z + 23), P.NORTH)
 	for i in 6:
 		var x := rng.randi_range(r.from.x + 2, 228) if i % 2 == 0 else rng.randi_range(282, r.to.x - 9)
-		props.crate(Vector3i(x, f, rng.randi_range(r.from.z + 34, r.to.z - 10)), rng.randi_range(5, 8))
-	props.plank_stack(Vector3i(r.from.x + 2, f, r.from.z + 2), P.SOUTH, 5)
-	props.sandbags(Vector3i(r.to.x - 14, f, r.from.z + 2), P.SOUTH)
+		props.place("crate_%d" % rng.randi_range(5, 8), Vector3i(x, f, rng.randi_range(r.from.z + 34, r.to.z - 10)))
+	props.place("plank_stack", Vector3i(r.from.x + 2, f, r.from.z + 2), P.SOUTH)
+	props.place("sandbags", Vector3i(r.to.x - 14, f, r.from.z + 2), P.SOUTH)
 	for x in [r.from.x + 2, r.from.x + 8]:
-		props.barrel(Vector3i(x, f, r.to.z - 7), x == r.from.x + 2)
+		props.place("barrel_hazard" if x == r.from.x + 2 else "barrel", Vector3i(x, f, r.to.z - 7))
 
 	_ceiling_light(r, 256, 386, Color(1, 0.9, 0.7), 1.4, 11.0)
 	_emergency_light(256, r.to.y - 1, 412)
@@ -298,12 +303,12 @@ func _grow_hall() -> Array[AABB]:
 	var beds: Array[AABB] = []
 	for z in [446, 474]:
 		for x in [156, 191, 286, 321]:
-			props.grow_bed(Vector3i(x, f, z), P.NORTH, 30, 12)
+			props.place("grow_bed", Vector3i(x, f, z), P.NORTH)
 			var surface_from := _to_world(Vector3(x + 1, f + 3, z + 1))
 			beds.append(AABB(surface_from, Vector3(28, 0, 10) * world.voxel_size))
 	for x in [r.from.x + 2, r.to.x - 6]:
-		props.spore_tank(Vector3i(x, f, r.from.z + 2))
-	props.shelf(Vector3i(r.from.x + 8, f, r.from.z), P.SOUTH, 12, 20, 4, "lab")
+		props.place("spore_tank", Vector3i(x, f, r.from.z + 2))
+	props.place("shelf_lab_a", Vector3i(r.from.x + 8, f, r.from.z), P.SOUTH)
 	# Irrigation pipe along the north wall.
 	world.fill_box(Vector3i(r.from.x, r.to.y - 4, r.from.z), Vector3i(r.to.x, r.to.y - 3, r.from.z + 1), M.PIPE)
 	world.fill_box(Vector3i(r.from.x, r.to.y - 4, r.to.z - 1), Vector3i(r.to.x, r.to.y - 3, r.to.z), M.PIPE)

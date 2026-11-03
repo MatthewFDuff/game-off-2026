@@ -52,6 +52,13 @@ func _process(delta: float) -> void:
 		matured.emit(self)
 
 
+## Re-reads the model for the current stage (after live reload).
+func refresh_model() -> void:
+	var stage := _stage
+	_stage = -1
+	_set_stage(stage)
+
+
 func _set_stage(stage: int) -> void:
 	if stage == _stage:
 		return

@@ -156,19 +156,52 @@ void VoxelWorld::fill_layers(const Vector3i &from, const Vector3i &to, const Pac
 }
 
 Ref<ArrayMesh> VoxelWorld::build_model_mesh(const Vector3i &size, const PackedByteArray &voxels) {
-	ERR_FAIL_COND_V_MSG(size.x < 1 || size.y < 1 || size.z < 1 || size.x > CHUNK_SIZE || size.y > CHUNK_SIZE || size.z > CHUNK_SIZE,
-			Ref<ArrayMesh>(), "build_model_mesh: each side must be between 1 and 32.");
+	ERR_FAIL_COND_V_MSG(size.x < 1 || size.y < 1 || size.z < 1 || size.x > 256 || size.y > 256 || size.z > 256,
+			Ref<ArrayMesh>(), "build_model_mesh: each side must be between 1 and 256.");
 	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), Ref<ArrayMesh>(), "build_model_mesh: voxels.size() must equal size.x * size.y * size.z.");
 
-	std::vector<uint8_t> model(PADDED_VOLUME, 0);
-	for (int z = 0; z < size.z; z++) {
-		for (int y = 0; y < size.y; y++) {
-			for (int x = 0; x < size.x; x++) {
-				model[padded_index(x, y, z)] = voxels[x + y * size.x + z * size.x * size.y];
+	// Mesh the model in chunk-sized blocks, each padded with its neighbors' voxels so faces and AO
+	// are seamless across blocks, then merge them into one surface.
+	const uint8_t *src = voxels.ptr();
+	auto at = [&](int x, int y, int z) -> uint8_t {
+		if (x < 0 || y < 0 || z < 0 || x >= size.x || y >= size.y || z >= size.z) {
+			return 0;
+		}
+		return src[x + y * size.x + z * size.x * size.y];
+	};
+	std::vector<uint8_t> block(PADDED_VOLUME);
+	MeshBuffers merged;
+	MeshBuffers buffers;
+	for (int by = 0; by < size.y; by += CHUNK_SIZE) {
+		for (int bz = 0; bz < size.z; bz += CHUNK_SIZE) {
+			for (int bx = 0; bx < size.x; bx += CHUNK_SIZE) {
+				bool any = false;
+				for (int y = -1; y <= CHUNK_SIZE; y++) {
+					for (int z = -1; z <= CHUNK_SIZE; z++) {
+						for (int x = -1; x <= CHUNK_SIZE; x++) {
+							const uint8_t m = at(bx + x, by + y, bz + z);
+							block[padded_index(x, y, z)] = m;
+							any = any || (m != 0 && x >= 0 && y >= 0 && z >= 0 && x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE);
+						}
+					}
+				}
+				if (!any) {
+					continue;
+				}
+				buffers.clear();
+				mesh_padded_chunk(block.data(), voxel_size, buffers);
+				const Vector3 offset = Vector3(bx, by, bz) * voxel_size;
+				const int32_t base = int32_t(merged.vertices.size());
+				for (const Vector3 &v : buffers.vertices) {
+					merged.vertices.push_back(v + offset);
+				}
+				merged.normals.insert(merged.normals.end(), buffers.normals.begin(), buffers.normals.end());
+				merged.colors.insert(merged.colors.end(), buffers.colors.begin(), buffers.colors.end());
+				for (int32_t i : buffers.indices) {
+					merged.indices.push_back(base + i);
+				}
 			}
 		}
 	}
-	MeshBuffers buffers;
-	mesh_padded_chunk(model.data(), voxel_size, buffers);
-	return arrays_to_mesh(buffers);
+	return arrays_to_mesh(merged);
 }

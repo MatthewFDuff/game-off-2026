@@ -1,9 +1,13 @@
 class_name Props
 extends RefCounted
-## Voxel furniture and fittings. Each prop is built from boxes in its own frame: x across, y up,
-## z depth, with the prop's front at z = 0. `facing` turns the prop so its front points north
-## (-Z), east (+X), south (+Z) or west (-X). The origin is always the min corner of the footprint
-## at floor level, so use footprint() to line props up against walls.
+## Voxel furniture and fittings. Levels place props from the MagicaVoxel library with place();
+## the functions below are the generators that drew the original placeholder .vox files
+## (tools/export_vox.gd), kept so placeholders can be regenerated.
+##
+## Each prop lives in its own frame: x across, y up, z depth, with the prop's front at z = 0.
+## `facing` turns the prop so its front points north (-Z), east (+X), south (+Z) or west (-X). The
+## origin is always the min corner of the footprint at floor level, so use footprint() to line
+## props up against walls. A .vox prop's frame is its whole model box.
 
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 
@@ -31,7 +35,119 @@ static func footprint(w: int, d: int, facing: int) -> Vector2i:
 	return Vector2i(w, d) if facing == NORTH or facing == SOUTH else Vector2i(d, w)
 
 
-# --- Furniture --------------------------------------------------------------------------------
+# --- Library ----------------------------------------------------------------------------------
+
+const LIBRARY_DIR := "res://assets/vox/props/"
+
+## Where prop models are read from. Tests point this at a scratch copy.
+static var library_dir := LIBRARY_DIR
+static var _library := {}
+## Names place() was asked for that have no .vox file, for tests and warnings.
+static var missing: Array[String] = []
+
+
+## Every place() call so far: [{name, origin, facing}], so live reload can swap edited props.
+var placements: Array[Dictionary] = []
+
+
+## Stamps the library prop `name` (assets/vox/props/<name>.vox) with its footprint's min corner at
+## origin. Returns the footprint, or Vector2i.ZERO if the prop doesn't exist.
+func place(name: String, origin: Vector3i, facing := NORTH) -> Vector2i:
+	var model := load_prop(name)
+	if model.is_empty():
+		return Vector2i.ZERO
+	var turned := orient(model, facing)
+	world.stamp(origin, turned.size, turned.voxels, false)
+	placements.append({name = name, origin = origin, facing = facing})
+	return Vector2i(turned.size.x, turned.size.z)
+
+
+## The prop name for a library file path, or "" if the path isn't in the library.
+static func name_for_path(path: String) -> String:
+	if path.get_base_dir().path_join("") != library_dir.path_join("") or path.get_extension() != "vox":
+		return ""
+	return path.get_file().get_basename()
+
+
+## Reads a prop's file again. Returns {old, new} models; new is {} if the file doesn't parse (the
+## old model stays loaded then, so a bad save doesn't wipe the prop).
+static func reload_prop(name: String) -> Dictionary:
+	var old: Dictionary = _library.get(name, {})
+	var path := library_dir + name + ".vox"
+	var fresh := VoxFile.load_model(path) if FileAccess.file_exists(path) else {}
+	if not fresh.is_empty():
+		_library[name] = fresh
+	return {old = old, new = fresh}
+
+
+## Live reload: re-reads a prop's file and swaps every placement of it, erasing the old model and
+## stamping the new one through stamp(origin, size, voxels, erase) (WorldSync.stamp_model in co-op,
+## so peers get the change too). Returns a short note for the player.
+func reload_placements(name: String, stamp: Callable) -> String:
+	var models := reload_prop(name)
+	if models.new.is_empty():
+		return "Couldn't read %s.vox, kept the old one" % name
+	var count := 0
+	for placement in placements:
+		if placement.name != name:
+			continue
+		if not models.old.is_empty():
+			var old := orient(models.old, placement.facing)
+			stamp.call(placement.origin, old.size, old.voxels, true)
+		var fresh := orient(models.new, placement.facing)
+		stamp.call(placement.origin, fresh.size, fresh.voxels, false)
+		count += 1
+	return "Reloaded %s.vox (%d placed)" % [name, count]
+
+
+## The library model for a prop name, loaded once. {} if there's no such file.
+static func load_prop(name: String) -> Dictionary:
+	if not _library.has(name):
+		var path := library_dir + name + ".vox"
+		if not FileAccess.file_exists(path):
+			push_error("no prop model at " + path)
+			if name not in missing:
+				missing.append(name)
+			return {}
+		_library[name] = VoxFile.load_model(path)
+	return _library[name]
+
+
+## Forgets loaded props so edited .vox files are read again.
+static func clear_library() -> void:
+	_library.clear()
+
+
+## Turns a model built facing north to face `facing`, the same way box() maps prop frames.
+static func orient(model: Dictionary, facing: int) -> Dictionary:
+	if facing == NORTH:
+		return model
+	var size: Vector3i = model.size
+	var voxels: PackedByteArray = model.voxels
+	var w := size.x
+	var d := size.z
+	var turned_size := Vector3i(w, size.y, d) if facing == SOUTH else Vector3i(d, size.y, w)
+	var turned := PackedByteArray()
+	turned.resize(voxels.size())
+	for z in d:
+		for y in size.y:
+			for x in w:
+				var material := voxels[x + y * w + z * w * size.y]
+				if material == 0:
+					continue
+				var to: Vector2i
+				match facing:
+					EAST:
+						to = Vector2i(d - 1 - z, x)
+					SOUTH:
+						to = Vector2i(w - 1 - x, d - 1 - z)
+					_:
+						to = Vector2i(z, w - 1 - x)
+				turned[to.x + y * turned_size.x + to.y * turned_size.x * turned_size.y] = material
+	return {size = turned_size, voxels = turned}
+
+
+# --- Generators ------------------------------------------------------------------------------------
 
 func table(origin: Vector3i, facing: int, w := 12, d := 8, top := M.WOOD) -> void:
 	_begin(origin, w, d, facing)
@@ -82,7 +198,8 @@ func lab_bench(origin: Vector3i, facing: int, w := 20, d := 7) -> void:
 	while x < w - 4:
 		match rng.randi_range(0, 4):
 			0:
-				_tube_rack(Vector3i(x, 9, 1))
+				if x + 6 <= w: # Racks are 6 wide; don't let one hang off the end.
+					_tube_rack(Vector3i(x, 9, 1))
 				x += 7
 			1:
 				_microscope(Vector3i(x, 9, 2))

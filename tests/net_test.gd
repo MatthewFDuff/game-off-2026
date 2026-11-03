@@ -8,11 +8,20 @@ extends SceneTree
 ## request. Both print a hash of their whole world at the end, which must match. The host also
 ## checks the client's player shows up where the client put it.
 ##
+## Live reload: the host reads props from a scratch copy of the library, rewrites the fridge as
+## solid lamp once the client is in, and both sides must see the lamp fridge (the client only
+## through the host's edits). Then the host saves a broken file, which must change nothing.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
 const PORT := 24699
 const CLIENT_SPOT := Vector3(0.0, 0.0, 2.0) # Offset from the level spawn.
+const SCRATCH_PROPS := "user://net_test_props/"
+## The break room fridge's box (voxel space).
+const FRIDGE_FROM := Vector3i(113, 40, 216)
+const FRIDGE_TO := Vector3i(120, 59, 224)
+const LAMP := 21
 
 var _failures := 0
 
@@ -37,6 +46,9 @@ func _run() -> void:
 
 func _host(net: Node) -> void:
 	net.player_name = "Host"
+	_copy_props()
+	Props.library_dir = SCRATCH_PROPS
+	root.get_node("VoxWatch").watch(SCRATCH_PROPS)
 	_check("host starts", net.host(PORT) == OK)
 	var lab = await _wait_for_lab()
 	if lab == null:
@@ -45,7 +57,8 @@ func _host(net: Node) -> void:
 	lab.world_sync.carve_sphere(spawn + Vector3(3.0, 0.0, 0.0), 1.0, 254)
 	print("READY") # The driver starts the client now.
 
-	if not await _wait_until(func() -> bool: return lab.players.size() == 2, 30.0):
+	# Generous: a cold Godot start alone can take half a minute on Windows.
+	if not await _wait_until(func() -> bool: return lab.players.size() == 2, 120.0):
 		_check("client entered the level", false)
 		return
 	var client_id: int = lab.players.keys().filter(func(id: int) -> bool: return id != 1)[0]
@@ -57,6 +70,14 @@ func _host(net: Node) -> void:
 	var follows := await _wait_until(func() -> bool: return avatar.global_position.distance_to(spawn + CLIENT_SPOT) < 0.5, 10.0)
 	_check("client avatar follows the client", follows, str(avatar.global_position))
 	_check("client confirmed entry", client_id in lab.peers_in_level)
+
+	_write_lamp_fridge()
+	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 5.0)
+	_check("edited prop reloads in place", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
+	FileAccess.open(SCRATCH_PROPS + "fridge.vox", FileAccess.WRITE).store_string("not a vox file")
+	await _wait_seconds(1.5)
+	_check("a broken save keeps the old prop", _count(lab.world, LAMP) > 500)
+
 	await _wait_seconds(1.0)
 	print("HASH ", _world_hash(lab.world))
 	await _wait_seconds(5.0) # Stay up until the client has hashed too.
@@ -78,7 +99,9 @@ func _client(net: Node) -> void:
 	_check("sends state to the host", streaming, str(me.net_peers))
 	me.teleport(lab.info.spawn + CLIENT_SPOT)
 	lab.world_sync.carve_sphere(lab.info.spawn + Vector3(0.0, 0.0, -3.0), 1.0, 254)
-	await _wait_seconds(4.0)
+	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
+	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
+	await _wait_seconds(3.5)
 	print("HASH ", _world_hash(lab.world))
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
@@ -96,9 +119,34 @@ func _screenshot(lab, me, path: String) -> void:
 	print("saved ", path)
 
 
+func _copy_props() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SCRATCH_PROPS))
+	for file in DirAccess.get_files_at(Props.LIBRARY_DIR):
+		if file.get_extension() == "vox":
+			FileAccess.open(SCRATCH_PROPS + file, FileAccess.WRITE).store_buffer(FileAccess.get_file_as_bytes(Props.LIBRARY_DIR + file))
+
+
+func _write_lamp_fridge() -> void:
+	var model := VoxFile.load_model(SCRATCH_PROPS + "fridge.vox")
+	var voxels: PackedByteArray = model.voxels
+	for i in voxels.size():
+		if voxels[i] != 0:
+			voxels[i] = LAMP
+	VoxFile.save_model(SCRATCH_PROPS + "fridge.vox", model)
+
+
+func _count(world, material: int) -> int:
+	var n := 0
+	for y in range(FRIDGE_FROM.y, FRIDGE_TO.y):
+		for z in range(FRIDGE_FROM.z, FRIDGE_TO.z):
+			for x in range(FRIDGE_FROM.x, FRIDGE_TO.x):
+				n += int(world.get_voxel(Vector3i(x, y, z)) == material)
+	return n
+
+
 func _wait_for_lab():
-	if not await _wait_until(func() -> bool: return current_scene != null and current_scene.name == "Lab", 30.0):
-		_check("level loaded", false)
+	if not await _wait_until(func() -> bool: return current_scene != null and current_scene.name == "Lab", 60.0):
+		_check("level loaded", false, "t=%d scene=%s" % [Time.get_ticks_msec(), current_scene])
 		return null
 	return current_scene
 

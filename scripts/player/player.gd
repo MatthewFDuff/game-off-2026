@@ -88,6 +88,7 @@ var _send_timer := 0.0
 ## Received [time, position, yaw, pitch], oldest first.
 var _remote_states: Array[Array] = []
 var _body: MeshInstance3D
+var _head_mesh: MeshInstance3D
 var _name_tag: Label3D
 
 @onready var head: Node3D = $Head
@@ -109,6 +110,9 @@ func _ready() -> void:
 		set_process_unhandled_input(false)
 		head.position = Vector3(0.0, standing_height - eye_offset, 0.0)
 		_build_remote_body()
+		var watch := get_node_or_null("/root/VoxWatch")
+		if watch:
+			watch.changed.connect(_on_vox_changed)
 
 
 ## Name and color shown over remote players.
@@ -362,7 +366,8 @@ func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, lig
 		_remote_states.pop_front()
 	if is_crouching != crouching:
 		crouching = is_crouching
-		_body.scale.y = crouching_height / standing_height if crouching else 1.0
+		if _body:
+			_body.scale.y = crouching_height / standing_height if crouching else 1.0
 		head.position.y = (crouching_height if crouching else standing_height) - eye_offset
 	flashlight.visible = light_on
 
@@ -386,31 +391,10 @@ func _interpolate_remote() -> void:
 	head.rotation.x = lerpf(a[3], b[3], f)
 
 
-## Placeholder voxel figure for other players, until the real character model exists.
+## Other players' figure, from assets/vox/characters: the body stands on its bottom center, the
+## head turns with the look pitch around its center.
 func _build_remote_body() -> void:
-	const M := preload("res://scripts/voxel/voxel_materials.gd")
-	var body_size := Vector3i(6, 15, 4)
-	var voxels := PackedByteArray()
-	voxels.resize(body_size.x * body_size.y * body_size.z)
-	for z in body_size.z:
-		for y in body_size.y:
-			for x in body_size.x:
-				var id := M.CLOTH if y < 7 else M.WALL_PAINT
-				if y < 7 and x in [2, 3]:
-					id = M.AIR # Gap between the legs.
-				voxels[x + y * body_size.x + z * body_size.x * body_size.y] = id
-	_body = _model_instance(body_size, voxels, self)
-	_body.position = Vector3(-body_size.x, 0.0, -body_size.z) * 0.5 * world.voxel_size
-
-	var head_size := Vector3i(4, 4, 4)
-	var head_voxels := PackedByteArray()
-	head_voxels.resize(64)
-	head_voxels.fill(M.PLASTIC)
-	for x in [0, 3]:
-		head_voxels[x + 2 * 4] = M.GLASS # Eyes on the front (z = 0, facing -Z).
-	var head_mesh := _model_instance(head_size, head_voxels, head)
-	head_mesh.position = Vector3(-2.0, -1.5, -2.0) * world.voxel_size
-
+	_build_body_meshes()
 	_name_tag = Label3D.new()
 	_name_tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_name_tag.fixed_size = true
@@ -423,9 +407,47 @@ func _build_remote_body() -> void:
 	add_child(_name_tag)
 
 
-func _model_instance(size: Vector3i, voxels: PackedByteArray, parent: Node3D) -> MeshInstance3D:
+func _build_body_meshes() -> void:
+	var body := _load_character("player_body")
+	if not body.is_empty():
+		_body = _model_instance(body, self)
+		_body.position = Vector3(-body.size.x * 0.5, 0.0, -body.size.z * 0.5) * world.voxel_size
+		_body.scale.y = crouching_height / standing_height if crouching else 1.0
+	var head_model := _load_character("player_head")
+	if not head_model.is_empty():
+		_head_mesh = _model_instance(head_model, head)
+		_head_mesh.position = -Vector3(head_model.size) * 0.5 * world.voxel_size
+
+
+## Live reload: rebuild the figure when its .vox files change.
+func _on_vox_changed(paths: PackedStringArray) -> void:
+	var touched := false
+	for path in paths:
+		if path.begins_with("res://assets/vox/characters/"):
+			_characters.erase(path.get_file().get_basename())
+			touched = true
+	if not touched:
+		return
+	for mesh in [_body, _head_mesh]:
+		if mesh:
+			mesh.queue_free()
+	_body = null
+	_head_mesh = null
+	_build_body_meshes()
+
+
+static var _characters := {}
+
+
+static func _load_character(name: String) -> Dictionary:
+	if not _characters.has(name):
+		_characters[name] = VoxFile.load_model("res://assets/vox/characters/%s.vox" % name)
+	return _characters[name]
+
+
+func _model_instance(model: Dictionary, parent: Node3D) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()
-	instance.mesh = world.build_model_mesh(size, voxels)
+	instance.mesh = world.build_model_mesh(model.size, model.voxels)
 	instance.material_override = world.material
 	parent.add_child(instance)
 	return instance

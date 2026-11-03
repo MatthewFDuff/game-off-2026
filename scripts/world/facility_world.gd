@@ -34,6 +34,22 @@ func _ready() -> void:
 		beds_center += bed.get_center()
 	if not info.spore_beds.is_empty():
 		director.beds_center = beds_center / info.spore_beds.size()
+	var watch := get_node_or_null("/root/VoxWatch")
+	if watch:
+		watch.changed.connect(_on_vox_changed)
 	player.teleport(info.spawn)
 	player.rotation.y = info.spawn_yaw
 	print("facility generated in %d ms: %s" % [Time.get_ticks_msec() - start, world.get_stats()])
+
+
+## Live reload of edited props (single-player, so straight into the world).
+func _on_vox_changed(paths: PackedStringArray) -> void:
+	var stamp := func(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, erase: bool) -> void:
+		if erase:
+			world.erase_stamp(origin, size, voxels)
+		else:
+			world.stamp(origin, size, voxels, false)
+	for path in paths:
+		var prop := Props.name_for_path(path)
+		if prop != "":
+			print(info.props.reload_placements(prop, stamp))

@@ -11,6 +11,8 @@ extends Node3D
 
 signal player_spawned(player: Player)
 signal player_despawned(peer_id: int)
+## Live reload picked up edited art; text is a short player-facing note.
+signal assets_reloaded(text: String)
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
@@ -33,6 +35,7 @@ func _ready() -> void:
 	world_sync.carved.connect(func(center: Vector3, normal: Vector3, removed: Dictionary) -> void: debris.burst(center, normal, removed))
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	Net.players_changed.connect(_on_roster_changed)
+	VoxWatch.changed.connect(_on_vox_changed)
 
 	if multiplayer.is_server():
 		peers_in_level = [1]
@@ -161,6 +164,26 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if multiplayer.is_server() and peer_id in peers_in_level:
 		peers_in_level.erase(peer_id)
 		_broadcast_in_level()
+
+
+## Live reload. Edited props are swapped in place by the host, through WorldSync so co-op peers get
+## the host's version. Character and shroom models reload themselves on each peer.
+func _on_vox_changed(paths: PackedStringArray) -> void:
+	var notes: Array[String] = []
+	for path in paths:
+		var prop := Props.name_for_path(path)
+		if prop != "" and multiplayer.is_server():
+			notes.append(_reload_prop(prop))
+		elif not path.begins_with(Props.library_dir):
+			notes.append("Reloaded " + path.get_file())
+	if not notes.is_empty():
+		assets_reloaded.emit("
+".join(notes))
+
+
+func _reload_prop(name: String) -> String:
+	var props: Props = info.props
+	return props.reload_placements(name, world_sync.stamp_model)
 
 
 func _on_roster_changed() -> void:

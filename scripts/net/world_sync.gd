@@ -40,6 +40,36 @@ func carve_sphere(center: Vector3, radius: float, max_hardness: int, normal := V
 		_request_carve.rpc_id(1, center, radius, max_hardness, normal)
 
 
+## Host: stamps a model (see VoxelWorld.stamp) everywhere, or with erase, takes one away (see
+## VoxelWorld.erase_stamp). Big models go out in slices so no RPC gets near the size ENet drops.
+func stamp_model(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, erase := false) -> void:
+	if not multiplayer.is_server():
+		push_error("only the host stamps models")
+		return
+	var rows := clampi(PART_SIZE / size.x, 1, size.y)
+	var depth := clampi(PART_SIZE / (size.x * rows), 1, size.z)
+	for y0 in range(0, size.y, rows):
+		for z0 in range(0, size.z, depth):
+			var part_size := Vector3i(size.x, mini(rows, size.y - y0), mini(depth, size.z - z0))
+			var part := PackedByteArray()
+			part.resize(part_size.x * part_size.y * part_size.z)
+			var any := false
+			for z in part_size.z:
+				for y in part_size.y:
+					var from := (y0 + y) * size.x + (z0 + z) * size.x * size.y
+					var row := voxels.slice(from, from + size.x)
+					var to := y * part_size.x + z * part_size.x * part_size.y
+					for x in size.x:
+						part[to + x] = row[x]
+						any = any or row[x] != 0
+			if not any:
+				continue
+			var part_origin := origin + Vector3i(0, y0, z0)
+			_apply_stamp(part_origin, part_size, part, erase)
+			for peer_id in _synced:
+				_apply_stamp.rpc_id(peer_id, part_origin, part_size, part, erase)
+
+
 ## Host: sends the current world to a peer and starts replaying edits to it.
 func send_snapshot(peer_id: int) -> void:
 	var raw: PackedByteArray = world.get_data()
@@ -65,6 +95,14 @@ func _apply_carve(center: Vector3, radius: float, max_hardness: int, normal: Vec
 	var removed: Dictionary = world.carve_sphere(center, radius, max_hardness)
 	if not removed.is_empty():
 		carved.emit(center, normal, removed)
+
+
+@rpc("authority", "reliable")
+func _apply_stamp(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, erase: bool) -> void:
+	if erase:
+		world.erase_stamp(origin, size, voxels)
+	else:
+		world.stamp(origin, size, voxels, false)
 
 
 @rpc("authority", "reliable")

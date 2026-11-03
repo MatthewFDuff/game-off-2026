@@ -64,6 +64,27 @@ Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--jo
 
 `tools/net_test.sh` runs a headless host and client against each other and checks their worlds end up byte-identical.
 
+## Art: MagicaVoxel models
+
+All voxel art lives in `assets/vox/` as MagicaVoxel `.vox` files, and the game reads them at runtime:
+
+- `props/`: furniture and fittings. Levels place them by file name (`props.place("fridge", origin, facing)`).
+- `characters/`: the player's body and head.
+- `shrooms/`: growth stages `stage<0-4>_<variant>.vox`, plus `stage4_<variant>_eyes.vox` for grown hunters.
+- `pieces/`: the old build-mode scrap pieces (reference only for now).
+- `_palette.vox`: one cube per game material. `PALETTE.md` lists them.
+
+The current files are generated placeholders, meant to be replaced or used as templates. Rules for editing:
+
+- **Palette index = game material.** Paint with the palette slots listed in `PALETTE.md`, which come with every file. The slot decides hardness and glow, not just color. Unlisted (dark purple) or recolored slots get mapped to the closest material, with a warning. To add a material, add it to `scripts/voxel/voxel_materials.gd` and re-run the export.
+- **Front is MagicaVoxel's front (-Y).** A prop's front faces into the room when placed facing a direction. Up is +Z in MagicaVoxel and +Y in the game.
+- **The model box is the prop's frame.** Its min corner sits on the placement origin at floor level, so empty margins are kept on purpose. Characters stand on the bottom center of the box. The head pivots around its center.
+- Models of any size work. Anything over 256 voxels is saved split into several models; keep those in one file.
+
+**Live reload:** when the game runs from the Godot editor, saving a `.vox` in MagicaVoxel updates the running game within about a second. Edited props are swapped wherever they were placed: only the old model's voxels that are still intact are removed, so damage is kept. Characters and shrooms re-skin too. In co-op the host's files win and the host pushes prop changes to everyone. A save that doesn't parse keeps the old model. A toast in the bottom left confirms each reload. Exported builds don't watch files.
+
+Regenerating placeholders: `godot --headless --path . --script res://scripts/tools/export_vox.gd` writes only missing files, so edited ones are safe. `-- --force` overwrites everything. The generators are in `scripts/world/props.gd` and `scripts/world/prop_catalog.gd` (the name → generator list), plus `ShroomModels` and the export script itself.
+
 ## Playing the prototype
 
 `scenes/facility.tscn` (the old single-player mushroom loop, no longer the main scene) generates the facility: an atrium with the hatch shaft, a lab, a break room, storage, and the grow hall at the far end, all cut from layered ground (deep stone, rock, clay, gravel, dirt, sand pockets) behind painted concrete linings.
@@ -84,5 +105,6 @@ Tests (from the project root, with `godot` being the 4.7 editor binary):
 godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building, navigation (sandbox)
 godot --headless --path . --script res://tests/shift_loop_test.gd    # a full shift in the facility, ladder, hatch, breaching
 tools/net_test.sh                                                     # two-process co-op test (host + client)
+godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --path . --script res://tests/facility_screenshots.gd -- <dir> # room and night screenshots
 ```

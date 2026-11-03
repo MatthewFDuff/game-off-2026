@@ -577,6 +577,32 @@ int VoxelWorld::stamp(const Vector3i &origin, const Vector3i &size, const Packed
 	return changed;
 }
 
+int VoxelWorld::erase_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) {
+	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), 0, "erase_stamp: voxels.size() must equal size.x * size.y * size.z.");
+	int changed = 0;
+	Vector3i lo = origin + size;
+	Vector3i hi = origin;
+	for (int z = 0; z < size.z; z++) {
+		for (int y = 0; y < size.y; y++) {
+			for (int x = 0; x < size.x; x++) {
+				const uint8_t value = voxels[x + y * size.x + z * size.x * size.y];
+				const Vector3i p = origin + Vector3i(x, y, z);
+				if (value == 0 || !in_bounds(p.x, p.y, p.z) || read(p.x, p.y, p.z) != value) {
+					continue;
+				}
+				write(p.x, p.y, p.z, 0);
+				lo = lo.min(p);
+				hi = hi.max(p);
+				changed++;
+			}
+		}
+	}
+	if (changed > 0) {
+		finish_edit(lo, hi);
+	}
+	return changed;
+}
+
 Dictionary VoxelWorld::check_stamp(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const {
 	Dictionary result;
 	result["free"] = 0;
@@ -1072,6 +1098,7 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("build_model_mesh", "size", "voxels"), &VoxelWorld::build_model_mesh);
 	ClassDB::bind_method(D_METHOD("stamp", "origin", "size", "voxels", "only_air"), &VoxelWorld::stamp, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("check_stamp", "origin", "size", "voxels"), &VoxelWorld::check_stamp);
+	ClassDB::bind_method(D_METHOD("erase_stamp", "origin", "size", "voxels"), &VoxelWorld::erase_stamp);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("box_overlaps_solid", "box"), &VoxelWorld::box_overlaps_solid);
