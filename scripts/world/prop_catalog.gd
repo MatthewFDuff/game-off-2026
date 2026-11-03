@@ -9,6 +9,23 @@ class_name PropCatalog
 const P := preload("res://scripts/world/props.gd")
 
 
+## Editor catalog tabs, by prop name prefix. Props from new .vox files that match none go in Other.
+const CATEGORIES := {
+	"Lab": ["lab_bench", "fume_hood", "shelf_lab", "spore_tank", "grow_bed"],
+	"Office": ["desk", "chair", "table", "couch", "whiteboard", "corkboard", "locker", "bench", "stool"],
+	"Kitchen": ["counter", "fridge", "water_cooler", "vending_machine", "trash_can"],
+	"Storage": ["shelf_storage", "crate", "barrel", "plank_stack", "sandbags"],
+}
+
+
+static func category_of(prop_name: String) -> String:
+	for category: String in CATEGORIES:
+		for prefix: String in CATEGORIES[category]:
+			if prop_name.begins_with(prefix):
+				return category
+	return "Other"
+
+
 ## [{name: String, draw: Callable(props: Props, origin: Vector3i)}]
 static func entries() -> Array[Dictionary]:
 	var list: Array[Dictionary] = []

@@ -45,7 +45,7 @@ func _run() -> void:
 
 	# Box tool with a corner down, looking at the pattern wall.
 	_look(me, Vector3(24.5, 5.0, 27.0), Vector3(20.4, 5.0, 27.0))
-	tool.set_tool(0)
+	tool.set_tool(2)
 	tool.material = M.BLOCK_WALL
 	await _frames(4)
 	tool._corner = Vector3i(206, 40, 240)
@@ -61,7 +61,7 @@ func _run() -> void:
 
 	# Prop browser: give the thumbnails time to render.
 	_look(me, Vector3(40.0, 5.5, 25.0), Vector3(44.0, 4.0, 25.0))
-	tool.set_tool(4)
+	tool.set_tool(5)
 	tool.prop_name = "fume_hood"
 	await _frames(90)
 	lab.get_node("EditorHud")._refresh()
@@ -70,7 +70,7 @@ func _run() -> void:
 
 	# Markers and the inspector on a light.
 	_look(me, Vector3(25.6, 6.5, 33.0), Vector3(25.6, 6.0, 25.0))
-	tool.set_tool(6)
+	tool.set_tool(0)
 	var light_id := ""
 	for id in lab.level.objects:
 		var object = lab.level.objects[id]

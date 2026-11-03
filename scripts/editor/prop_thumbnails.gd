@@ -25,11 +25,12 @@ func _ready() -> void:
 	environment.background_mode = Environment.BG_CLEAR_COLOR
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.7, 0.7, 0.75)
-	environment.ambient_light_energy = 0.6
+	environment.ambient_light_energy = 0.8
 	_camera.environment = environment
 	_camera.fov = 30.0
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50.0, 30.0, 0.0)
+	# From over the camera's shoulder: props face -Z and the camera looks at their front.
+	sun.rotation_degrees = Vector3(-50.0, 210.0, 0.0)
 	_viewport.add_child(sun)
 	_viewport.add_child(_camera)
 	_viewport.add_child(_mesh)

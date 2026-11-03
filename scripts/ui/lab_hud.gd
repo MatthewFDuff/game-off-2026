@@ -60,11 +60,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_toast_time -= delta
-	_toast.visible = _toast_time > 0.0
+	# The level editor shows its own toasts and roster.
+	_toast.visible = _toast_time > 0.0 and lab.mode != "edit"
+	_roster.visible = lab.mode != "edit"
 	var playing := InputSetup.is_playing()
-	var me := lab.local_player()
-	var editor: EditorTool = me.get_node_or_null("EditorTool") if me else null
-	_pause.visible = not playing and not _waiting.visible and not (editor and editor.panel_open)
+	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
+	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit"
 	_crosshair.visible = playing
 	if _waiting.visible and lab.local_player() != null:
 		_waiting.visible = false
@@ -104,11 +105,15 @@ func _build_pause() -> void:
 
 
 func _update_pause_info() -> void:
-	if not multiplayer.is_server() or multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
-		_pause_info.text = ""
-		return
+	_pause_info.text = hosting_info(multiplayer)
+
+
+## How friends reach this host ("" when not hosting). The editor's menu shows it too.
+static func hosting_info(api: MultiplayerAPI) -> String:
+	if not api.is_server() or api.multiplayer_peer is OfflineMultiplayerPeer:
+		return ""
 	var addresses := Array(IP.get_local_addresses()).filter(func(a: String) -> bool: return a.count(".") == 3 and not a.begins_with("127.") and not a.begins_with("169.254."))
-	_pause_info.text = "Hosting on port %d\nLAN: %s\nFriends outside your network join your public IP\n(port-forward UDP %d)" % [Net.DEFAULT_PORT, ", ".join(addresses), Net.DEFAULT_PORT]
+	return "Hosting on port %d\nLAN: %s\nFriends outside your network join your public IP\n(port-forward UDP %d)" % [Net.DEFAULT_PORT, ", ".join(addresses), Net.DEFAULT_PORT]
 
 
 func _update_roster() -> void:

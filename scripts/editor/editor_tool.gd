@@ -1,28 +1,43 @@
 class_name EditorTool
 extends Node
 ## The level editor for the local player: aims a cursor, runs the tools and draws their previews.
-## Active in edit mode while the mouse is captured; Tab frees the mouse for the panel (EditorHud).
-## Every change goes through LevelEdits, so it's shared and undoable.
+## Aims and clicks while the mouse is captured; shortcuts work either way unless the editor UI has
+## the keys (EditorInput). Esc backs out one step at a time: the tool step, then the selection, then
+## frees the mouse for the panels (EditorHud), then opens the menu. Every change goes through
+## LevelEdits, so it's shared and undoable.
 ##
-## Keys: 1-7 tools, LMB / RMB use the tool, Alt+LMB pick (material or prop), Q cancel, R rotate,
-## G grid snap, V free cursor (Ctrl+wheel distance), [ ] brush size, B brush shape, M move,
-## Ctrl+D duplicate, X / Delete delete, Ctrl+Z / Ctrl+Y undo / redo, Ctrl+S save, F5 play-test,
-## wheel fly speed, Tab panel.
+## Keys are the editor_* actions in InputSetup.EDITOR_KEYS. Mouse: LMB / RMB use the tool, Alt+LMB
+## pick (material or prop), wheel fly speed, Ctrl+wheel free-cursor distance.
 
 ## Tool, material or selection changed (the HUD redraws its panel).
 signal changed
 
-enum Tool { BOX, ROOM, BRUSH, REPLACE, PROP, MARKER, SELECT }
+## Esc asked for the menu (nothing left to back out of).
+signal menu_requested
 
-const TOOL_NAMES := ["Box", "Room", "Brush", "Replace", "Prop", "Marker", "Select"]
+enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, PROP, MARKER }
+
+const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Prop", "Marker"]
+const TOOL_ACTIONS := ["editor_tool_select", "editor_tool_room", "editor_tool_box", "editor_tool_brush",
+		"editor_tool_replace", "editor_tool_prop", "editor_tool_marker"]
+## Short how-tos for tooltips.
+const TOOL_ABOUT := [
+	"Pick a prop or marker to move, rotate or change it",
+	"Carve a room and line its floor, walls and ceiling",
+	"Fill a box with a material, or carve one out",
+	"Paint or carve freehand",
+	"Swap one material for another inside a box",
+	"Place props from the catalog",
+	"Place spawns, lights, triggers and other markers",
+]
 const TOOL_HINTS := [
-	"LMB two corners: fill · RMB two corners: carve",
-	"LMB two corners (inside of the room): carve it and line it",
-	"LMB hold: paint · RMB hold: carve · [ ] size · B shape",
-	"LMB on the material to replace, then the far corner",
+	"LMB select · M move · Ctrl+D duplicate · R rotate · Delete",
+	"LMB two corners (inside of the room): carve it and line it · RMB / Esc back",
+	"LMB two corners: fill · RMB two corners: carve · Esc back",
+	"LMB hold: paint · RMB hold: carve · [ ] size",
+	"LMB on the material to replace, then the far corner · RMB / Esc back",
 	"LMB place · R / RMB rotate · Alt+LMB pick a placed prop's type",
 	"LMB place the marker · facing follows your view",
-	"LMB select · M move · Ctrl+D duplicate · R rotate · X delete",
 ]
 const SNAPS := [1, 5, 10]
 ## How far the cursor reaches, in meters.
@@ -48,8 +63,6 @@ var room_floor := VoxelMaterials.CONCRETE
 var room_wall := VoxelMaterials.WALL_PAINT
 var room_ceiling := VoxelMaterials.CONCRETE
 var room_thickness := 3
-## Tab freed the mouse to use the panel (so the HUD doesn't show the pause menu).
-var panel_open := false
 
 ## Cursor this frame: the empty cell in front of the aimed surface, the solid cell aimed at, and
 ## the placed object under the crosshair.
@@ -143,9 +156,12 @@ func cancel() -> void:
 
 # --- Per frame -----------------------------------------------------------------------------------
 
+## Something to back out of with Esc: a corner down, a move or a stroke.
+func has_step() -> bool:
+	return _corner != null or not _grab.is_empty() or _stroke != 0
+
+
 func _process(delta: float) -> void:
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		panel_open = false
 	if not is_active():
 		for node in [_cursor_lines, _volume, _ghost]:
 			node.visible = false
@@ -212,24 +228,36 @@ func _corner_cell(carve: bool) -> Vector3i:
 # --- Input ---------------------------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F5 and Net.session.mode == "edit":
+	if not player.is_local or not EditorInput.world_may_use(event):
+		return
+	if InputSetup.pressed(event, "editor_playtest") and Net.session.mode == "edit":
 		lab.request_mode("play" if lab.mode == "edit" else "edit")
 		get_viewport().set_input_as_handled()
 		return
 	if not is_active():
 		return
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
-		panel_open = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if panel_open else Input.MOUSE_MODE_CAPTURED
+	if InputSetup.pressed(event, "editor_back"):
+		back()
 		get_viewport().set_input_as_handled()
-		return
-	if not InputSetup.is_playing():
-		return
-	if event is InputEventMouseButton:
-		_mouse(event)
+	elif event is InputEventMouseButton:
+		if InputSetup.is_playing():
+			_mouse(event)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if _key(event):
 			get_viewport().set_input_as_handled()
+
+
+## Esc: drop the tool step, else the selection, else free the mouse, else ask for the menu.
+func back() -> void:
+	if has_step():
+		cancel()
+	elif selected != "":
+		select("")
+	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	else:
+		menu_requested.emit()
+	changed.emit()
 
 
 func _mouse(event: InputEventMouseButton) -> void:
@@ -256,48 +284,29 @@ func _mouse(event: InputEventMouseButton) -> void:
 
 ## Returns true if the key was used.
 func _key(event: InputEventKey) -> bool:
-	if event.ctrl_pressed:
-		match event.keycode:
-			KEY_Z:
-				if event.shift_pressed:
-					lab.edits.redo()
-				else:
-					lab.edits.undo()
-			KEY_Y:
-				lab.edits.redo()
-			KEY_S:
-				lab.request_save()
-			KEY_D:
-				_duplicate()
-			_:
-				return false
-		return true
-	if event.keycode >= KEY_1 and event.keycode <= KEY_7:
-		set_tool((event.keycode - KEY_1) as Tool)
-		return true
-	match event.keycode:
-		KEY_Q:
-			cancel()
-		KEY_R:
-			_rotate()
-		KEY_G:
-			snap_index = (snap_index + 1) % SNAPS.size()
-		KEY_V:
-			free_cursor = not free_cursor
-		KEY_BRACKETLEFT:
-			brush_size = maxi(brush_size - 1, 1)
-		KEY_BRACKETRIGHT:
-			brush_size = mini(brush_size + 1, 20)
-		KEY_B:
-			brush_cube = not brush_cube
-		KEY_M:
-			_start_move()
-		KEY_X, KEY_DELETE:
-			delete_selected()
-		_:
-			return false
-	changed.emit()
-	return true
+	for i in TOOL_ACTIONS.size():
+		if InputSetup.pressed(event, TOOL_ACTIONS[i]):
+			set_tool(i as Tool)
+			return true
+	var actions := {
+		editor_undo = func() -> void: lab.edits.undo(),
+		editor_redo = func() -> void: lab.edits.redo(),
+		editor_save = lab.request_save,
+		editor_duplicate = _duplicate,
+		editor_rotate = _rotate,
+		editor_grid = func() -> void: snap_index = (snap_index + 1) % SNAPS.size(),
+		editor_free_cursor = func() -> void: free_cursor = not free_cursor,
+		editor_brush_smaller = func() -> void: brush_size = maxi(brush_size - 1, 1),
+		editor_brush_bigger = func() -> void: brush_size = mini(brush_size + 1, 20),
+		editor_move = _start_move,
+		editor_delete = delete_selected,
+	}
+	for action: String in actions:
+		if InputSetup.pressed(event, action):
+			actions[action].call()
+			changed.emit()
+			return true
+	return false
 
 
 func _primary() -> void:
@@ -324,6 +333,10 @@ func _primary() -> void:
 
 
 func _secondary() -> void:
+	# RMB is "carve" for Box; for every other tool it backs out of a pending step.
+	if has_step() and tool != Tool.BOX:
+		cancel()
+		return
 	match tool:
 		Tool.BOX:
 			if has_cursor:

@@ -134,8 +134,9 @@ func _notification(what: int) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Handled in _input so no UI or other node can swallow the way out of mouse capture.
-	if event.is_action_pressed("ui_cancel"):
+	# Handled in _input so no UI or other node can swallow the way out of mouse capture. The level
+	# editor handles Esc itself (it backs out of a tool step first).
+	if event.is_action_pressed("ui_cancel") and not editing:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -149,7 +150,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			motion = event.relative
 		_look(motion * mouse_sensitivity)
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if editing and not EditorInput.world_may_use(event):
+			return
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().gui_release_focus() # A text field mustn't keep typing while we fly.
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_fly") and OS.is_debug_build() and not editing:
 		flying = not flying
@@ -184,7 +188,7 @@ func _process(delta: float) -> void:
 	if not is_local:
 		_interpolate_remote()
 		return
-	var key_look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	var key_look := _vector("look_left", "look_right", "look_up", "look_down")
 	if key_look != Vector2.ZERO:
 		_look(key_look * key_look_speed * delta)
 
@@ -294,12 +298,12 @@ func get_body_aabb() -> AABB:
 func _walk(delta: float) -> void:
 	_update_crouch()
 
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var input := _vector("move_left", "move_right", "move_forward", "move_back")
 	var wish := (global_basis * Vector3(input.x, 0.0, input.y)).normalized()
 	var speed := walk_speed
 	if crouching:
 		speed = crouch_speed
-	elif Input.is_action_pressed("sprint"):
+	elif _held("sprint"):
 		speed = sprint_speed
 
 	_ladder_cooldown -= delta
@@ -316,15 +320,15 @@ func _walk(delta: float) -> void:
 
 	if on_ladder:
 		# Forward/back climbs. Without input the player just hangs on.
-		var climb := Input.get_axis("move_back", "move_forward")
+		var climb := float(_held("move_forward")) - float(_held("move_back"))
 		velocity.y = climb * climb_speed
-		if Input.is_action_just_pressed("jump"):
+		if _just("jump"):
 			velocity = -ladder * 3.0 + Vector3.UP * 2.0
 			_ladder_cooldown = 0.4
 			on_ladder = false
 	else:
 		velocity.y -= gravity * delta
-		if on_floor and Input.is_action_just_pressed("jump"):
+		if on_floor and _just("jump"):
 			velocity.y = jump_velocity
 
 	var start := global_position
@@ -343,7 +347,7 @@ func _walk(delta: float) -> void:
 
 
 func _update_crouch() -> void:
-	var wants_crouch := Input.is_action_pressed("crouch")
+	var wants_crouch := _held("crouch")
 	if wants_crouch and not crouching:
 		crouching = true
 		_height = crouching_height
@@ -355,15 +359,33 @@ func _update_crouch() -> void:
 
 
 func _fly(delta: float) -> void:
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var up := float(Input.is_action_pressed("jump")) - float(Input.is_action_pressed("crouch"))
+	var input := _vector("move_left", "move_right", "move_forward", "move_back")
+	var up := float(_held("jump")) - float(_held("crouch"))
 	var wish := head.global_basis * Vector3(input.x, 0.0, input.y) + Vector3.UP * up
-	var speed := fly_speed * (3.0 if Input.is_action_pressed("sprint") else 1.0)
+	var speed := fly_speed * (3.0 if _held("sprint") else 1.0)
 	global_position += wish.normalized() * speed * delta
 	on_floor = false
 
 
 #region Networking
+
+# Polled input counts only while the mouse is captured (or headless) and no editor modal or text
+# field has the keys; otherwise typing or a menu would walk the player around.
+func _input_live() -> bool:
+	return InputSetup.is_playing() and not EditorInput.blocks_keyboard()
+
+
+func _vector(negative_x: String, positive_x: String, negative_y: String, positive_y: String) -> Vector2:
+	return Input.get_vector(negative_x, positive_x, negative_y, positive_y) if _input_live() else Vector2.ZERO
+
+
+func _held(action: String) -> bool:
+	return _input_live() and Input.is_action_pressed(action)
+
+
+func _just(action: String) -> bool:
+	return _input_live() and Input.is_action_just_pressed(action)
+
 
 func _send_state(delta: float) -> void:
 	if net_peers.is_empty():

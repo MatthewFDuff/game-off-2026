@@ -39,7 +39,7 @@ func _run() -> void:
 	_check("cursor on the floor", tool.has_cursor and tool.solid_cell.y == 39 and tool.cell.y == 40, "%s / %s" % [tool.solid_cell, tool.cell])
 
 	# Box tool, grid 1: two clicks fill a column of the current material.
-	await _key(KEY_1)
+	await _key(KEY_3)
 	await _key(KEY_G)
 	await _key(KEY_G)
 	_check("G cycles the grid to 1", tool.snap() == 1, str(tool.snap()))
@@ -59,7 +59,7 @@ func _run() -> void:
 	await _key(KEY_Z, true)
 
 	# Brush: hold LMB for a few dabs while moving; one undo removes the whole stroke.
-	await _key(KEY_3)
+	await _key(KEY_4)
 	tool.material = M.HAZARD_STRIPES
 	_look_down(me, Vector3(24.0, 6.0, 24.0))
 	await _frames(2)
@@ -75,7 +75,7 @@ func _run() -> void:
 	_check("one undo removes the whole stroke", _count(lab.world, Vector3i(230, 35, 230), Vector3i(255, 50, 250), M.HAZARD_STRIPES) == 0)
 
 	# Prop: place one, select it, rotate it, delete it.
-	await _key(KEY_5)
+	await _key(KEY_7)
 	tool.prop_name = "crate_8"
 	var before: int = lab.level.objects.size()
 	var old_ids: Array = lab.level.objects.keys()
@@ -87,7 +87,7 @@ func _run() -> void:
 	if new_ids.is_empty():
 		return _finish()
 	var crate_id: String = new_ids[0]
-	await _key(KEY_7)
+	await _key(KEY_1)
 	_look_down(me, Vector3(26.0, 6.0, 26.0))
 	await _frames(2)
 	await _click(MOUSE_BUTTON_LEFT)
@@ -100,7 +100,7 @@ func _run() -> void:
 	_check("undo brings it back", lab.level.objects.has(crate_id))
 
 	# Marker.
-	await _key(KEY_6)
+	await _key(KEY_8)
 	tool.marker_type = "horde"
 	before = lab.level.objects.size()
 	await _click(MOUSE_BUTTON_LEFT)

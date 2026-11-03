@@ -72,30 +72,31 @@ Levels live in `levels/<name>/` (`level.json`: settings, props and markers, read
 
 In the menu, pick a level and press **Edit level** (others can join the session and edit with you), or **New level...** (solid rock to carve rooms out of, or empty air). `levels/lab` is the old generated facility, converted once by `scripts/tools/convert_facility.gd`.
 
-Editor controls (fly with WASD, Space up, Ctrl down, Shift fast):
+The editor is being redesigned (`docs/level-editor-v2.md`); step 1, the input rules and the paper UI, is in. Click the world to fly and aim (WASD, Space up, Ctrl down, Shift fast); **Esc** backs out one step at a time (a half-drawn box, then the selection, then frees the mouse to use the panels, then opens the menu). **F1** shows every key in the game. The keys are `EDITOR_KEYS` in `scripts/input_setup.gd`.
 
 | Key | |
 |---|---|
-| 1-7 | Box, Room, Brush, Replace, Prop, Marker, Select |
-| LMB / RMB | Use the tool (box: LMB two corners fills, RMB carves; brush: hold) |
+| 1-5, 7, 8 | Select, Room, Box, Brush, Replace, Prop, Marker (6 is kept for the coming Opening tool) |
+| LMB / RMB | Use the tool (box: LMB two corners fills, RMB carves; brush: hold). RMB backs out of other tools' steps |
 | Alt+LMB | Pick the material (or, with the prop tool, a placed prop's type) under the cursor |
-| Q | Cancel a half-drawn box or a move |
 | G | Grid snap 1 / 5 / 10 voxels (10 = 1 m) |
 | V | Free cursor in mid-air (Ctrl+wheel sets its distance), for carving into rock |
-| [ ] / B | Brush size / sphere or cube |
+| [ ] | Brush size |
 | R | Rotate the prop being placed, or the selection |
-| M / Ctrl+D / X | Move / duplicate / delete the selection |
+| M / Ctrl+D / Delete or X | Move / duplicate / delete the selection |
 | Ctrl+Z / Ctrl+Y | Undo / redo (your own edits) |
 | Ctrl+S | Save (the host saves for everyone) |
 | F5 | Play-test; F5 again returns to editing exactly as it was |
-| Wheel | Fly speed |
-| Tab | Free the mouse to use the side panel (materials, props, marker types, the selection's properties) |
+| B | Show / hide the catalog (materials, props, markers) |
+| Wheel | Fly speed (over a panel it only scrolls the panel) |
+
+The editor's UI uses the paper style from Puzzle Pals (`assets/ui/editor_theme.tres`, `scripts/editor/ui/`, accent recolored dark blue-gray); only the editor uses it. Its input rules are `scripts/editor/editor_input.gd`: buttons never take keyboard focus, Tab never moves focus, panels keep their clicks and the wheel, and while a modal or a text field has the keys, nothing in the world reads them.
 
 - **Markers**: player spawns (by player number), triggers (box volumes that fire for story scripts), intercom speakers, lights (omni / spot, color, energy, range, shadows, flicker, facility or emergency power), horde spawners, the clone vat (respawn point), kill zones, item spots. Each has an id that scripts use.
 - **Props** have an asset value (the payroll loses its share as the prop's voxels are destroyed in play) and can be made into doors (slide offset, speed, locked; E opens them in play).
 - **Room tool**: the corners mark the inside of the room. In rock levels the lining only recolors rock, so a new room opens into any room it touches.
 
-Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, HUD, prop thumbnails).
+Code: `scripts/level/` (data, schema, edits with undo, view, play runtime) and `scripts/editor/` (tool, input rules, HUD, paper widgets, prop thumbnails).
 
 ## Art: MagicaVoxel models
 
@@ -134,6 +135,7 @@ Tests (from the project root, with `godot` being the 4.7 editor binary):
 godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building pieces, navigation (sandbox)
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
+godot --headless --path . --script res://tests/editor_input_test.gd  # editor input rules: wheel over panels, typing, Tab, modals, Esc
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, play-test, save
 godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)

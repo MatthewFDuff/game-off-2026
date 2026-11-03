@@ -223,7 +223,7 @@ func _synthesize_all() -> int:
 	var total := 0
 	for sound in [
 		"rifle", "blast", "chip", "shroom_hit", "shroom_pop", "harvest_chime", "hurt", "plant", "uproot",
-		"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip",
+		"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip", "ui_click", "ui_pop",
 		"build_place", "build_denied", "amb_day", "amb_night",
 		"sting_night", "sting_quota", "sting_gameover", "sting_dawn",
 	]:
@@ -387,6 +387,21 @@ func _make_power_up() -> AudioStreamWAV:
 func _make_ui_blip() -> AudioStreamWAV:
 	var buf := _buffer(RATE, 0.09)
 	_add_tone(buf, RATE, 0.0, 0.09, 1150.0, 1550.0, 0.55, 0.025)
+	return _to_wav(buf, RATE)
+
+
+## Paper button press: a short dry tick with a little body under it.
+func _make_ui_click() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.05)
+	_add_noise(buf, RATE, 0.0, 0.03, 0.45, 0.006, 6000.0, 1500.0)
+	_add_tone(buf, RATE, 0.0, 0.04, 700.0, 420.0, 0.3, 0.012, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Pointer arriving on a button: a soft rising bloop.
+func _make_ui_pop() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.08)
+	_add_tone(buf, RATE, 0.0, 0.08, 520.0, 900.0, 0.35, 0.025)
 	return _to_wav(buf, RATE)
 
 
