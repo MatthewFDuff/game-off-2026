@@ -11,6 +11,8 @@ extends Node
 ## On every peer, after an object was added, changed, renamed or removed. remove_id is the id that
 ## went away ("" if none); object is the new state ({} if removed).
 signal object_set(remove_id: String, object: Dictionary)
+## The soft locks changed (on every peer).
+signal locks_changed
 
 const MAX_HISTORY := 100
 ## Voxel edits bigger than this aren't recorded for undo (two copies of the box would be kept).
@@ -24,6 +26,19 @@ var _history := {}
 var _redo := {}
 ## peer id -> the group being collected between begin_group and end_group.
 var _open := {}
+## Soft locks: object id -> the peer moving or resizing it (the host's table, on every peer). Others
+## can't grab it and the host refuses their edits to it until it's let go; a peer's locks go when
+## it disconnects.
+var locks := {}
+
+
+func _ready() -> void:
+	multiplayer.peer_disconnected.connect(func(peer: int) -> void:
+		if multiplayer.is_server():
+			for id: String in locks.keys():
+				if locks[id] == peer:
+					locks.erase(id)
+			_send_locks())
 
 
 # --- API (any peer) ------------------------------------------------------------------------------
@@ -58,6 +73,21 @@ func end_group() -> void:
 	_call("_do_end", [])
 
 
+## Holds an object while moving or resizing it (one at a time; a new lock lets go of the old).
+func lock(id: String) -> void:
+	_call("_do_lock", [id, true])
+
+
+func unlock(id: String) -> void:
+	_call("_do_lock", [id, false])
+
+
+## The peer holding id's lock if it's someone else, else 0.
+func locked_by_other(id: String) -> int:
+	var holder: int = locks.get(id, 0)
+	return holder if holder != multiplayer.get_unique_id() else 0
+
+
 func undo() -> void:
 	_call("_do_undo", [])
 
@@ -75,7 +105,7 @@ func _call(method: String, args: Array) -> void:
 
 @rpc("any_peer", "reliable")
 func _request(method: String, args: Array) -> void:
-	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_puts", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
+	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_puts", "_do_lock", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
 		callv(method, [multiplayer.get_remote_sender_id()] + args)
 
 
@@ -104,7 +134,10 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 	if lab.mode != "edit":
 		return
 	var level: LevelData = lab.level
-	if LevelSchema.is_structure(object) or LevelSchema.is_door(object) or LevelSchema.is_structure(level.objects.get(old_id, {})) 			or LevelSchema.is_door(level.objects.get(old_id, {})):
+	if _refuse_locked(peer, [old_id]):
+		return
+	var old: Dictionary = level.objects.get(old_id, {})
+	if LevelSchema.is_structure(object) or LevelSchema.is_door(object) or LevelSchema.is_structure(old) or LevelSchema.is_door(old):
 		_do_puts(peer, [[old_id, object]])
 		return
 	var before: Dictionary = level.objects.get(old_id, {})
@@ -120,7 +153,7 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 
 
 func _do_puts(peer: int, puts: Array) -> void:
-	if lab.mode != "edit":
+	if lab.mode != "edit" or _refuse_locked(peer, puts.map(func(put: Array) -> String: return put[0])):
 		return
 	var level: LevelData = lab.level
 	var after := level.objects.duplicate()
@@ -232,6 +265,44 @@ func _door_openings(door_before: Dictionary, door_after: Dictionary, objects: Di
 			objects[after.id] = after
 		changes.append({before = before, after = after})
 	return changes
+
+
+func _do_lock(peer: int, id: String, on: bool) -> void:
+	if on:
+		if locks.has(id) and locks[id] != peer:
+			lab.notify_peer(peer, "%s is moving that" % Net.players.get(locks[id], {}).get("name", "Someone"))
+			return
+		for held: String in locks.keys():
+			if locks[held] == peer:
+				locks.erase(held)
+		locks[id] = peer
+	elif locks.get(id, 0) == peer:
+		locks.erase(id)
+	else:
+		return
+	_send_locks()
+
+
+## Host: true (and tells the peer) if any of these ids is held by someone else.
+func _refuse_locked(peer: int, ids: Array) -> bool:
+	for id in ids:
+		var holder: int = locks.get(id, 0)
+		if holder != 0 and holder != peer:
+			lab.notify_peer(peer, "%s is moving that" % Net.players.get(holder, {}).get("name", "Someone"))
+			return true
+	return false
+
+
+func _send_locks() -> void:
+	_locks_set(locks)
+	for peer_id in lab.world_sync.synced_peers():
+		_locks_set.rpc_id(peer_id, locks)
+
+
+@rpc("authority", "reliable")
+func _locks_set(table: Dictionary) -> void:
+	locks = table.duplicate()
+	locks_changed.emit()
 
 
 func _do_begin(peer: int) -> void:

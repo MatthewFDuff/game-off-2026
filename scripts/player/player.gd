@@ -357,6 +357,14 @@ func set_editing(on: bool) -> void:
 	velocity = Vector3.ZERO
 
 
+## Remote players: shows or hides their figure (the level editor hides it while they're in the
+## builder view, where they're a camera instead).
+func set_body_visible(shown: bool) -> void:
+	for node in [_body, _head_mesh, _name_tag]:
+		if node:
+			node.visible = shown
+
+
 ## Back to full health after dying.
 func revive() -> void:
 	health = max_health

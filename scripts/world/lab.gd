@@ -268,6 +268,11 @@ func _spawn_player(peer_id: int, feet: Vector3, yaw: float) -> void:
 		tool.name = "EditorTool"
 		tool.lab = self
 		player.add_child(tool)
+	# Everyone's copy: the owner sends what they're doing in the editor, the others draw it.
+	var presence := EditorPresence.new()
+	presence.name = "Presence"
+	presence.lab = self
+	player.add_child(presence)
 	player.set_multiplayer_authority(peer_id)
 	players_root.add_child(player)
 	player.teleport(feet)

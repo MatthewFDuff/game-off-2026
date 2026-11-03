@@ -23,6 +23,8 @@ const DOOR_OFFSET := Vector3i(-8, 0, 0)
 ## A room the client builds and resizes in solid rock high above the lab (inside), plus its doorway.
 const ROOM := [Vector3i(100, 200, 100), Vector3i(130, 230, 120)]
 const ROOM_GROWN := Vector3i(140, 230, 120)
+## Where the client's builder camera looks (presence).
+const CLIENT_PIVOT := Vector3(30.0, 4.0, 30.0)
 
 var _failures := 0
 var _port := PORT
@@ -75,6 +77,22 @@ func _host(net: Node) -> void:
 	_check("client's room is carved here", _all(lab.world, [ROOM[0], ROOM_GROWN], M.AIR) and lab.world.get_voxel(ROOM_GROWN + Vector3i(1, -5, -5)) == M.WALL_PAINT)
 	_check("client's doorway is cut", _all(lab.world, [Vector3i(110, 200, 97), Vector3i(122, 222, 100)], M.AIR))
 
+	# Presence: the client is in the builder view, looking at CLIENT_PIVOT, holding the fridge.
+	var client: Player = null
+	for player: Player in lab.players.values():
+		if not player.is_local:
+			client = player
+	var presence = client.get_node("Presence") if client else null
+	await _wait_until(func() -> bool: return presence != null and presence.state.get("pivot", Vector3.ZERO).distance_to(CLIENT_PIVOT) < 0.01, 10.0)
+	_check("host sees the client's builder view and camera", presence != null and presence.state.get("builder", false)
+			and presence.state.get("pivot", Vector3.ZERO).distance_to(CLIENT_PIVOT) < 0.01, str(presence.state if presence else {}))
+	_check("...as a camera, not a body", presence != null and presence._gizmo.visible and (client._body == null or not client._body.visible))
+	_check("client holds the fridge", lab.edits.locks.get(fridge.id, 0) == client.get_multiplayer_authority())
+	var shoved := fridge.duplicate()
+	shoved.origin += Vector3i(5, 0, 0)
+	lab.edits.put_object(shoved, fridge.id)
+	_check("host can't move what the client holds", lab.level.objects[fridge.id].origin == fridge.origin)
+
 	# Host edits and undoes its own.
 	var before: PackedByteArray = lab.world.get_box(BOX_C[0], BOX_C[1])
 	lab.edits.voxel_op({type = "box", from = BOX_C[0], to = BOX_C[1], material = M.GLASS})
@@ -82,6 +100,7 @@ func _host(net: Node) -> void:
 	lab.edits.undo()
 	_check("host undo restores", lab.world.get_box(BOX_C[0], BOX_C[1]) == before)
 	lab.edits.put_object(LevelSchema.new_marker("trigger", Vector3(250, 41, 250)).merged({id = "host_done"}))
+	_check("client lets go of the fridge", await _wait_until(func() -> bool: return lab.edits.locks.is_empty(), 10.0))
 	await _wait_seconds(1.0)
 	var edit_world := _hash(lab.world.get_data())
 	_print_hashes(lab, "edit")
@@ -154,11 +173,17 @@ func _client(net: Node) -> void:
 	var grown := _find_room(lab).duplicate()
 	grown.to = ROOM_GROWN
 	lab.edits.put_object(grown, grown.id)
+	# Presence and a soft lock for the host to see: look at CLIENT_PIVOT, hold the fridge.
+	var camera = lab.local_player().get_node("EditorTool").camera
+	camera.look_from(CLIENT_PIVOT, 0.0)
+	lab.edits.lock(fridge.id)
+	await _wait_seconds(0.5)
 	lab.edits.put_object(LevelSchema.new_marker("trigger", Vector3(260, 41, 260)).merged({id = "client_done"}))
 
 	if not await _wait_until(func() -> bool: return lab.level.objects.has("host_done"), 60.0):
 		_check("host finished its edits", false)
 		return
+	lab.edits.unlock(fridge.id)
 	await _wait_seconds(1.0)
 	_print_hashes(lab, "edit")
 	if not await _wait_until(func() -> bool: return lab.mode == "play", 30.0):

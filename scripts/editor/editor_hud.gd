@@ -28,6 +28,8 @@ var thumbnails := PropThumbnails.new()
 var _root := Control.new()
 var _level_label := Label.new()
 var _roster := HBoxContainer.new()
+## peer id -> the label showing which view they're in.
+var _roster_views := {}
 var _tool_buttons: Array[Button] = []
 var _inspector: PanelContainer
 var _inspector_title := Label.new()
@@ -122,6 +124,14 @@ func _process(delta: float) -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and EditorInput.text_focused():
 		get_viewport().gui_release_focus()
 	_level_label.text = lab.level.name if lab.level else ""
+	for peer_id: int in _roster_views:
+		var other: Player = lab.players.get(peer_id)
+		var label: Label = _roster_views[peer_id]
+		if peer_id == multiplayer.get_unique_id():
+			label.text = "builder" if tool.builder else "walk"
+		elif other and other.has_node("Presence"):
+			var seen: Dictionary = other.get_node("Presence").state
+			label.text = "" if seen.is_empty() else ("builder" if seen.get("builder", false) else "walk")
 	for i in _tool_buttons.size():
 		_tool_buttons[i].set_pressed_no_signal(i == tool.tool)
 	for i in _grid_buttons.size():
@@ -292,7 +302,23 @@ func _build_top_bar() -> void:
 	bar.add_child(actions)
 
 
+## Jumps the view to someone: the builder camera looks at where they are or look, the walk view
+## stands next to them.
+func _go_to(peer_id: int) -> void:
+	var other: Player = lab.players.get(peer_id)
+	if other == null or tool == null or peer_id == multiplayer.get_unique_id():
+		return
+	var presence := other.get_node_or_null("Presence") as EditorPresence
+	var point: Vector3 = presence.focus_point() if presence else other.global_position
+	if tool.builder:
+		tool.camera.pivot = point
+	else:
+		tool.player.teleport(point + Vector3(1.0, 0.0, 0.0))
+		tool.player.flying = true
+
+
 func _update_roster() -> void:
+	_roster_views.clear()
 	for child in _roster.get_children():
 		child.queue_free()
 	for peer_id: int in Net.players:
@@ -305,13 +331,26 @@ func _update_roster() -> void:
 		style.content_margin_right = 10
 		chip.add_theme_stylebox_override("panel", style)
 		chip.mouse_filter = Control.MOUSE_FILTER_STOP
+		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var tags: Array[String] = []
 		if peer_id == 1:
 			tags.append("host")
 		if peer_id == multiplayer.get_unique_id():
 			tags.append("you")
+		else:
+			tags.append("click to go to them")
 		chip.tooltip_text = ", ".join(tags)
-		chip.add_child(_label(entry.name, "Label", 14))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(_label(entry.name, "Label", 14))
+		var view := _label("", "MutedLabel", 11)
+		row.add_child(view)
+		_roster_views[peer_id] = view
+		chip.add_child(row)
+		chip.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				_go_to(peer_id))
 		_roster.add_child(chip)
 
 

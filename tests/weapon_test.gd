@@ -240,9 +240,13 @@ func _pickups() -> void:
 	var enemy = _target(Vector3(4.0, 0.0, -8.0))
 	enemy.health = 10.0
 	var count: int = items.pickups.size()
+	var before := _items()
 	enemies.request_hit(enemy.id, 1000.0, enemy.get_center(), "rifle")
-	var dropped: Array = _items().filter(func(i: String) -> bool: return i.begins_with("ammo_") and i != "ammo_homing")
-	_check("dead enemies drop ammo", items.pickups.size() == count + 1 and dropped.size() == 1, str(_items()))
+	# The new pickup, whatever type it rolled (homing ammo is already lying around from earlier).
+	var dropped := _items()
+	for item in before:
+		dropped.erase(item)
+	_check("dead enemies drop ammo", items.pickups.size() == count + 1 and dropped.size() == 1 and dropped[0].begins_with("ammo_"), str(_items()))
 	items.drop_chance = 0.0
 
 

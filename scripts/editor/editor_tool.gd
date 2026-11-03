@@ -113,6 +113,12 @@ var _invalid_material := StandardMaterial3D.new()
 ## A pending floating-props check (_warn_floating): when, and where.
 var _warn_at := -1.0
 var _warn_box := AABB()
+## This frame's previews in voxels, for presence_state.
+var _cursor_box := AABB()
+## The object this person holds a soft lock on while moving or resizing it ("" none).
+var _locked := ""
+var _preview_box := AABB()
+var _ghost_state := {}
 const WARN_DELAY := 0.4
 ## 0 none, 1 painting, 2 carving
 var _stroke := 0
@@ -280,6 +286,25 @@ func is_aiming() -> bool:
 	return InputSetup.is_playing()
 
 
+## Takes the soft lock on an object before moving or resizing it. False (with a toast) when someone
+## else has it.
+func _hold(id: String) -> bool:
+	var holder: int = lab.edits.locked_by_other(id)
+	if holder != 0:
+		lab.notify("%s is moving that" % Net.players.get(holder, {}).get("name", "Someone"), false)
+		return false
+	if _locked != id:
+		lab.edits.lock(id)
+		_locked = id
+	return true
+
+
+func _release() -> void:
+	if _locked != "":
+		lab.edits.unlock(_locked)
+		_locked = ""
+
+
 ## Drops the pending volume / handle / move / stroke.
 func cancel() -> void:
 	volume.cancel()
@@ -308,6 +333,8 @@ func _process(delta: float) -> void:
 		select("") # Removed by someone else (or undone).
 	camera.cut_step = snap()
 	_check_floating()
+	if _locked != "" and _grab.is_empty() and not handles.is_busy():
+		_release()
 	_update_cursor()
 	if volume.is_active() and is_aiming():
 		volume.aim(_aim_from, _aim_direction)
@@ -525,6 +552,8 @@ func _mouse(event: InputEventMouseButton) -> void:
 		return
 	if not event.pressed:
 		_end_stroke()
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.hover != Vector3i.ZERO 			and not handles.is_busy() and not _hold(handles.room.get("id", "")):
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.press(pointer(), _aim_from, _aim_direction):
 		return
@@ -869,7 +898,7 @@ func delete_selected() -> void:
 
 
 func _start_move() -> void:
-	if selected == "":
+	if selected == "" or not _hold(selected):
 		return
 	_grab = lab.level.objects[selected].duplicate()
 	_grab_id = selected
@@ -1033,6 +1062,22 @@ func _check_floating() -> void:
 		lab.notify("%d prop%s left floating or inside a wall (Select: Check level)" % [found.size(), "" if found.size() == 1 else "s"], false)
 
 
+## What this person is doing, for everyone else (EditorPresence): the view and builder camera, the
+## cursor box, the preview box or prop ghost (voxels), the selection.
+func presence_state() -> Dictionary:
+	var out := {builder = builder, selected = selected}
+	if builder:
+		out.camera = camera.camera.global_transform
+		out.pivot = camera.pivot
+	if _cursor_lines.visible and _cursor_box.has_volume():
+		out.cursor = _cursor_box
+	if _volume.visible:
+		out.preview = _preview_box
+	if _ghost.visible and not _ghost_state.is_empty():
+		out.ghost = _ghost_state
+	return out
+
+
 ## Width / height / length on the edges of the box (world space) nearest the camera; active_axis is
 ## highlighted (-1: none), and show_height false leaves the height off.
 func _place_size_labels(box: AABB, active_axis: int, show_height: bool, typed := "") -> void:
@@ -1070,6 +1115,8 @@ func _update_previews() -> void:
 	_cursor_lines.visible = has_cursor and not volume.is_active() and tool in [Tool.BOX, Tool.ROOM, Tool.BRUSH, Tool.REPLACE]
 	_volume.visible = false
 	_ghost.visible = false
+	_cursor_box = AABB()
+	_ghost_state = {}
 	for label in _size_labels:
 		label.visible = false
 	if _cursor_lines.visible:
@@ -1080,6 +1127,7 @@ func _update_previews() -> void:
 			# Where the first click would start: a grid cell's footprint on the surface.
 			box = AABB(Vector3(_start_cell(false)), Vector3(snap(), 1, snap()))
 		lab.view.draw_box(_cursor_lines.mesh, box)
+		_cursor_box = box
 	if volume.is_active():
 		var box := volume.box()
 		var color := Color(0.3, 1.0, 0.4)
@@ -1094,6 +1142,7 @@ func _update_previews() -> void:
 		_volume.scale = size
 		_volume.position = lab.view.to_world(Vector3(box[0])) + size * 0.5
 		_volume.visible = true
+		_preview_box = AABB(Vector3(box[0]), Vector3(box[1] - box[0]))
 		_place_size_labels(AABB(lab.view.to_world(Vector3(box[0])), size), volume.axis, volume.step == VolumeSteps.Step.HEIGHT, volume.typed)
 	# A room being resized or moved, an opening about to be cut or moved: its box.
 	var box_preview := {}
@@ -1113,6 +1162,7 @@ func _update_previews() -> void:
 		_volume.scale = size
 		_volume.position = lab.view.to_world(Vector3(box_preview.from)) + size * 0.5
 		_volume.visible = true
+		_preview_box = AABB(Vector3(box_preview.from), Vector3(box_preview.to - box_preview.from))
 		var axis := -1
 		for a in 3:
 			if handles.active[a] != 0:
@@ -1132,7 +1182,9 @@ func _update_previews() -> void:
 			_ghost.material_override = lab.world.material if _spot.get("valid", false) else _invalid_material
 			_ghost.position = lab.view.to_world(Vector3(ghost.origin))
 			_ghost.visible = _ghost.mesh != null
+			_ghost_state = {name = ghost.name, origin = ghost.origin, facing = ghost.facing}
 		else:
 			var box := LevelSchema.marker_box(ghost)
 			_cursor_lines.visible = true
 			lab.view.draw_box(_cursor_lines.mesh, box)
+			_cursor_box = box

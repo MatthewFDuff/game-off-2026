@@ -61,6 +61,17 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   normal (up to 32 voxels), so a crate aimed under a desk lands on it. No ceiling props in the
   catalog yet (lights are markers). The trigger `actions` field from that section is left for
   whoever builds the gameplay side. Tested headless (`editor_prop_test`) and in screenshots.
+- **Step 6 done (2026-11-03)**: `EditorPresence` (`scripts/editor/presence.gd`, one per player on
+  every peer): the owner sends {builder, camera, pivot, cursor box, preview box, prop ghost,
+  selection} at 10 Hz when it changes (and every 2 s anyway, unreliable); the others draw it in the
+  owner's color, with a camera gizmo and name for builder-view users and their body hidden. Soft
+  locks in `LevelEdits` (host table sent to all, one lock per person, dropped on disconnect): taken
+  when grabbing a room handle or starting a move, released when that ends; others get "<name> is
+  moving that" and the host refuses their edits to it; the holder's selection shows "<name> is
+  moving this". Roster chips show each person's view; clicking one jumps the camera (builder) or
+  you (walk) to them. Tested in `net_test.sh editor_test` (the host sees the client's builder
+  camera, the client's lock blocks the host's edit and clears when let go); not yet seen in a
+  window with two people.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast
