@@ -47,6 +47,20 @@ rooms**, how **props sit**, how **input and UI** work, and how **walking** feels
   props left floating after a resize (step 5). Tested
   headless (`editor_room_test`, `editor_room_tool_test`, `net_test.sh editor_test` with a client's
   room and resize) and in screenshots.
+- **Step 5 done (2026-11-03)**: `PropPlacement` (`scripts/editor/prop_placement.gd`) with mounts in
+  `PropCatalog.MOUNTS` (floor / wall / ceiling / door / any), push-out, contact on the mount side
+  (props count), red ghosts that won't place, R turning from facing out on walls, moved and
+  duplicated props using the same rules, floor markers (spawn, clone vat, horde) on the floor, the
+  level check (Select with nothing selected) and a toast when a room change leaves props floating.
+  Door placeholders from `docs/lab-design.md` section 9 (single, double, security, blast, vent
+  hatch: placeholder `.vox`, catalog Doors tab), placed with the `door` mount. Choices made while
+  building it: a door is a one-voxel panel in the wall's middle layer and cuts two linked openings,
+  the doorway through the whole wall (`door_ahead` / `door_behind`) and a `slot` pocket beside it
+  that it slides into, hidden inside a 3+ voxel wall, because a door stamped into solid wall would
+  leave a hole when it closed; push-out tries sideways (up to the footprint) before out along the
+  normal (up to 32 voxels), so a crate aimed under a desk lands on it. No ceiling props in the
+  catalog yet (lights are markers). The trigger `actions` field from that section is left for
+  whoever builds the gameplay side. Tested headless (`editor_prop_test`) and in screenshots.
 
 - **For steps 4-5**: `docs/lab-design.md` section 9 (the lab layout plan) lists schema items to fold in:
   door prop placeholders (single sliding 1.2x2.2 m, double 2.4x2.2, security with reader, blast

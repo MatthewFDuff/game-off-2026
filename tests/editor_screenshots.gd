@@ -113,6 +113,14 @@ func _run() -> void:
 	lab.get_node("EditorHud")._refresh()
 	await _frames(4)
 	await _shot("editor_props")
+	# A whiteboard aimed at the west wall hangs on it; aimed at the floor it's red.
+	tool.prop_name = "whiteboard"
+	_look(me, Vector3(24.5, 5.0, 27.0), Vector3(20.4, 5.0, 27.0))
+	await _frames(4)
+	await _shot("editor_prop_wall")
+	_look(me, Vector3(24.5, 5.5, 27.0), Vector3(23.0, 4.0, 27.0))
+	await _frames(4)
+	await _shot("editor_prop_invalid")
 
 	# Markers and the inspector on a light.
 	_look(me, Vector3(25.6, 6.5, 33.0), Vector3(25.6, 6.0, 25.0))

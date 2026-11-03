@@ -15,7 +15,24 @@ const CATEGORIES := {
 	"Office": ["desk", "chair", "table", "couch", "whiteboard", "corkboard", "locker", "bench", "stool"],
 	"Kitchen": ["counter", "fridge", "water_cooler", "vending_machine", "trash_can"],
 	"Storage": ["shelf_storage", "crate", "barrel", "plank_stack", "sandbags"],
+	"Doors": ["door_", "vent_hatch"],
 }
+
+
+## What a prop attaches to when placed (PropPlacement), by name prefix; anything else stands on the
+## floor. "door" props go into a wall and cut their own doorway.
+const MOUNTS := {
+	"whiteboard": "wall", "corkboard": "wall", "vent_grate": "wall",
+	"door_": "door", "vent_hatch": "door",
+}
+
+
+static func mount_of(prop_name: String) -> String:
+	var best := ""
+	for prefix: String in MOUNTS:
+		if prop_name.begins_with(prefix) and prefix.length() > best.length():
+			best = prefix
+	return MOUNTS.get(best, "floor")
 
 
 static func category_of(prop_name: String) -> String:
@@ -75,6 +92,11 @@ static func entries() -> Array[Dictionary]:
 	add.call("ammo_bench", func(p: Props, o: Vector3i) -> void: p.ammo_bench(o, P.NORTH))
 	add.call("generator", func(p: Props, o: Vector3i) -> void: p.generator(o, P.NORTH))
 	add.call("glass_case", func(p: Props, o: Vector3i) -> void: p.glass_case(o, P.NORTH))
+	add.call("door_single", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "single"))
+	add.call("door_double", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 24, 22, "single"))
+	add.call("door_security", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "security"))
+	add.call("door_blast", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 24, 24, "blast"))
+	add.call("vent_hatch", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 12, "hatch"))
 	return list
 
 

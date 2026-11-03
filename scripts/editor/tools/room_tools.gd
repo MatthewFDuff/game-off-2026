@@ -152,6 +152,8 @@ static func carry(objects: Dictionary, before: Dictionary, after: Dictionary, wi
 		if from == object.from and to == object.to:
 			continue
 		if object.door != "" and objects.has(object.door):
+			if doors.has(object.door):
+				continue # Its other opening already moved it.
 			var door: Dictionary = objects[object.door].duplicate()
 			door.origin += from - object.from
 			puts.append([door.id, door])

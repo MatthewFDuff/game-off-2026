@@ -41,7 +41,7 @@ const TOOL_HINTS := [
 	"LMB hold: paint · RMB hold: carve · [ ] size",
 	"LMB on the material to replace, then floor and height · wheel / type sizes · RMB back",
 	"LMB on a wall: cut the opening through it",
-	"LMB place · R / RMB rotate · Alt+LMB pick a placed prop's type",
+	"LMB place (it sits on what you aim at; red: no spot) · R / RMB turn · Alt+LMB pick a placed prop's type",
 	"LMB place the marker · facing follows your view",
 ]
 const SNAPS := [1, 5, 10]
@@ -104,6 +104,16 @@ var _aim_direction := Vector3.FORWARD
 var _grab := {}
 var _grab_id := ""
 var _grab_source := ""
+## R turns while moving a prop (on a wall, turns from facing out of it).
+var _grab_rotation := 0
+## The last prop placement (PropPlacement.place) and what it was worked out for.
+var _spot := {}
+var _spot_key := []
+var _invalid_material := StandardMaterial3D.new()
+## A pending floating-props check (_warn_floating): when, and where.
+var _warn_at := -1.0
+var _warn_box := AABB()
+const WARN_DELAY := 0.4
 ## 0 none, 1 painting, 2 carving
 var _stroke := 0
 var _dab_timer := 0.0
@@ -132,6 +142,9 @@ func _ready() -> void:
 	volume_material.no_depth_test = true
 	_volume.material_override = volume_material
 	_ghost.transparency = 0.45
+	_invalid_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_invalid_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_invalid_material.albedo_color = Color(1.0, 0.25, 0.2, 0.55)
 	volume.world = lab.world
 	handles.world = lab.world
 	handles.build.call_deferred(lab.view)
@@ -294,6 +307,7 @@ func _process(delta: float) -> void:
 	if not selected.is_empty() and not lab.level.objects.has(selected):
 		select("") # Removed by someone else (or undone).
 	camera.cut_step = snap()
+	_check_floating()
 	_update_cursor()
 	if volume.is_active() and is_aiming():
 		volume.aim(_aim_from, _aim_direction)
@@ -353,13 +367,33 @@ func _update_cursor() -> void:
 		cursor_normal = Vector3i(hit.normal)
 		cell = hit.voxel + cursor_normal
 		cursor_on_cap = hit.get("cap", false)
-	# Props and markers aren't voxels while editing; placing on top of one uses its surface.
+	# Props and markers aren't voxels while editing; placing on one uses the face of its box.
 	if object_under != "" and (not hit.hit or object_distance < hit.distance) and tool in [Tool.PROP, Tool.MARKER, Tool.SELECT]:
-		cell = world.world_to_voxel(from + direction * (object_distance - 0.05))
+		var point := from + direction * object_distance
+		var object_box := LevelSchema.box_of(lab.level.objects[object_under])
+		cursor_normal = _face_normal(AABB(lab.view.to_world(object_box.position), object_box.size * world.voxel_size), point)
+		cell = world.world_to_voxel(point + Vector3(cursor_normal) * 0.05)
+		solid_cell = world.world_to_voxel(point - Vector3(cursor_normal) * 0.05)
+		cursor_on_cap = false
 	elif object_under != "" and hit.hit and hit.distance < object_distance:
 		object_under = "" # Behind a wall.
 	if tool == Tool.SELECT and object_under == "" and hit.hit:
 		object_under = room_under()
+
+
+## The outward normal of the box face nearest a point on it.
+static func _face_normal(box: AABB, point: Vector3) -> Vector3i:
+	var best := INF
+	var normal := Vector3i.UP
+	for a in 3:
+		for side in [-1, 1]:
+			var face: float = box.position[a] if side < 0 else box.end[a]
+			var distance := absf(point[a] - face)
+			if distance < best:
+				best = distance
+				normal = Vector3i.ZERO
+				normal[a] = side
+	return normal
 
 
 ## The room the cursor is in (the air in front of the aimed surface is inside it) or on (the aimed
@@ -573,11 +607,15 @@ func _primary() -> void:
 			_begin_stroke(1)
 		Tool.PROP:
 			if _grab.is_empty():
-				lab.edits.put_object(LevelSchema.new_prop(prop_name, _prop_origin(prop_name, facing), facing))
+				var spot := prop_spot(prop_name, facing, "")
+				if not spot.valid:
+					lab.notify("Can't place it: " + spot.reason, false)
+					return
+				lab.edits.put_object(_placed(LevelSchema.new_prop(prop_name, spot.origin, spot.facing), spot))
 			else:
 				_commit_move()
 		Tool.MARKER:
-			var marker := LevelSchema.new_marker(marker_type, _marker_position(), _view_yaw())
+			var marker := LevelSchema.new_marker(marker_type, _marker_position(marker_type), _view_yaw())
 			lab.edits.put_object(marker)
 		Tool.SELECT:
 			if _grab.is_empty():
@@ -792,7 +830,9 @@ func _pick() -> void:
 func _rotate() -> void:
 	if LevelSchema.is_structure(_grab) or (tool == Tool.SELECT and LevelSchema.is_structure(selection())):
 		return # Rooms and openings don't turn (yet).
-	if not _grab.is_empty():
+	if _grab.get("kind") == "prop":
+		_grab_rotation = (_grab_rotation + 1) % 4
+	elif not _grab.is_empty():
 		_turn(_grab)
 	elif tool == Tool.PROP:
 		facing = (facing + 1) % 4
@@ -822,6 +862,7 @@ func delete_selected() -> void:
 			if other.kind == "opening" and other.room == selected:
 				puts.append([other.door if other.door != "" and lab.level.objects.has(other.door) else other.id, {}])
 		lab.edits.put_objects(puts)
+		_warn_floating(LevelSchema.room_outer(object))
 	else:
 		lab.edits.remove_object(selected)
 	select("")
@@ -832,6 +873,14 @@ func _start_move() -> void:
 		return
 	_grab = lab.level.objects[selected].duplicate()
 	_grab_id = selected
+	_grab_rotation = _start_rotation(_grab)
+
+
+## A moved prop keeps its facing on floors; on walls it starts facing out of them.
+func _start_rotation(object: Dictionary) -> int:
+	if object.get("kind") != "prop" or PropCatalog.mount_of(object.name) in ["wall", "door"]:
+		return 0
+	return int(object.facing)
 
 
 func _duplicate() -> void:
@@ -841,6 +890,7 @@ func _duplicate() -> void:
 	_grab.id = ""
 	_grab_id = ""
 	_grab_source = selected
+	_grab_rotation = _start_rotation(_grab)
 
 
 ## Puts the moved / duplicated object where the cursor is. A room takes its openings, doors and
@@ -852,9 +902,16 @@ func _commit_move() -> void:
 		var objects: Dictionary = lab.level.objects
 		if _grab_id != "" and objects.has(_grab_id):
 			lab.edits.put_objects(RoomTools.carry(objects, objects[_grab_id], object, move_contents))
+			_warn_floating(LevelSchema.room_outer(objects[_grab_id]).merge(LevelSchema.room_outer(object)))
 		elif objects.has(_grab_source):
 			var source: Dictionary = objects[_grab_source]
 			lab.edits.put_objects(RoomTools.duplicate(objects, source, object.from - source.from, move_contents))
+	elif object.kind == "prop":
+		var spot := prop_spot(object.name, _grab_rotation, _grab_id)
+		if not spot.valid:
+			lab.notify("Can't put it there: " + spot.reason, false)
+			return
+		lab.edits.put_object(object, _grab_id)
 	else:
 		lab.edits.put_object(object, _grab_id)
 	cancel()
@@ -863,7 +920,7 @@ func _commit_move() -> void:
 func _place_grab(object: Dictionary) -> void:
 	match object.kind:
 		"prop":
-			object.origin = _prop_origin(object.name, object.facing)
+			_placed(object, prop_spot(object.name, _grab_rotation, _grab_id))
 		"room", "opening":
 			# Centered on the cursor; it stands on the floor there, or keeps its height over cut rock.
 			var size: Vector3i = object.to - object.from
@@ -872,7 +929,7 @@ func _place_grab(object: Dictionary) -> void:
 			object.from = Vector3i(corner.x, y, corner.z)
 			object.to = object.from + size
 		_:
-			object.position = _marker_position()
+			object.position = _marker_position(object.type)
 
 
 ## Drops a resized room: one edit with the openings (and doors) in the walls that moved.
@@ -881,6 +938,7 @@ func _commit_resize(resized: Dictionary) -> void:
 	if not objects.has(resized.id) or resized == objects[resized.id]:
 		return
 	lab.edits.put_objects(RoomTools.carry(objects, objects[resized.id], resized, false))
+	_warn_floating(LevelSchema.room_outer(objects[resized.id]).merge(LevelSchema.room_outer(resized)))
 
 
 ## Room tool, Alt+click: the carved space under the cursor becomes a room object (the voxels stay as
@@ -928,18 +986,51 @@ func _place_opening() -> void:
 	lab.edits.put_object(LevelSchema.new_opening(at.from, at.to, at.room, opening_type))
 
 
-## A prop's origin when placed at the cursor: footprint centered on the cell, snapped to the grid.
-func _prop_origin(name: String, prop_facing: int) -> Vector3i:
-	var box := LevelSchema.prop_box({kind = "prop", name = name, origin = Vector3i.ZERO, facing = prop_facing})
-	var corner := cell - Vector3i(int(box.size.x) / 2, 0, int(box.size.z) / 2)
-	var snapped := snapped_cell(corner)
-	return Vector3i(snapped.x, cell.y, snapped.z)
+## Where a prop would go at the cursor (PropPlacement.place), worked out once per change of aim.
+func prop_spot(name: String, rotation: int, ignore: String) -> Dictionary:
+	var key := [name, rotation, ignore, cell, solid_cell, cursor_normal, snap(), lab.level.objects.size()]
+	if key != _spot_key:
+		_spot_key = key
+		_spot = PropPlacement.place(lab.world, lab.level.objects, name, rotation, cell, solid_cell, cursor_normal, snap(), ignore)
+	return _spot
 
 
-func _marker_position() -> Vector3:
+## The prop at a placement: its origin and facing, and for doors the wall around it and the slide.
+func _placed(prop: Dictionary, spot: Dictionary) -> Dictionary:
+	prop.origin = spot.origin
+	prop.facing = spot.facing
+	for key in ["door_ahead", "door_behind", "door_offset"]:
+		if spot.has(key):
+			prop[key] = spot[key]
+	return prop
+
+
+## Markers that stand somewhere (spawns, clone vats, horde spawners) go to the floor under the
+## cursor; the rest go where it points.
+const FLOOR_MARKERS := ["spawn", "clone_vat", "horde"]
+
+
+func _marker_position(type := "") -> Vector3:
 	var s := snap()
 	var snapped := snapped_cell(cell)
-	return Vector3(snapped.x + s * 0.5, cell.y, snapped.z + s * 0.5) if s > 1 else Vector3(cell) + Vector3(0.5, 0.0, 0.5)
+	var y := RoomTools.floor_under(lab.world, cell) if type in FLOOR_MARKERS else cell.y
+	return Vector3(snapped.x + s * 0.5, y, snapped.z + s * 0.5) if s > 1 else Vector3(cell.x + 0.5, y, cell.z + 0.5)
+
+
+## After a room changed: in a moment (once the host has applied it), a toast if props in the box
+## (voxels) were left floating or inside something.
+func _warn_floating(box: AABB) -> void:
+	_warn_box = box if _warn_at < 0.0 else _warn_box.merge(box)
+	_warn_at = Time.get_ticks_msec() / 1000.0 + WARN_DELAY
+
+
+func _check_floating() -> void:
+	if _warn_at < 0.0 or Time.get_ticks_msec() / 1000.0 < _warn_at:
+		return
+	_warn_at = -1.0
+	var found := PropPlacement.problems(lab.world, lab.level.objects, _warn_box)
+	if not found.is_empty():
+		lab.notify("%d prop%s left floating or inside a wall (Select: Check level)" % [found.size(), "" if found.size() == 1 else "s"], false)
 
 
 ## Width / height / length on the edges of the box (world space) nearest the camera; active_axis is
@@ -1033,11 +1124,12 @@ func _update_previews() -> void:
 		ghost = _grab.duplicate()
 		_place_grab(ghost)
 	elif tool == Tool.PROP:
-		ghost = LevelSchema.new_prop(prop_name, _prop_origin(prop_name, facing), facing)
+		ghost = _placed(LevelSchema.new_prop(prop_name, Vector3i.ZERO, facing), prop_spot(prop_name, facing, ""))
 	if not ghost.is_empty() and has_cursor:
 		if ghost.kind == "prop":
 			_ghost.mesh = lab.view.prop_mesh(ghost.name, ghost.facing)
-			_ghost.material_override = lab.world.material
+			# Red where it can't go.
+			_ghost.material_override = lab.world.material if _spot.get("valid", false) else _invalid_material
 			_ghost.position = lab.view.to_world(Vector3(ghost.origin))
 			_ghost.visible = _ghost.mesh != null
 		else:

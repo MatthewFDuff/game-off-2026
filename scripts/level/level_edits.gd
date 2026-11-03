@@ -148,9 +148,7 @@ func _do_puts(peer: int, puts: Array) -> void:
 		ids.append(object.get("id", ""))
 	for change in changes.duplicate():
 		if LevelSchema.is_door(change.before) or LevelSchema.is_door(change.after):
-			var link := _door_opening(change.before, change.after, after)
-			if not link.is_empty():
-				changes.append(link)
+			changes.append_array(_door_openings(change.before, change.after, after))
 	if changes.is_empty():
 		return
 
@@ -180,40 +178,60 @@ func _do_puts(peer: int, puts: Array) -> void:
 
 
 ## A door prop changed (door_before -> door_after, either may be {} or not a door): its linked
-## opening follows its box, in the room whose wall it's in. Updates `objects` and returns the
-## {before, after} change, or {} if none.
-func _door_opening(door_before: Dictionary, door_after: Dictionary, objects: Dictionary) -> Dictionary:
-	var linked: Dictionary = {}
+## openings follow it, in the room whose wall it's in: the doorway (its box, through the wall in
+## front of and behind it: door_ahead / door_behind voxels along its facing) and, if it slides, the
+## pocket it slides into (its box moved by door_offset), which stays hidden inside a thick enough
+## wall. Updates `objects` and returns the {before, after} changes.
+func _door_openings(door_before: Dictionary, door_after: Dictionary, objects: Dictionary) -> Array[Dictionary]:
+	var linked := {}
 	for id in [door_before.get("id", ""), door_after.get("id", "")]:
 		if id == "":
 			continue
 		for object: Dictionary in objects.values():
-			if object.kind == "opening" and object.door == id:
-				linked = object
-				break
-		if not linked.is_empty():
-			break
-	var opening := {}
+			if object.kind == "opening" and object.door == id and not linked.has(object.type):
+				linked[object.type] = object
+	var wanted := {}
 	if LevelSchema.is_door(door_after):
 		var box := LevelSchema.prop_box(door_after)
 		var from := Vector3i(box.position)
 		var to := Vector3i(box.end)
-		opening = linked.duplicate() if not linked.is_empty() else LevelSchema.new_opening(from, to, "", "doorway")
-		opening.from = from
-		opening.to = to
-		opening.door = door_after.id
-		opening.room = LevelStructure.room_at(objects, box)
-		if opening == linked:
-			return {}
-		if not opening.has("id"):
-			opening.id = lab.level.new_id("doorway")
-	if linked.is_empty() and opening.is_empty():
-		return {}
-	if not linked.is_empty():
-		objects.erase(linked.id)
-	if not opening.is_empty():
-		objects[opening.id] = opening
-	return {before = linked, after = opening}
+		var front: Vector3i = PropPlacement.FACING_NORMALS[int(door_after.facing) % 4]
+		var ahead: int = door_after.get("door_ahead", 0)
+		var behind: int = door_after.get("door_behind", 0)
+		var through_from := from
+		var through_to := to
+		for a in 3:
+			if front[a] > 0:
+				through_to[a] += ahead
+				through_from[a] -= behind
+			elif front[a] < 0:
+				through_from[a] -= ahead
+				through_to[a] += behind
+		wanted["doorway"] = [through_from, through_to]
+		var offset: Vector3i = door_after.get("door_offset", Vector3i.ZERO)
+		if offset != Vector3i.ZERO and (ahead > 0 or behind > 0):
+			wanted["slot"] = [from + offset, to + offset]
+	var changes: Array[Dictionary] = []
+	for type: String in ["doorway", "slot"]:
+		var before: Dictionary = linked.get(type, {})
+		var after := {}
+		if wanted.has(type):
+			var box: Array = wanted[type]
+			after = before.duplicate() if not before.is_empty() else LevelSchema.new_opening(box[0], box[1], "", type)
+			after.from = box[0]
+			after.to = box[1]
+			after.door = door_after.id
+			after.room = LevelStructure.room_at(objects, LevelSchema.prop_box(door_after))
+			if not after.has("id"):
+				after.id = lab.level.new_id(type)
+		if after == before:
+			continue
+		if not before.is_empty():
+			objects.erase(before.id)
+		if not after.is_empty():
+			objects[after.id] = after
+		changes.append({before = before, after = after})
+	return changes
 
 
 func _do_begin(peer: int) -> void:

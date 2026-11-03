@@ -43,6 +43,8 @@ const PROP_FIELDS := [
 	{key = "door_locked", type = "bool", default = false, label = "Door locked"},
 	{key = "door_key", type = "string", default = "", label = "Door keycard (red, blue, ...; empty = none)"},
 	{key = "door_power", type = "bool", default = false, label = "Door needs power (not on backup)"},
+	{key = "door_ahead", type = "int", min = 0, max = 30, default = 0, label = "Door: wall in front (voxels)"},
+	{key = "door_behind", type = "int", min = 0, max = 30, default = 0, label = "Door: wall behind (voxels)"},
 	{key = "use", type = "enum", options = USES, default = "none", label = "Use (E)"},
 	{key = "contents", type = "string", default = "", label = "Contents (pickups, comma-separated)"},
 	{key = "text", type = "text", default = "", label = "Text (terminal / note)"},
@@ -107,7 +109,8 @@ const ROOM_FIELDS := [
 	{key = "to", type = "vector3i", label = "Inside to (voxels)"},
 ]
 
-const OPENING_TYPES := ["doorway", "window", "hole"]
+## "slot" is the pocket a sliding door goes into (made by the door, not the Opening tool).
+const OPENING_TYPES := ["doorway", "window", "hole", "slot"]
 
 const OPENING_FIELDS := [
 	{key = "id", type = "string"},
@@ -147,6 +150,9 @@ static func _by_prefix(table: Dictionary, prop_name: String, fallback: Variant) 
 static func new_prop(prop_name: String, origin: Vector3i, facing: int) -> Dictionary:
 	var prop := {kind = "prop", name = prop_name, origin = origin, facing = facing, value = default_value(prop_name)}
 	fill_defaults(prop)
+	if PropCatalog.mount_of(prop_name) == "door":
+		prop.door = true
+		prop.door_speed = 0.8 if prop_name.contains("blast") else 2.5
 	return prop
 
 

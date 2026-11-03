@@ -400,6 +400,27 @@ func vent_grate(origin: Vector3i, facing: int) -> void:
 		box(Vector3i(1, y, 0), Vector3i(9, y + 1, 1), M.PLASTIC)
 
 
+## Door placeholder panel, one voxel thick so it can slide into a pocket inside a 3+ voxel wall
+## (LevelEdits cuts the doorway and the pocket). kind: "single" (window strip), "security" (a
+## keycard stripe), "blast" (hazard stripes), "hatch" (a grate).
+func door_panel(origin: Vector3i, facing: int, w: int, h: int, kind: String) -> void:
+	_begin(origin, w, 1, facing)
+	match kind:
+		"blast":
+			box(Vector3i(0, 0, 0), Vector3i(w, h, 1), M.STEEL)
+			box(Vector3i(0, h / 2 - 1, 0), Vector3i(w, h / 2 + 1, 1), M.HAZARD_STRIPES)
+		"hatch":
+			box(Vector3i(0, 0, 0), Vector3i(w, h, 1), M.RUBBER)
+			for y in range(2, h - 1, 2):
+				box(Vector3i(1, y, 0), Vector3i(w - 1, y + 1, 1), M.PLASTIC)
+		_:
+			box(Vector3i(0, 0, 0), Vector3i(w, h, 1), M.METAL)
+			box(Vector3i(w / 2 - 2, h - 8, 0), Vector3i(w / 2 + 2, h - 3, 1), M.GLASS)
+			if kind == "security":
+				box(Vector3i(0, h / 2, 0), Vector3i(w, h / 2 + 1, 1), M.WARNING)
+				box(Vector3i(w - 3, h / 2 - 3, 0), Vector3i(w - 1, h / 2 - 1, 1), M.SCREEN)
+
+
 ## Vent duct: a 2 m section, open at both ends, sheet metal walls around a 1 m wide, 1.2 m tall
 ## crawl space (a crouching player fits).
 func vent_duct(origin: Vector3i, facing: int) -> void:

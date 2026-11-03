@@ -61,6 +61,9 @@ var _menu_info := Label.new()
 var _shown_tool := -1
 var _shown_selection := ""
 var _icons := {}
+## The level check's last results (props floating or inside walls), shown with nothing selected.
+var _problems: Array[Dictionary] = []
+var _problems_checked := false
 ## prop name -> its catalog tile, for thumbnails that finish rendering later.
 var _prop_tiles := {}
 
@@ -663,7 +666,12 @@ func _refresh() -> void:
 			_note("Click a corner, the far corner of the floor, then the height; the box is the inside of the room. Start on cut rock (the cutaway's cross section) to dig down to the floor you're looking at. In rock levels the lining only recolors rock, so it joins rooms it touches.")
 		EditorTool.Tool.PROP:
 			_heading(tool.prop_name.replace("_", " ").capitalize())
-			_note("Facing %s (%s or RMB rotates). Alt+click a placed prop to pick its type." % [LevelSchema.FACINGS[tool.facing], InputSetup.describe("editor_rotate")])
+			var mounts := {floor = "Stands on what you aim at (on a wall: on the floor, back to the wall).",
+					wall = "Hangs on a wall, facing out.", ceiling = "Hangs from a ceiling.",
+					door = "Goes into a wall and cuts its own doorway; it slides along the wall to open.",
+					any = "Sits on a floor, wall or ceiling."}
+			_note("%s %s or RMB turns it. A red ghost has no spot: it would float or overlap. Alt+click a placed prop to pick its type." % [
+					mounts.get(PropCatalog.mount_of(tool.prop_name), ""), InputSetup.describe("editor_rotate")])
 		EditorTool.Tool.MARKER:
 			_heading(LevelSchema.MARKERS[tool.marker_type].label)
 			_note("Facing follows your view. Select a placed marker to change its properties.")
@@ -672,6 +680,8 @@ func _refresh() -> void:
 			types.add_theme_constant_override("separation", 4)
 			var group := ButtonGroup.new()
 			for type: String in LevelSchema.OPENING_TYPES:
+				if type == "slot":
+					continue # A sliding door's pocket; doors make those.
 				var chip := _button(type.capitalize(), "ChipButton", "", func() -> void:
 					tool.opening_type = type
 					var sizes := {doorway = [12, 22], window = [12, 10], hole = [10, 10]}
@@ -754,6 +764,23 @@ func _selection() -> void:
 	if object.is_empty():
 		_inspector_title.text = "Select"
 		_note("Click a room, opening, prop or marker in the world to select it.")
+		_content.add_child(_button("Check level", "Button", "List props that float or sit inside a wall", func() -> void:
+			_problems = PropPlacement.problems(lab.world, lab.level.objects)
+			_problems_checked = true
+			_refresh()))
+		if _problems_checked:
+			if _problems.is_empty():
+				_note("No floating or buried props.")
+			for problem: Dictionary in _problems:
+				var id: String = problem.id
+				var entry := _button("%s: %s" % [id, problem.reason], "ChipButton", "Select it", func() -> void:
+					if lab.level.objects.has(id):
+						tool.select(id)
+						if tool.builder:
+							tool.frame_selection())
+				entry.alignment = HORIZONTAL_ALIGNMENT_LEFT
+				entry.clip_text = true
+				_content.add_child(entry)
 		return
 	match object.kind:
 		"prop":
