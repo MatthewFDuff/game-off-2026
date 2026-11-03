@@ -1178,7 +1178,7 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_nav_breach_cost"), &VoxelWorld::get_nav_breach_cost);
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "nav_breach_hardness", PROPERTY_HINT_RANGE, "0,254,1"), "set_nav_breach_hardness", "get_nav_breach_hardness");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "nav_breach_cost", PROPERTY_HINT_RANGE, "0,1000,1"), "set_nav_breach_cost", "get_nav_breach_cost");
-	ClassDB::bind_method(D_METHOD("update_flow_field", "target", "max_distance"), &VoxelWorld::update_flow_field, DEFVAL(60.0f));
+	ClassDB::bind_method(D_METHOD("update_flow_field", "targets", "max_distance"), &VoxelWorld::update_flow_field, DEFVAL(60.0f));
 	ClassDB::bind_method(D_METHOD("get_flow", "feet"), &VoxelWorld::get_flow);
 
 	ClassDB::bind_method(D_METHOD("remesh_all_now"), &VoxelWorld::remesh_all_now);

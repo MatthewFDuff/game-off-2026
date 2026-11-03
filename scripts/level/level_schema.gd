@@ -31,6 +31,7 @@ const MARKERS := {
 		{key = "size", type = "vector3i", default = Vector3i(20, 20, 20), label = "Size (voxels)"},
 		{key = "repeat", type = "bool", default = false, label = "Fires every time"},
 		{key = "who", type = "enum", options = ["any", "all"], default = "any", label = "Players needed"},
+		{key = "activates", type = "string", default = "", label = "Activates (spawner ids, or horde)"},
 	]},
 	speaker = {label = "Intercom speaker", color = Color(0.4, 0.75, 1.0), fields = []},
 	light = {label = "Light", color = Color(1.0, 0.95, 0.7), fields = [
@@ -44,7 +45,13 @@ const MARKERS := {
 		{key = "flicker", type = "enum", options = ["none", "subtle", "broken"], default = "none"},
 		{key = "power", type = "enum", options = ["facility", "emergency"], default = "facility", label = "Powered by"},
 	]},
-	horde = {label = "Horde spawner", color = Color(0.9, 0.3, 0.3), fields = []},
+	horde = {label = "Horde spawner", color = Color(0.9, 0.3, 0.3), fields = [
+		{key = "kinds", type = "string", default = "basic", label = "Enemy kinds (comma-separated)"},
+		{key = "rate", type = "float", min = 0.0, max = 120.0, default = 6.0, label = "Spawns per minute"},
+		{key = "max_alive", type = "int", min = 0, max = 50, default = 4, label = "Most alive at once"},
+		{key = "active", type = "bool", default = true, label = "Active from the start"},
+		{key = "radius", type = "float", min = 0.0, max = 10.0, default = 1.5, label = "Spawn radius (m)"},
+	]},
 	clone_vat = {label = "Clone vat", color = Color(0.4, 1.0, 0.8), fields = []},
 	kill_zone = {label = "Kill zone", color = Color(1.0, 0.2, 0.6), fields = [
 		{key = "size", type = "vector3i", default = Vector3i(20, 30, 20), label = "Size (voxels)"},
@@ -82,6 +89,17 @@ static func new_marker(type: String, position: Vector3, yaw := 0.0) -> Dictionar
 	for field: Dictionary in MARKERS[type].fields:
 		marker[field.key] = field.default
 	return marker
+
+
+## Fills in fields a marker is missing (level files saved before the field existed) with defaults.
+static func fill_defaults(object: Dictionary) -> void:
+	if object.get("kind") != "marker" or not MARKERS.has(object.get("type")):
+		return
+	for field: Dictionary in MARKERS[object.type].fields:
+		if not object.has(field.key):
+			object[field.key] = field.default
+		elif field.type == "int" and object[field.key] is float:
+			object[field.key] = int(object[field.key]) # JSON numbers come back as floats.
 
 
 ## Inspector fields for an object.

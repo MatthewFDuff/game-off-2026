@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/lab.gd" id="1_lab"]
 [ext_resource type="Shader" path="res://shaders/voxel_terrain.gdshader" id="2_shader"]
@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://scripts/level/level_view.gd" id="7_view"]
 [ext_resource type="Script" path="res://scripts/level/level_play.gd" id="8_play"]
 [ext_resource type="Script" path="res://scripts/editor/editor_hud.gd" id="9_editor_hud"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_manager.gd" id="10_enemies"]
+[ext_resource type="Script" path="res://scripts/enemies/horde_director.gd" id="11_director"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_terrain"]
 resource_local_to_scene = true
@@ -31,7 +33,7 @@ fog_density = 0.02
 fog_height = 9.5
 fog_height_density = -0.25
 
-[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "players_root", "debris", "edits", "view", "play", "environment")]
+[node name="Lab" type="Node3D" node_paths=PackedStringArray("world", "world_sync", "players_root", "debris", "edits", "view", "play", "environment", "enemies", "director")]
 script = ExtResource("1_lab")
 world = NodePath("VoxelWorld")
 world_sync = NodePath("WorldSync")
@@ -41,6 +43,8 @@ edits = NodePath("Edits")
 view = NodePath("View")
 play = NodePath("Play")
 environment = NodePath("WorldEnvironment")
+enemies = NodePath("Enemies")
+director = NodePath("Director")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_lab")
@@ -70,6 +74,18 @@ lab = NodePath("..")
 [node name="Debris" type="Node3D" parent="." node_paths=PackedStringArray("world")]
 script = ExtResource("4_debris")
 world = NodePath("../VoxelWorld")
+
+[node name="Enemies" type="Node3D" parent="." node_paths=PackedStringArray("lab", "world", "world_sync", "debris")]
+script = ExtResource("10_enemies")
+lab = NodePath("..")
+world = NodePath("../VoxelWorld")
+world_sync = NodePath("../WorldSync")
+debris = NodePath("../Debris")
+
+[node name="Director" type="Node" parent="." node_paths=PackedStringArray("lab", "enemies")]
+script = ExtResource("11_director")
+lab = NodePath("..")
+enemies = NodePath("../Enemies")
 
 [node name="Hud" type="CanvasLayer" parent="." node_paths=PackedStringArray("lab")]
 script = ExtResource("5_hud")

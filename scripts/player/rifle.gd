@@ -3,22 +3,26 @@ extends Node
 ## Placeholder co-op weapon on each player: a hitscan rifle that chips voxels, and an alt-fire blast
 ## that carves a crater. The owning peer aims and fires; terrain damage goes through WorldSync so
 ## every world agrees, and the other peers are sent the shot so they see its tracer and hear it.
+## Shots that hit an enemy (Combat.ray_hit) damage it through EnemyManager.request_hit instead.
 
 ## kind is "rifle" or "blast". Emitted for the local player's shots only.
 signal fired(kind: String)
 
 @export var world_sync: WorldSync
+@export var enemies: EnemyManager
 
 @export_group("Rifle")
 @export var fire_rate := 10.0
 @export var chip_radius := 0.14
 @export var chip_power := 4
 @export var weapon_range := 120.0
+@export var rifle_damage := 12.0
 
 @export_group("Blast")
 @export var blast_radius := 1.2
 @export var blast_power := 6
 @export var blast_cooldown := 0.8
+@export var blast_damage := 40.0
 
 @export_group("Feedback")
 @export var rifle_recoil := 0.018
@@ -75,7 +79,7 @@ func _process(delta: float) -> void:
 func _fire(kind: String) -> void:
 	var camera := player.camera
 	var direction := -camera.global_basis.z
-	var hit: Dictionary = player.world.raycast(camera.global_position, direction, weapon_range)
+	var hit := Combat.ray_hit(player.world, camera.global_position, direction, weapon_range)
 	var end: Vector3 = hit.position if hit.hit else camera.global_position + direction * 60.0
 	var muzzle := camera.global_transform * tracer_origin
 
@@ -91,11 +95,17 @@ func _fire(kind: String) -> void:
 	for peer_id in player.net_peers:
 		_remote_shot.rpc_id(peer_id, kind, muzzle, end)
 
-	if hit.hit:
-		if kind == "rifle":
-			world_sync.carve_sphere(hit.position, chip_radius, chip_power, hit.normal)
-		else:
-			world_sync.carve_sphere(hit.position, blast_radius, blast_power, hit.normal)
+	if not hit.hit:
+		return
+	if hit.enemy and enemies:
+		enemies.request_hit(hit.enemy.id, rifle_damage if kind == "rifle" else blast_damage, hit.position, kind)
+	elif kind == "rifle":
+		world_sync.carve_sphere(hit.position, chip_radius, chip_power, hit.normal)
+	else:
+		world_sync.carve_sphere(hit.position, blast_radius, blast_power, hit.normal)
+		if enemies:
+			for enemy in Combat.sphere_hit(hit.position, blast_radius * 1.5):
+				enemies.request_hit(enemy.id, blast_damage * 0.6, enemy.get_center(), kind)
 
 
 @rpc("authority", "call_remote", "unreliable")

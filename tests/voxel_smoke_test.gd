@@ -125,6 +125,17 @@ func _run() -> void:
 	var at_target: Dictionary = world.get_flow(target)
 	_check("flow at target", at_target.valid and at_target.at_target, str(at_target))
 
+	# Two targets (players): every agent heads for whichever is nearer.
+	var second := Vector3(27.0, 2.2, 40.0)
+	world.update_flow_field(PackedVector3Array([target, second]), 60.0)
+	var near_second: Dictionary = world.get_flow(Vector3(24.0, 2.2, 40.0))
+	_check("two targets: flow leads to the nearer one", near_second.valid and near_second.distance < 4.0 and (near_second.next - Vector3(24.0, 2.2, 40.0)).dot(second - Vector3(24.0, 2.2, 40.0)) > 0.0, str(near_second))
+	var near_first: Dictionary = world.get_flow(Vector3(32.0, 2.2, 36.0))
+	_check("two targets: the other side still leads to the first", near_first.valid and near_first.distance < 4.0 and (near_first.next - Vector3(32.0, 2.2, 36.0)).dot(target - Vector3(32.0, 2.2, 36.0)) > 0.0, str(near_first))
+	_check("two targets: both are targets", world.get_flow(target).get("at_target", false) and world.get_flow(second).get("at_target", false))
+	world.update_flow_field([second], 60.0)
+	_check("targets as an Array", world.get_flow(target).valid and world.get_flow(target).distance > 9.0, str(world.get_flow(target)))
+
 	# A sealed concrete room can't be reached; swap one wall for planks and it's reachable by breaching.
 	world.fill_box(Vector3i(210, 22, 210), Vector3i(250, 72, 250), VoxelMaterials.CONCRETE)
 	world.fill_box(Vector3i(214, 22, 214), Vector3i(246, 72, 246), VoxelMaterials.AIR)

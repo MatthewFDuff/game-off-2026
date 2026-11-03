@@ -168,6 +168,7 @@ static func from_json(text: String) -> LevelData:
 	for id: String in data.get("objects", {}):
 		var object := _decode(data.objects[id])
 		object.id = id
+		LevelSchema.fill_defaults(object)
 		level.objects[id] = object
 	return level
 

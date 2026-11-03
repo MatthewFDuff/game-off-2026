@@ -120,7 +120,7 @@ already have a facility / emergency flag; doors, terminals and the generator rea
 - `WorldSync`: every voxel change goes through the host and replays on peers.
 - `VoxelWorld` (C++): `move_box` box collision, `raycast`, `carve_sphere`, and a **flow-field
   navigation** (`update_flow_field(target, max_distance)`, `get_flow(feet)`) with ledges, drops,
-  headroom and "breach" spans that enemies can dig through. It takes one target.
+  headroom and "breach" spans that enemies can dig through. Takes one or many targets (nearest wins).
 - `ShroomModels` and `assets/vox/shrooms/stage4_<v>_eyes.vox`: grown shroom bodies with eyes,
   live-reloadable.
 - `Sfx`: synthesized sounds, including `shroom_hit`, `shroom_pop`, `shroom_chitter`, `bite`,

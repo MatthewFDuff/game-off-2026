@@ -12,6 +12,11 @@ extends SceneTree
 ## solid lamp once the client is in, and both sides must see the lamp fridge (the client only
 ## through the host's edits). Then the host saves a broken file, which must change nothing.
 ##
+## Enemies: the host spawns one before the client joins (it must reach the client with the roster)
+## and two after. They're frozen in place so both sides can hash their ids and positions. The
+## client shoots one by request_hit, the host kills another itself, and both must end with the
+## same single enemy.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -59,6 +64,9 @@ func _host(net: Node) -> void:
 		return
 	var spawn: Vector3 = lab.spawn_point(0)
 	lab.world_sync.carve_sphere(spawn + Vector3(3.0, 0.0, 0.0), 1.0, 254)
+	var first = _spawn_frozen(lab, spawn + Vector3(1.5, 0.0, 4.0))
+	_check("host spawns an enemy", first != null)
+	var first_id: int = first.id if first else -1
 	print("READY") # The driver starts the client now.
 
 	# Generous: a cold Godot start alone can take half a minute on Windows.
@@ -74,6 +82,8 @@ func _host(net: Node) -> void:
 	var follows := await _wait_until(func() -> bool: return avatar.global_position.distance_to(spawn + CLIENT_SPOT) < 0.5, 10.0)
 	_check("client avatar follows the client", follows, str(avatar.global_position))
 	_check("client confirmed entry", client_id in lab.peers_in_level)
+	var second_id: int = _spawn_frozen(lab, spawn + Vector3(-1.5, 0.0, 4.0)).id
+	var third_id: int = _spawn_frozen(lab, spawn + Vector3(0.0, 0.0, 5.5)).id # The client shoots this one.
 
 	_write_lamp_fridge()
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 5.0)
@@ -82,8 +92,16 @@ func _host(net: Node) -> void:
 	await _wait_seconds(1.5)
 	_check("a broken save keeps the old prop", _count(lab.world, LAMP) > 500)
 
-	await _wait_seconds(1.0)
+	var shot := await _wait_until(func() -> bool: return not lab.enemies.enemies.has(third_id), 20.0)
+	_check("the client's hit kills on the host", shot)
+	var second = lab.enemies.get_enemy(second_id)
+	if second:
+		lab.enemies.request_hit(second_id, 1000.0, second.get_center(), "rifle")
+	_check("host kills one itself", lab.enemies.enemies.keys() == [first_id], str(lab.enemies.enemies.keys()))
+
+	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
+	print("HASH ", _enemy_hash(lab))
 	await _wait_seconds(5.0) # Stay up until the client has hashed too.
 
 
@@ -105,8 +123,19 @@ func _client(net: Node) -> void:
 	lab.world_sync.carve_sphere(lab.spawn_point(0) + Vector3(0.0, 0.0, -3.0), 1.0, 254)
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
 	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
-	await _wait_seconds(3.5)
+
+	var enemies = lab.enemies
+	var seen := await _wait_until(func() -> bool: return enemies.enemies.size() == 3, 20.0)
+	_check("client sees the host's enemies, including one from before it joined", seen and enemies.enemies.keys().has(1), str(enemies.enemies.keys()))
+	if seen:
+		var target = enemies.enemies[enemies.enemies.keys().max()]
+		_check("client enemies are drawn, not simulated", not enemies.simulating and target._mesh != null)
+		enemies.request_hit(target.id, 1000.0, target.get_center(), "rifle")
+	var down_to_one := await _wait_until(func() -> bool: return enemies.enemies.size() == 1, 20.0)
+	_check("deaths reach the client", down_to_one, str(enemies.enemies.keys()))
+	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
+	print("HASH ", _enemy_hash(lab))
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))
@@ -121,6 +150,29 @@ func _screenshot(lab, me, path: String) -> void:
 	await _wait_seconds(0.5)
 	root.get_texture().get_image().save_png(path)
 	print("saved ", path)
+
+
+## Host: an enemy standing on the floor under at that never moves or attacks, so both sides can
+## compare where it is.
+func _spawn_frozen(lab, at: Vector3):
+	var down: Dictionary = lab.world.raycast(at + Vector3.UP, Vector3.DOWN, 4.0)
+	var enemy = lab.enemies.spawn("basic", down.position if down.hit else at)
+	if enemy:
+		enemy.speed = 0.0
+		enemy.attack_range = 0.0
+		enemy.damage = 0.0
+	return enemy
+
+
+## Enemy ids and positions, sorted, as text (so the driver compares them like the world hashes).
+func _enemy_hash(lab) -> String:
+	var ids: Array = lab.enemies.enemies.keys()
+	ids.sort()
+	var parts: Array[String] = []
+	for id: int in ids:
+		var feet: Vector3 = lab.enemies.enemies[id].global_position
+		parts.append("%d@%.2f,%.2f,%.2f" % [id, feet.x, feet.y, feet.z])
+	return "enemies " + " ".join(parts)
 
 
 func _copy_props() -> void:

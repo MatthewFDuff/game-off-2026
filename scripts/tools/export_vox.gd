@@ -6,6 +6,7 @@ extends SceneTree
 ##   props/       furniture, from PropCatalog
 ##   shrooms/     growth stages 0-4 x 4 variants, plus the grown hunters with eyes
 ##   characters/  player body and head
+##   enemies/     one placeholder per enemy kind (and variant), from EnemyModels
 ##   pieces/      the old build-mode scrap pieces
 ##   _palette.vox one cube per game material, to see and pick from the palette
 ## PALETTE.md lists which palette index is which material. Also writes placeholder pattern images
@@ -21,7 +22,7 @@ var _kept := 0
 
 func _initialize() -> void:
 	_force = "--force" in OS.get_cmdline_user_args()
-	for dir in ["props", "shrooms", "characters", "pieces"]:
+	for dir in ["props", "shrooms", "characters", "enemies", "pieces"]:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(ROOT + dir))
 
 	for entry in PropCatalog.entries():
@@ -33,6 +34,9 @@ func _initialize() -> void:
 		_save("shrooms/stage%d_%d_eyes.vox" % [ShroomModels.MAX_STAGE, variant], ShroomModels.build(ShroomModels.MAX_STAGE, variant, true))
 	_save("characters/player_body.vox", _player_body())
 	_save("characters/player_head.vox", _player_head())
+	for kind: String in EnemyModels.VARIANTS:
+		for variant in EnemyModels.VARIANTS[kind]:
+			_save("enemies/%s_%d.vox" % [kind, variant], EnemyModels.generate(kind, variant))
 	for piece in BuildPieces.PIECES:
 		_save("pieces/%s.vox" % piece.name.to_snake_case().replace(" ", "_"), BuildPieces.oriented(piece, Vector3.BACK, false))
 	_save("_palette.vox", _palette_swatch())

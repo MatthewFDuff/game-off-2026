@@ -3,12 +3,14 @@
 // A "span" is a walkable floor in a column: a height where the voxel layer below is at least half
 // solid and there is enough headroom above. Spans whose headroom is blocked only by soft voxels
 // (planks, dirt) are "breach" spans: walkable, but only by digging through, so they cost extra.
-// The flow field is a Dijkstra search outward from the span under the target, giving every
-// reachable span its cost to walk there. Agents step to whichever neighbor span is cheapest.
+// The flow field is a Dijkstra search outward from the spans under the targets (one or several:
+// players), giving every reachable span its cost to walk to the nearest one. Agents step to whichever neighbor span is cheapest.
 
 #include "voxel_world.h"
 
 #include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
 
 #include <algorithm>
 #include <climits>
@@ -177,7 +179,29 @@ Vector3 VoxelWorld::nav_span_world(int column, int k) const {
 	return origin + Vector3(cx * NAV_COLUMN + half, nav_span_height[size_t(column) * NAV_MAX_SPANS + k], cz * NAV_COLUMN + half) * voxel_size;
 }
 
-void VoxelWorld::update_flow_field(const Vector3 &target, float max_distance) {
+int VoxelWorld::nav_target_node(const Vector3 &target) const {
+	const Vector3 p = to_voxel_space(target);
+	const int tx = int(std::floor(p.x / NAV_COLUMN));
+	const int tz = int(std::floor(p.z / NAV_COLUMN));
+	const int ty = int(std::floor(p.y + 0.05f));
+	for (int radius = 0; radius <= 2; radius++) {
+		for (int dz = -radius; dz <= radius; dz++) {
+			for (int dx = -radius; dx <= radius; dx++) {
+				const int cx = tx + dx, cz = tz + dz;
+				if (cx < 0 || cz < 0 || cx >= nav_columns_x || cz >= nav_columns_z) {
+					continue;
+				}
+				const int k = nav_find_span(cz * nav_columns_x + cx, ty);
+				if (k >= 0) {
+					return (cz * nav_columns_x + cx) * NAV_MAX_SPANS + k;
+				}
+			}
+		}
+	}
+	return -1;
+}
+
+void VoxelWorld::update_flow_field(const Variant &targets, float max_distance) {
 	const uint64_t start = Time::get_singleton()->get_ticks_usec();
 
 	if (nav_hardness_stale) {
@@ -198,33 +222,46 @@ void VoxelWorld::update_flow_field(const Vector3 &target, float max_distance) {
 	nav_flow_target = -1;
 	last_flow_reached = 0;
 
-	// Start from the floor under the target, looking a couple of columns out if it is mid-air.
-	const Vector3 p = to_voxel_space(target);
-	const int tx = int(std::floor(p.x / NAV_COLUMN));
-	const int tz = int(std::floor(p.z / NAV_COLUMN));
-	const int ty = int(std::floor(p.y + 0.05f));
-	for (int radius = 0; radius <= 2 && nav_flow_target < 0; radius++) {
-		for (int dz = -radius; dz <= radius && nav_flow_target < 0; dz++) {
-			for (int dx = -radius; dx <= radius && nav_flow_target < 0; dx++) {
-				const int cx = tx + dx, cz = tz + dz;
-				if (cx < 0 || cz < 0 || cx >= nav_columns_x || cz >= nav_columns_z) {
-					continue;
+	std::vector<Vector3> points;
+	switch (targets.get_type()) {
+		case Variant::VECTOR3:
+			points.push_back(targets);
+			break;
+		case Variant::PACKED_VECTOR3_ARRAY: {
+			const PackedVector3Array packed = targets;
+			for (int i = 0; i < packed.size(); i++) {
+				points.push_back(packed[i]);
+			}
+		} break;
+		case Variant::ARRAY: {
+			const Array array = targets;
+			for (int i = 0; i < array.size(); i++) {
+				if (array[i].get_type() == Variant::VECTOR3) {
+					points.push_back(array[i]);
 				}
-				const int k = nav_find_span(cz * nav_columns_x + cx, ty);
-				if (k >= 0) {
-					nav_flow_target = (cz * nav_columns_x + cx) * NAV_MAX_SPANS + k;
-				}
+			}
+		} break;
+		default:
+			ERR_PRINT("update_flow_field: targets must be a Vector3, an Array of Vector3 or a PackedVector3Array");
+			break;
+	}
+
+	// Every target's floor starts at cost 0, so the search finds each span's nearest target.
+	using Entry = std::pair<uint32_t, int>;
+	std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> open;
+	for (const Vector3 &point : points) {
+		const int node = nav_target_node(point);
+		if (node >= 0 && nav_flow[node] != 0) {
+			nav_flow[node] = 0;
+			open.push({ 0, node });
+			if (nav_flow_target < 0) {
+				nav_flow_target = node;
 			}
 		}
 	}
 
 	if (nav_flow_target >= 0) {
 		const uint32_t max_cost = uint32_t(max_distance / (NAV_COLUMN * voxel_size) * STRAIGHT_COST);
-		using Entry = std::pair<uint32_t, int>;
-		std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> open;
-		nav_flow[nav_flow_target] = 0;
-		open.push({ 0, nav_flow_target });
-
 		while (!open.empty()) {
 			const auto [cost, node] = open.top();
 			open.pop();
@@ -285,7 +322,7 @@ Dictionary VoxelWorld::get_flow(const Vector3 &feet) const {
 	}
 
 	result["distance"] = float(nav_flow[node]) / STRAIGHT_COST * NAV_COLUMN * voxel_size;
-	if (node == nav_flow_target) {
+	if (nav_flow[node] == 0) { // Every step costs something, so only targets' floors are 0.
 		result["valid"] = true;
 		result["at_target"] = true;
 		result["breach"] = false;
