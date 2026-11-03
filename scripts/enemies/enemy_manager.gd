@@ -32,7 +32,10 @@ const FLOW_RANGE := 80.0
 ## Requests from peers are clamped to this so a bad packet can't do anything silly.
 const MAX_DAMAGE := 1000.0
 ## Knockback speed (m/s) by damage kind.
-const KNOCKBACK := {rifle = 1.2, blast = 7.0, melee = 5.0}
+const KNOCKBACK := {rifle = 1.2, shotgun = 2.5, flame = 0.0, blast = 7.0, ricochet = 1.5, homing = 2.0,
+		poison = 0.5, melee = 5.0}
+## Longest status (seconds) a peer can ask for.
+const MAX_STATUS := 30.0
 
 @export var lab: Lab
 @export var world: VoxelWorld
@@ -241,6 +244,27 @@ func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 		kill(id)
 
 
+## Any peer: this peer's attack gave enemy id a status ("burning", "poisoned", ...) for seconds.
+## The host applies it (Enemy.apply_status).
+func request_status(id: int, status: String, seconds: float) -> void:
+	if multiplayer.is_server():
+		_apply_status(id, status, seconds)
+	else:
+		_request_status.rpc_id(1, id, status, seconds)
+
+
+@rpc("any_peer", "reliable")
+func _request_status(id: int, status: String, seconds: float) -> void:
+	if multiplayer.is_server():
+		_apply_status(id, status, seconds)
+
+
+func _apply_status(id: int, status: String, seconds: float) -> void:
+	var enemy: Enemy = enemies.get(id)
+	if enemy and enemy.alive and simulating:
+		enemy.apply_status(status, clampf(seconds, 0.0, MAX_STATUS))
+
+
 ## Every peer: hit flash and sound.
 @rpc("authority", "unreliable")
 func _hit_fx(id: int, point: Vector3) -> void:
@@ -283,8 +307,8 @@ func _attacked(id: int) -> void:
 
 # --- Targets and steering ------------------------------------------------------------------------
 
-## Players enemies go after: in the level, alive as far as this peer knows (remote players' deaths
-## aren't replicated, so a dead remote player is still chased until it respawns), not editing.
+## Players enemies go after (and the flow field leads to): in the level, alive (remote players'
+## deaths arrive with their state packets), not editing.
 func targets() -> Array[Player]:
 	var out: Array[Player] = []
 	for player: Player in lab.players.values():

@@ -226,6 +226,7 @@ func _synthesize_all() -> int:
 		"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip",
 		"build_place", "build_denied", "amb_day", "amb_night",
 		"sting_night", "sting_quota", "sting_gameover", "sting_dawn",
+		"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
@@ -240,6 +241,72 @@ func _make_rifle() -> AudioStreamWAV:
 	_add_noise(buf, RATE, 0.0, 0.22, 0.6, 0.03, 7000.0)
 	_add_noise(buf, RATE, 0.0, 0.22, 0.4, 0.07, 900.0)
 	_add_tone(buf, RATE, 0.0, 0.12, 170.0, 55.0, 0.5, 0.045)
+	return _to_wav(buf, RATE)
+
+
+## Shotgun: a wide, heavier crack than the rifle with a long low boom under it.
+func _make_shotgun() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.5)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.65, 0.05, 6000.0)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.55, 0.14, 700.0)
+	_add_tone(buf, RATE, 0.0, 0.3, 120.0, 38.0, 0.6, 0.09)
+	return _to_wav(buf, RATE)
+
+
+## Flamethrower tick (replayed about 10 times a second while firing): a soft roaring whoosh with a
+## fast flutter and a couple of crackles.
+func _make_flame() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.16)
+	_add_noise(buf, RATE, 0.0, 0.16, 0.45, 0.0, 1400.0, 120.0, 0.02, 0.05, 32.0, 0.5)
+	for t in [0.03, 0.09]:
+		_add_noise(buf, RATE, t + _rng.randf() * 0.02, 0.03, 0.3, 0.008, 0.0, 2500.0)
+	return _to_wav(buf, RATE)
+
+
+## Ricochet: a metallic ping that whines down in pitch, over a short scrape.
+func _make_ricochet() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.35)
+	_add_noise(buf, RATE, 0.0, 0.08, 0.5, 0.02, 0.0, 2500.0)
+	_add_tone(buf, RATE, 0.0, 0.35, 2600.0, 1100.0, 0.35, 0.12, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.0, 0.2, 3900.0, 1700.0, 0.12, 0.06)
+	return _to_wav(buf, RATE)
+
+
+## Homing launch: a rising square-wave chirp with a breathy puff of exhaust.
+func _make_homing() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.22, 420.0, 1150.0, 0.22, 0.12, Shape.SQUARE)
+	_add_tone(buf, RATE, 0.05, 0.2, 840.0, 2100.0, 0.12, 0.08)
+	_add_noise(buf, RATE, 0.0, 0.3, 0.4, 0.1, 2200.0, 300.0)
+	return _to_wav(buf, RATE)
+
+
+## Poison shot: a wet bloop sliding down, a burble of bubbles and a hiss.
+func _make_poison_shot() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.4)
+	_add_tone(buf, RATE, 0.0, 0.18, 320.0, 110.0, 0.5, 0.07)
+	for i in 4:
+		var f := 500.0 + _rng.randf() * 400.0
+		_add_tone(buf, RATE, 0.06 + i * 0.05, 0.05, f, f * 1.6, 0.18, 0.02)
+	_add_noise(buf, RATE, 0.0, 0.4, 0.25, 0.15, 5000.0, 1500.0, 0.02)
+	return _to_wav(buf, RATE)
+
+
+## Ammo shift: two quick mechanical clicks and a short whirr rising between them.
+func _make_ammo_shift() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.22)
+	_add_noise(buf, RATE, 0.0, 0.03, 0.7, 0.006, 0.0, 3000.0)
+	_add_tone(buf, RATE, 0.02, 0.12, 300.0, 700.0, 0.18, 0.0, Shape.SAW, 0.01, 0.03)
+	_add_noise(buf, RATE, 0.14, 0.04, 0.8, 0.008, 0.0, 2500.0)
+	_add_tone(buf, RATE, 0.14, 0.05, 1500.0, 1200.0, 0.15, 0.015, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Pickup: two bright rising blips.
+func _make_pickup() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.12, 880.0, 880.0, 0.3, 0.06, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.08, 0.22, 1320.0, 1320.0, 0.3, 0.09, Shape.TRIANGLE)
 	return _to_wav(buf, RATE)
 
 

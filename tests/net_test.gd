@@ -17,6 +17,10 @@ extends SceneTree
 ## client shoots one by request_hit, the host kills another itself, and both must end with the
 ## same single enemy.
 ##
+## Weapons and pickups: the client fires an explosive at a wall away from the enemies (the host's
+## copy of its player must show the ammo it loaded, and the blast must reach both worlds, which
+## the world hashes check), and the host walks into a pickup, which must disappear on the client.
+##
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
@@ -98,10 +102,23 @@ func _host(net: Node) -> void:
 	if second:
 		lab.enemies.request_hit(second_id, 1000.0, second.get_center(), "rifle")
 	_check("host kills one itself", lab.enemies.enemies.keys() == [first_id], str(lab.enemies.enemies.keys()))
+	_check("the client's loaded ammo shows on its avatar", await _wait_until(func() -> bool: return avatar.weapon.current == "explosive", 10.0),
+			avatar.weapon.current)
+
+	# A pickup a little way off, then the host walks into it.
+	var pickup = lab.items.spawn("ammo_shotgun", spawn + Vector3(0.0, 0.35, -1.2))
+	_check("host spawns a pickup", pickup != null)
+	await _wait_seconds(1.0)
+	var host_player = lab.local_player()
+	host_player.teleport(spawn + Vector3(0.0, 0.0, -1.2))
+	var pickup_id: int = pickup.id if pickup else -1
+	var taken := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id), 5.0)
+	_check("host takes the pickup", taken and host_player.inventory.count("shotgun") == 12, str(host_player.inventory.ammo))
 
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
 	print("HASH ", _enemy_hash(lab))
+	print("HASH ", _item_hash(lab))
 	await _wait_seconds(5.0) # Stay up until the client has hashed too.
 
 
@@ -121,6 +138,7 @@ func _client(net: Node) -> void:
 	_check("sends state to the host", streaming, str(me.net_peers))
 	me.teleport(lab.spawn_point(0) + CLIENT_SPOT)
 	lab.world_sync.carve_sphere(lab.spawn_point(0) + Vector3(0.0, 0.0, -3.0), 1.0, 254)
+	await _fire_explosive(lab, me)
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
 	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
 
@@ -133,9 +151,21 @@ func _client(net: Node) -> void:
 		enemies.request_hit(target.id, 1000.0, target.get_center(), "rifle")
 	var down_to_one := await _wait_until(func() -> bool: return enemies.enemies.size() == 1, 20.0)
 	_check("deaths reach the client", down_to_one, str(enemies.enemies.keys()))
+	var pickup_id := [-1]
+	var appeared := await _wait_until(func() -> bool:
+		for pickup in lab.items.pickups.values():
+			if pickup.item == "ammo_shotgun":
+				pickup_id[0] = pickup.id
+				return true
+		return false, 20.0)
+	_check("the host's pickup appears on the client", appeared)
+	var gone := await _wait_until(func() -> bool: return not lab.items.pickups.has(pickup_id[0]), 10.0)
+	_check("a pickup taken on the host disappears on the client", appeared and gone)
+	_check("the client didn't get the host's pickup", me.inventory.count("shotgun") == 0)
 	await _wait_seconds(1.5)
 	print("HASH ", _world_hash(lab.world))
 	print("HASH ", _enemy_hash(lab))
+	print("HASH ", _item_hash(lab))
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--shot="):
 			await _screenshot(lab, me, arg.trim_prefix("--shot="))
@@ -162,6 +192,46 @@ func _spawn_frozen(lab, at: Vector3):
 		enemy.attack_range = 0.0
 		enemy.damage = 0.0
 	return enemy
+
+
+## Client: fires an explosive at the nearest wall that's well away from the enemies (they stand on
+## the +Z side of the spawn) and waits for its blast to come back through the host.
+func _fire_explosive(lab, me) -> void:
+	var eye: Vector3 = me.camera.global_position
+	var enemies_at: Vector3 = lab.spawn_point(0) + Vector3(0.0, 0.0, 4.5)
+	var best := Vector3.ZERO
+	var best_distance := INF
+	for i in 16:
+		var direction := Vector3.FORWARD.rotated(Vector3.UP, i * TAU / 16.0)
+		var wall: Dictionary = lab.world.raycast(eye, direction, 15.0)
+		if wall.hit and wall.distance > 2.5 and wall.position.distance_to(enemies_at) > 6.0 and wall.distance < best_distance:
+			best = direction
+			best_distance = wall.distance
+	_check("found a wall to shoot", best != Vector3.ZERO)
+	if best == Vector3.ZERO:
+		return
+	var impacts := []
+	me.weapon.projectile_spawned.connect(func(shot) -> void:
+		shot.impacted.connect(func(_shot, at: Vector3, _normal: Vector3, _enemy) -> void: impacts.append(at)))
+	var blasts := []
+	lab.world_sync.carved.connect(func(at: Vector3, _normal: Vector3, removed: Dictionary) -> void: blasts.append([at, removed]))
+	me.inventory.add("ammo_explosive")
+	_check("client loads explosive", me.weapon.select("explosive"))
+	me.weapon._cooldown = 0.0
+	_check("client fires an explosive", me.weapon.fire(best))
+	var blasted := await _wait_until(func() -> bool:
+		for blast: Array in blasts:
+			if not impacts.is_empty() and blast[0].distance_to(impacts[0]) < 0.5:
+				return true
+		return false, 10.0)
+	_check("the client's explosive carves the wall through the host", blasted, "%d impacts, %d carves" % [impacts.size(), blasts.size()])
+
+
+## Pickup ids and items, sorted.
+func _item_hash(lab) -> String:
+	var ids: Array = lab.items.pickups.keys()
+	ids.sort()
+	return "items " + " ".join(ids.map(func(id: int) -> String: return "%d:%s" % [id, lab.items.pickups[id].item]))
 
 
 ## Enemy ids and positions, sorted, as text (so the driver compares them like the world hashes).

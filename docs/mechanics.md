@@ -110,8 +110,9 @@ already have a facility / emergency flag; doors, terminals and the generator rea
 
 - `Player` (`scripts/player/player.gd`): movement, crouch, ladders, health with regen, damage
   with knockback, shake and recoil, death and revive, co-op state streaming.
-- `Rifle` (`scripts/player/rifle.gd`): hitscan placeholder with tracers, muzzle flash and remote
-  shot replication. Alt fire is a terrain blast. Both only hit voxels; nothing hits entities yet.
+- `Weapon` (`scripts/weapons/weapon.gd`, phase 2; replaced the placeholder `Rifle`): the shroom
+  shooter with every ammo type, `Projectile`, `Inventory`, pickups (`ItemManager`). Alt fire is
+  free for flasks.
 - `LevelPlay` (`scripts/level/level_play.gd`): doors (voxel doors, locked flag, host-run),
   triggers (box, once / repeat, any / all players), kill zones, asset damage to the payroll.
 - `LevelSchema`: marker types already include `horde` (position only), `item` (an item name

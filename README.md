@@ -64,7 +64,7 @@ Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--jo
 
 **Desktop build:** `godot --headless --path . --export-release Windows build/windows/Expendable.exe` (the `Windows` preset; needs the release DLL, built with `scons target=template_release` in `extension/`). Zip `build/windows/` (the exe plus `libvoxelcore...dll`) and send it. Windows Firewall asks the host to allow the game the first time they host; allow it.
 
-`tools/net_test.sh` runs a headless host and client against each other and checks their worlds (and enemies) end up identical; `tools/net_test.sh editor_test` does the same for a co-op editing session.
+`tools/net_test.sh` runs a headless host and client against each other and checks their worlds (and enemies and pickups) end up identical, including a client's explosive shot; `tools/net_test.sh editor_test` does the same for a co-op editing session.
 
 ## Levels and the level editor
 
@@ -103,6 +103,8 @@ All voxel art lives in `assets/vox/` as MagicaVoxel `.vox` files, and the game r
 
 - `props/`: furniture and fittings. Levels place them by file name (`props.place("fridge", origin, facing)`).
 - `characters/`: the player's body and head.
+- `weapons/`: `shroom_shooter.vox`, the gun (view model and the model other players hold). Its `Glow` voxels take the loaded ammo's color; the muzzle is the middle of its front-most voxels.
+- `items/`: pickups, one per item name (`medkit.vox`, `ammo_shotgun.vox`, ...). `Glow` voxels take the item's color.
 - `enemies/`: enemy bodies, `<kind>_<variant>.vox` (or one `<kind>.vox`). Each enemy picks a variant by its id, the same on every peer.
 - `shrooms/`: growth stages `stage<0-4>_<variant>.vox`, plus `stage4_<variant>_eyes.vox` for grown hunters.
 - `pieces/`: the old build-mode scrap pieces (reference only).
@@ -115,11 +117,11 @@ The current files are generated placeholders, meant to be replaced or used as te
 - **The model box is the prop's frame.** Its min corner sits on the placement origin at floor level, so empty margins are kept on purpose. Characters stand on the bottom center of the box. The head pivots around its center.
 - Models of any size work. Anything over 256 voxels is saved split into several models; keep those in one file.
 
-**Live reload:** when the game runs from the Godot editor, saving a `.vox` in MagicaVoxel updates the running game within about a second. Edited props are swapped wherever they were placed: only the old model's voxels that are still intact are removed, so damage is kept. Characters, shrooms and enemies re-skin too. In co-op the host's files win and the host pushes prop changes to everyone. A save that doesn't parse keeps the old model. A toast in the bottom left confirms each reload. Exported builds don't watch files.
+**Live reload:** when the game runs from the Godot editor, saving a `.vox` in MagicaVoxel updates the running game within about a second. Edited props are swapped wherever they were placed: only the old model's voxels that are still intact are removed, so damage is kept. Characters, shrooms, enemies, the gun and pickups re-skin too. In co-op the host's files win and the host pushes prop changes to everyone. A save that doesn't parse keeps the old model. A toast in the bottom left confirms each reload. Exported builds don't watch files.
 
 **Pattern materials**: some palette materials (block wall, large tile, concrete panel, diamond plate, hazard stripes) take each voxel's color from a small image in `assets/patterns/` (up to 32x32, 1 pixel = 1 voxel), tiled across the world, so a wall painted with them in the level editor gets brickwork without coloring voxels by hand. Edit the PNGs freely (live reload covers them too). To add one, add a material with `pattern = "name"` in `scripts/voxel/voxel_materials.gd` and drop `assets/patterns/name.png` in. MagicaVoxel shows these materials as their plain color.
 
-Regenerating placeholders: `godot --headless --path . --script res://scripts/tools/export_vox.gd` writes only missing files, so edited ones are safe. `-- --force` overwrites everything. The generators are in `scripts/world/props.gd` and `scripts/world/prop_catalog.gd` (the name → generator list), plus `ShroomModels`, `EnemyModels` and the export script itself.
+Regenerating placeholders: `godot --headless --path . --script res://scripts/tools/export_vox.gd` writes only missing files, so edited ones are safe. `-- --force` overwrites everything. The generators are in `scripts/world/props.gd` and `scripts/world/prop_catalog.gd` (the name → generator list), plus `ShroomModels`, `EnemyModels`, `GearModels` (weapons and items) and the export script itself.
 
 ## Enemies
 
@@ -128,7 +130,8 @@ Code is in `scripts/enemies/` and `scripts/combat/`. Enemies exist only in play 
 - `Enemy` (`enemy.gd`, `scenes/enemy.tscn`): the base. The host simulates it: it follows the voxel world's flow field to the nearest player (one multi-target field for all players, refreshed 5 times a second), digs through soft voxels (planks, dirt) through `WorldSync` when blocked, and attacks in melee range after a short wind-up. Peers get its position and yaw 10 times a second and interpolate. Hit zones (`hit_zones`: name -> local box and crit multiplier) are for crit spots on later enemies. Hits flash it white on every peer; death pops it into debris.
 - `BasicShroom` (`basic_shroom.gd`, `scenes/enemies/basic.tscn`): slow (2.5 m/s), 30 health, a 10-damage bite every second. Silent until it's within 6 m of a player, then it chitters.
 - `EnemyManager` (the `Enemies` node in `scenes/lab.tscn`): spawns and kills (host), replicates to peers (late joiners get the roster), applies hits from any peer (`request_hit(id, damage, point, kind)`, shooter-authoritative), and sends enemy attacks to the bitten player's own peer. New kinds go in its `KINDS` list (kind -> scene) plus a placeholder generator in `EnemyModels`.
-- `Combat`: `ray_hit` (nearest voxel or enemy along a ray), `sphere_hit`, `box_hit`. The placeholder rifle uses it: enemy hits do damage, voxel hits carve as before.
+- `Combat`: `ray_hit` (nearest voxel or enemy along a ray), `sphere_hit`, `box_hit`. The shroom shooter uses it (see Weapons and items).
+- Status effects: `EnemyManager.request_status(id, name, seconds)` -> `Enemy.apply_status` on the host. For now it only records them in `Enemy.statuses` (phase 3 gives them effects).
 - `HordeDirector` (the `Director` node): spawns from **horde spawner** markers. Calm: active spawners trickle in enemies. Horde: `start_horde(count)` bursts from the spawners nearest the players. Finale: `finale(duration)` is a stub that ramps a horde and emits `finale_survived` (phase 6 fills it in).
 
 Horde spawner marker fields (level editor inspector):
@@ -145,9 +148,33 @@ Trigger markers have `activates`: comma-separated spawner ids to turn on, or `ho
 
 The HUD (`scripts/ui/combat_hud.gd`) shows health in the bottom left, a hit marker on the crosshair when your shot lands, and a red flash when you're hurt.
 
+## Weapons and items
+
+Code is in `scripts/weapons/` and `scripts/items/`.
+
+- `Weapon` (`weapon.gd`, the `Weapon` node in `scenes/player.tscn`): the shroom shooter, one gun with swappable ammo. LMB fires the loaded ammo; **Shift** loads the next type you have ammo for (basic is always there), 1-4 load the first four types directly. Running out drops back to basic. Hits are shooter-authoritative: enemy damage goes to the host through `EnemyManager.request_hit`, terrain damage through `WorldSync`; the other peers see the tracers, flame and projectiles, and the ammo color on your gun.
+- `AmmoType` (`ammo_type.gd`): the ammo table, `AmmoType.by_name("shotgun")`. Tune the numbers there.
+- `Projectile` (`projectile.gd`, `scenes/projectile.tscn`): moved each physics tick by casting over the whole step, so it never tunnels. The shooter simulates it; other peers run a visual copy that the shooter corrects (bounces, homing) and ends.
+- `Inventory` (`scripts/player/inventory.gd`, on the player): ammo per type, flasks, keycards. Cleared when play starts.
+- `ItemManager` (the `Items` node in `scenes/lab.tscn`) and `Pickup` (`scripts/items/pickup.gd`, `scenes/pickup.tscn`): the host spawns a pickup for every **item spot** marker when play starts, and enemies drop a random ammo pickup 20% of the time. Walk within 0.8 m to take one; the host decides who got it and removes it everywhere. Going back to edit clears them.
+
+| Ammo | Fires | Damage | Per pickup |
+|---|---|---|---|
+| Basic | hitscan, chips voxels | 12 | infinite |
+| Shotgun | 8 hitscan pellets, short range | 7 each | 12 |
+| Flame | 4.5 m cone, 10 ticks a second, sets Burning | 4 a tick | 60 fuel (1 per tick) |
+| Explosive | projectile with a slight arc, blast crater | 20 hit + 40 blast | 4 |
+| Ricochet | projectile, bounces off voxels 4 times, pierces enemies | 18 each | 15 |
+| Homing | projectile, steers to the nearest enemy within 30 degrees | 20 | 10 |
+| Poison | projectile with an arc, a puff that sets Poisoned within 2 m (a real cloud in phase 3) | 10 | 6 |
+
+Item spot names (the marker's `item` field): `medkit` (+50 health), `ammo_shotgun`, `ammo_flame`, `ammo_explosive`, `ammo_ricochet`, `ammo_homing`, `ammo_poison`, `flask_fire`, `flask_poison`, `flask_rage`, `flask_freeze`, `keycard_red`, `keycard_blue`, `keycard_green`. Flasks and keycards go in the inventory but do nothing yet (phases 3 and 5). Models come from `assets/vox/weapons/` and `assets/vox/items/`.
+
+The HUD shows the loaded ammo and its count in the bottom right, with the type Shift loads next below it.
+
 ## Playing
 
-Movement: WASD, Space jump, Ctrl crouch (no sprint), E use (doors), arrow keys look (backup for remote desktop), T flashlight. Combat: LMB shoot, MMB melee, RMB throw flask, Q cycle flask, Shift change ammo (or 1-4). F1 shows the controls. Esc releases the mouse (and pauses in solo play). Debug builds only: F fly.
+Movement: WASD, Space jump, Ctrl crouch (no sprint), E use (doors), arrow keys look (backup for remote desktop), T flashlight. Combat: LMB shoot the shroom shooter, Shift change ammo (or 1-4), MMB melee and RMB throw flask (phase 3), Q cycle flask. F1 shows the controls. Esc releases the mouse (and pauses in solo play). Debug builds only: F fly.
 
 All sound is synthesized at startup by `scripts/audio/sfx.gd` (no audio assets).
 
@@ -158,6 +185,7 @@ Tests (from the project root, with `godot` being the 4.7 editor binary):
 ```sh
 godot --headless --path . --script res://tests/voxel_smoke_test.gd   # voxel core, building pieces, navigation (sandbox)
 godot --headless --path . --script res://tests/enemy_test.gd         # enemies: pathing through a door, bites, hits, death, spawners, hordes
+godot --headless --path . --script res://tests/weapon_test.gd        # every ammo type, ricochet, blast carving, homing, Shift cycling, pickups
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload

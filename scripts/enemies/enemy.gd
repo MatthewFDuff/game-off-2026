@@ -63,6 +63,9 @@ var on_floor := false
 ## Named parts that take extra damage: name -> {box: AABB (local: feet at the origin, facing -Z),
 ## crit: float}. Anything else inside bounds is the "body" (crit 1).
 var hit_zones := {}
+## Host: status name -> seconds, as last applied (apply_status). Phase 3 ticks them and adds
+## their effects.
+var statuses := {}
 ## The model's box in local space.
 var bounds := AABB(Vector3(-0.35, 0.0, -0.35), Vector3(0.7, 1.2, 0.7))
 
@@ -212,6 +215,12 @@ func apply_hit(amount: float, push: Vector3) -> void:
 	health -= amount
 	velocity += push * knockback_scale
 	_squash = 1.0
+
+
+## Host: a status effect ("burning", "poisoned", "frozen", "raging") for seconds. A stub for
+## phase 3, which gives them effects; for now it only records them.
+func apply_status(status: String, seconds: float) -> void:
+	statuses[status] = maxf(float(statuses.get(status, 0.0)), seconds)
 
 
 func _physics_process(delta: float) -> void:

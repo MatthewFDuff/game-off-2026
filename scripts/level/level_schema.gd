@@ -57,7 +57,7 @@ const MARKERS := {
 		{key = "size", type = "vector3i", default = Vector3i(20, 30, 20), label = "Size (voxels)"},
 	]},
 	item = {label = "Item spot", color = Color(0.85, 0.6, 1.0), fields = [
-		{key = "item", type = "string", default = "medkit"},
+		{key = "item", type = "string", default = "medkit", label = "Item (medkit, ammo_<type>, flask_<type>, keycard_<color>)"},
 	]},
 }
 

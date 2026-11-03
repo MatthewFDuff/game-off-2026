@@ -98,6 +98,10 @@ var _name_tag: Label3D
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var flashlight: SpotLight3D = $Head/Camera3D/Flashlight
 @onready var muzzle_flash: OmniLight3D = $Head/Camera3D/MuzzleFlash
+## The Weapon and Inventory children. Untyped on purpose: naming Weapon here would compile the
+## enemy and level scripts (and the autoloads they use) wherever Player is named.
+@onready var weapon = $Weapon
+@onready var inventory = $Inventory
 
 
 func _ready() -> void:
@@ -370,11 +374,11 @@ func _send_state(delta: float) -> void:
 		return
 	_send_timer += 1.0 / NET_SEND_RATE
 	for peer_id in net_peers:
-		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible)
+		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible, is_dead)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool) -> void:
+func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if _remote_states.is_empty():
 		global_position = feet # First state: appear there instead of sliding in from the spawn.
@@ -387,6 +391,7 @@ func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, lig
 			_body.scale.y = crouching_height / standing_height if crouching else 1.0
 		head.position.y = (crouching_height if crouching else standing_height) - eye_offset
 	flashlight.visible = light_on
+	is_dead = dead # So the host's enemies stop chasing a dead remote player.
 
 
 func _interpolate_remote() -> void:
