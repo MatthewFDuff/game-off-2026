@@ -15,6 +15,7 @@ extends SceneTree
 ## Game types (Lab, Player) are left untyped here: naming them would compile those scripts before
 ## the autoloads they use are registered.
 
+## Default port; tools/net_test.sh passes a random one (--port=) so parallel runs don't collide.
 const PORT := 24699
 const CLIENT_SPOT := Vector3(0.0, 0.0, 2.0) # Offset from the level spawn.
 const SCRATCH_PROPS := "user://net_test_props/"
@@ -24,6 +25,7 @@ const FRIDGE_TO := Vector3i(120, 59, 224)
 const LAMP := 21
 
 var _failures := 0
+var _port := PORT
 
 
 func _initialize() -> void:
@@ -35,6 +37,8 @@ func _run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--role="):
 			role = arg.trim_prefix("--role=")
+		elif arg.begins_with("--port="):
+			_port = int(arg.trim_prefix("--port="))
 	var net: Node = root.get_node("Net")
 	if role == "host":
 		await _host(net)
@@ -49,7 +53,7 @@ func _host(net: Node) -> void:
 	_copy_props()
 	Props.library_dir = SCRATCH_PROPS
 	root.get_node("VoxWatch").watch(SCRATCH_PROPS)
-	_check("host starts", net.host(PORT) == OK)
+	_check("host starts", net.host(_port) == OK)
 	var lab = await _wait_for_lab()
 	if lab == null:
 		return
@@ -85,7 +89,7 @@ func _host(net: Node) -> void:
 
 func _client(net: Node) -> void:
 	net.player_name = "Zack"
-	_check("client connects", net.join("127.0.0.1", PORT) == OK)
+	_check("client connects", net.join("127.0.0.1", _port) == OK)
 	var lab = await _wait_for_lab()
 	if lab == null:
 		return

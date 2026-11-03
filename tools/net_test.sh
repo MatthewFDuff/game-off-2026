@@ -8,15 +8,16 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GODOT_BIN="${GODOT_BIN:-/c/Program Files (x86)/Steam/steamapps/common/Godot Engine/godot.windows.opt.tools.64.exe}"
 OUT="$(mktemp -d)"
+PORT=$((20000 + RANDOM % 20000)) # Random so parallel runs (other sessions, worktrees) don't collide.
 cd "$ROOT"
 
-"$GODOT_BIN" --headless --path . --script res://tests/net_test.gd -- --role=host > "$OUT/host.log" 2>&1 &
+"$GODOT_BIN" --headless --path . --script res://tests/net_test.gd -- --role=host --port=$PORT > "$OUT/host.log" 2>&1 &
 HOST=$!
 for _ in $(seq 240); do # Up to 2 minutes: cold Godot starts are slow on Windows.
 	grep -q READY "$OUT/host.log" && break
 	sleep 0.5
 done
-"$GODOT_BIN" --headless --path . --script res://tests/net_test.gd -- --role=client > "$OUT/client.log" 2>&1
+"$GODOT_BIN" --headless --path . --script res://tests/net_test.gd -- --role=client --port=$PORT > "$OUT/client.log" 2>&1
 CLIENT_STATUS=$?
 wait $HOST
 HOST_STATUS=$?

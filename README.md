@@ -62,6 +62,8 @@ The main scene is `scenes/menu.tscn`: play solo, host, or join by address. Co-op
 
 Skip the menu from the command line (args after `--`): `--solo`, `--host`, `--join=1.2.3.4`, `--name=Zack`. Two copies on one machine: start one with `-- --host`, the other with `-- --join=127.0.0.1`.
 
+**Desktop build:** `godot --headless --path . --export-release Windows build/windows/Expendable.exe` (the `Windows` preset; needs the release DLL, built with `scons target=template_release` in `extension/`). Zip `build/windows/` (the exe plus `libvoxelcore...dll`) and send it. Windows Firewall asks the host to allow the game the first time they host; allow it.
+
 `tools/net_test.sh` runs a headless host and client against each other and checks their worlds end up byte-identical.
 
 ## Art: MagicaVoxel models
