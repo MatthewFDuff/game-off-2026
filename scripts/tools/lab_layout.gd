@@ -78,7 +78,9 @@ func build() -> void:
 
 ## A room over cells (c0, r0) to (c1, r1) with its floor at y. o: h (height), w / d (inset width /
 ## depth, centered), floor / wall / ceiling, route (on the main route: gets an emergency light),
-## dark (no facility lights), lights (facility lights: 0, 1, 2 or 4), glow (glow seams).
+## dark (no facility lights), lights (facility lights: 0, 1, 2 or 4), glow (glow seams), lamp_up /
+## lamp_energy / lamp_range (facility lights: voxels above the floor instead of under the ceiling,
+## energy, range in meters).
 func room(id: String, name: String, y: int, c0: int, r0: int, c1: int, r1: int, o := {}) -> Dictionary:
 	var from := Vector3i(x0(c0), y, z0(r0))
 	var to := Vector3i(x1(c1), y + int(o.get("h", H)), z1(r1))
@@ -92,7 +94,8 @@ func room(id: String, name: String, y: int, c0: int, r0: int, c1: int, r1: int, 
 		to.z = from.z + int(o.d)
 	var r := {id = id, name = name, from = from, to = to, floor = o.get("floor", _mats.floor), wall = o.get("wall", _mats.wall),
 			ceiling = o.get("ceiling", _mats.ceiling), thickness = T, order = _order, route = o.get("route", false),
-			dark = o.get("dark", false), lights = o.get("lights", 1), glow = o.get("glow", false)}
+			dark = o.get("dark", false), lights = o.get("lights", 1), glow = o.get("glow", false),
+			lamp_up = o.get("lamp_up", -1), lamp_energy = o.get("lamp_energy", 4.0), lamp_range = o.get("lamp_range", -1.0)}
 	_order += 1
 	rooms[id] = r
 	return r
@@ -222,7 +225,7 @@ func _mats_for(floor: int, wall: int, ceiling := M.CONCRETE) -> void:
 func _floor_g() -> void:
 	_mats_for(M.CONCRETE, M.CONCRETE_PANEL)
 	var y: int = Y.g
-	room("yard", "Loading yard", y, 3, 0, 4, 1, {h = 94, wall = M.ROCK, ceiling = M.ROCK, route = true, lights = 4})
+	room("yard", "Loading yard", y, 3, 0, 4, 1, {h = 94, wall = M.ROCK, ceiling = M.ROCK, route = true, lights = 4, lamp_up = 40, lamp_energy = 12.0, lamp_range = 30.0})
 	room("gatehouse", "Gatehouse", y, 5, 0, 5, 1, {route = true, lights = 2})
 	stair("stair_g0", "Stairs to Admin", 6, 0, 1, Y.f0, y)
 	open("yard", "gatehouse", "doorway", {w = 30, h = 30})
@@ -239,7 +242,7 @@ func _floor_g() -> void:
 	prop("yard", "plank_stack", 0.8, 0.9)
 	prop("gatehouse", "desk", 0.5, 0.2, P.SOUTH)
 	prop("gatehouse", "chair", 0.5, 0.05, P.SOUTH)
-	prop("gatehouse", "terminal", 0.1, 0.5, P.EAST, {text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
+	prop("gatehouse", "terminal", 0.88, 0.2, P.SOUTH, {text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
 	prop("gatehouse", "locker", 0.9, 0.3, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.42, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.54, P.WEST)
@@ -249,7 +252,6 @@ func _floor_g() -> void:
 	trigger("t_g_seal", "stair_g0", "close=d_g_blast,lock=d_g_blast", {who = "all", fz = 0.8, d = 40})
 	# The intercom\'s tour (Lines.INTERCOM, keyed by these ids).
 	trigger("say_yard", "yard", "", {fx = 0.5, fz = 0.5, w = 80, d = 80})
-	trigger("say_blast_door", "gatehouse", "", {fx = 0.85, fz = 0.3, w = 20, d = 40})
 
 
 # --- Floor 0: Admin --------------------------------------------------------------------------------
@@ -366,7 +368,9 @@ func _floor_0() -> void:
 	spawner("s_0_grow_1", "grow_0", 0.35, 0.5, "basic", 12.0, 3, false, {radius = 2.0})
 	spawner("s_0_lobby_vent_1", "lobby", 0.85, 0.08, "basic", 4.0, 2, false)
 	spawner("s_0_office_1", "open_office", 0.9, 0.9, "basic", 6.0, 2, false)
-	trigger("t_0_outbreak", "training", "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_0_grow_1", {nowhere = true})
+	trigger("t_0_outbreak", "training", "power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
+	# The grow beds wake once the player has the spore shooter (Story fires "armed" on the pickup).
+	trigger("armed", "grow_0", "on=s_0_grow_1", {nowhere = true, fx = 0.2, fz = 0.2})
 	trigger("t_0_gun_taken", "grow_0", "on=s_0_lobby_vent_1", {fx = 0.85, fz = 0.7, w = 30, d = 30})
 	trigger("t_0_office_enter", "open_office", "on=s_0_office_1")
 	trigger("say_lobby", "lobby", "")
@@ -478,9 +482,9 @@ func _floor_m1() -> void:
 	prop("clone_bay_m1", "spore_tank", 0.85, 0.85)
 
 	spawner("s_m1_store_1", "burrow_m1", 0.5, 0.5, "basic", 8.0, 3, false, {radius = 1.0})
-	spawner("s_m1_hall1_1", "grow_hall_1", 0.5, 0.08, "basic", 4.0, 2, true, {radius = 2.0})
+	spawner("s_m1_hall1_1", "grow_hall_1", 0.5, 0.08, "basic", 4.0, 2, false, {radius = 2.0})
 	spawner("s_m1_hall1_2", "grow_hall_1", 0.85, 0.5, "fast", 5.0, 3, false, {radius = 2.0})
-	spawner("s_m1_incub_1", "incubation", 0.5, 0.5, "spore", 3.0, 3, true, {radius = 3.0})
+	spawner("s_m1_incub_1", "incubation", 0.5, 0.5, "spore", 3.0, 3, false, {radius = 3.0})
 	spawner("s_m1_hall2_1", "grow_hall_2", 0.3, 0.5, "basic,fast", 10.0, 4, false, {radius = 3.0})
 	spawner("s_m1_hall2_2", "grow_hall_2", 0.9, 0.8, "basic", 10.0, 4, false, {radius = 1.5})
 	spawner("s_m1_clean_1", "clean_room", 0.6, 0.8, "fast", 6.0, 2, false)
@@ -714,14 +718,14 @@ func _floor_m3() -> void:
 	prop("cage_shaft", "crate_6", 0.8, 0.95)
 	prop("cage_shaft", "barrel", 0.1, 0.8)
 
-	spawner("s_m3_tc2_1", "tc2", 0.5, 0.5, "tentacle", 1.0, 1, true)
-	spawner("s_m3_diss_1", "dissection", 0.5, 0.4, "ceiling_cloud", 2.0, 2, true, {on_ceiling = true, radius = 3.0})
+	spawner("s_m3_tc2_1", "tc2", 0.5, 0.5, "tentacle", 1.0, 1, false)
+	spawner("s_m3_diss_1", "dissection", 0.5, 0.4, "ceiling_cloud", 2.0, 2, false, {on_ceiling = true, radius = 3.0})
 	spawner("s_m3_diss_2", "dissection", 0.1, 0.85, "basic", 6.0, 3, false)
 	spawner("s_m3_ward_1", "cell_5", 0.5, 0.5, "basic,fast", 12.0, 4, false, {radius = 1.5})
 	spawner("s_m3_ward_1b", "cell_4", 0.5, 0.5, "basic,fast", 12.0, 3, false, {radius = 1.5})
 	spawner("s_m3_ward_2", "cell_3", 0.5, 0.5, "basic,fast,spore", 12.0, 4, false, {radius = 1.5})
 	spawner("s_m3_ward_3", "cell_2", 0.5, 0.5, "giant", 1.0, 1, false)
-	spawner("s_m3_tc3_1", "tc3", 0.5, 0.5, "mommy", 1.0, 1, true)
+	spawner("s_m3_tc3_1", "tc3", 0.5, 0.5, "mommy", 1.0, 1, false)
 	spawner("s_m3_tc3_2", "tc3", 0.1, 0.5, "fast", 4.0, 2, false)
 	spawner("s_m3_vent_1", "gallery", 0.1, 0.5, "basic", 0.0, 6, false)
 	trigger("t_m3_diss", "dissection", "on=s_m3_diss_2")
@@ -850,9 +854,9 @@ func _floor_dig() -> void:
 
 	spawner("s_m4_drift_1", "burrow_n", 0.5, 0.5, "basic,fast", 10.0, 4, false, {radius = 1.0})
 	spawner("s_m4_drift_2", "burrow_s", 0.5, 0.5, "exploding", 6.0, 2, false, {radius = 1.0})
-	spawner("s_m4_cav_1", "cavern", 0.5, 0.5, "mommy", 1.0, 1, true, {on_dead = "t_m4_mother_dead", up = 8})
-	spawner("s_m4_cav_2", "cavern", 0.5, 0.5, "tentacle", 1.0, 2, true, {radius = 5.0, up = 8})
-	spawner("s_m4_cav_3", "cavern", 0.5, 0.5, "ceiling_cloud", 2.0, 3, true, {on_ceiling = true, radius = 6.0})
+	spawner("s_m4_cav_1", "cavern", 0.5, 0.5, "mommy", 1.0, 1, false, {on_dead = "t_m4_mother_dead", up = 8})
+	spawner("s_m4_cav_2", "cavern", 0.5, 0.5, "tentacle", 1.0, 2, false, {radius = 5.0, up = 8})
+	spawner("s_m4_cav_3", "cavern", 0.5, 0.5, "ceiling_cloud", 2.0, 3, false, {on_ceiling = true, radius = 6.0})
 	spawner("s_m4_cav_4", "cavern", 0.15, 0.3, "ranged,spore", 6.0, 4, false, {radius = 4.0})
 	spawner("s_m4_cav_5", "cavern", 0.3, 0.9, "basic,fast,alarm", 10.0, 6, false, {radius = 4.0})
 	spawner("s_m4_gen_n", "mouth_n", 0.5, 0.5, "basic,fast", 6.0, 4, false)

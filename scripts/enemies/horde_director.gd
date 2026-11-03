@@ -62,6 +62,9 @@ signal finale_event(kind: String)
 @export var finale_alive_multiplier := 2.0
 ## How much each player beyond the second adds to rates and caps (0: no scaling). See the top.
 @export var scale_per_player := 0.25
+## A spawner only trickles while a living player is within this many meters of it (straight line);
+## the finale ignores it. 0 disables. Keeps far floors quiet until the party gets there.
+@export var wake_range := 40.0
 
 var state := "calm"
 var running := false
@@ -351,6 +354,8 @@ func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 	var object: Dictionary = spawner.object
 	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * player_factor()
 	if not spawner.active or rate <= 0.0:
+		return
+	if not finale_active and wake_range > 0.0 and enemies.nearest_player_distance(lab.view.to_world(object.position)) > wake_range:
 		return
 	spawner.budget = minf(spawner.budget + rate / 60.0 * delta, 1.0)
 	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner):

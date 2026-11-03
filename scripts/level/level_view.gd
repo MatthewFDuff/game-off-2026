@@ -17,6 +17,15 @@ var mode := "play"
 var _nodes := {}
 ## id -> Light3D
 var _lights := {}
+## The Compatibility renderer draws only a few dozen lights, so only the LIGHT_BUDGET nearest lit
+## lights (by distance past their range, from the active camera) are visible, re-picked every
+## LIGHT_CULL_INTERVAL seconds.
+const LIGHT_BUDGET := 20
+## Vertical distance counts this much more when picking lights, so lamps on the floor above or
+## below (a slab away) lose to the ones in the room.
+const LIGHT_VERTICAL_WEIGHT := 4.0
+const LIGHT_CULL_INTERVAL := 0.25
+var _cull_time := 0.0
 ## "name:facing" -> ArrayMesh
 var _prop_meshes := {}
 var _selection := MeshInstance3D.new()
@@ -125,6 +134,29 @@ func _process(delta: float) -> void:
 				var t := _flicker_time * 7.0 + light.get_instance_id() % 97
 				energy *= 0.0 if fmod(t, 5.3) < 0.4 or fmod(t * 1.7, 3.1) < 0.15 else 1.0
 		light.light_energy = energy
+	_cull_time -= delta
+	if _cull_time <= 0.0:
+		_cull_time = LIGHT_CULL_INTERVAL
+		_cull_lights()
+
+
+## Keeps the nearest lit lights visible and hides the rest (see LIGHT_BUDGET).
+func _cull_lights() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var at := camera.global_position
+	var scored: Array = []
+	for light: Light3D in _lights.values():
+		if light.light_energy <= 0.0:
+			light.visible = false
+			continue
+		var offset := light.global_position - at
+		var score := Vector2(offset.x, offset.z).length() + absf(offset.y) * LIGHT_VERTICAL_WEIGHT
+		scored.append([score, light])
+	scored.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for i in scored.size():
+		scored[i][1].visible = i < LIGHT_BUDGET
 
 
 func _add(object: Dictionary) -> void:

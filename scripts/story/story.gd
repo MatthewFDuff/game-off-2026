@@ -17,6 +17,8 @@ var experiment: Experiment
 var ending: Ending
 ## Host: respawns the night took (players seen going from alive to dead).
 var deaths := 0
+## Host: the "armed" trigger (the first spore shooter pickup) fired this play.
+var _armed_fired := false
 var _was_dead := {}
 var _rain: GPUParticles3D
 var _raining := false
@@ -44,14 +46,16 @@ func _ready() -> void:
 	play.door_refused.connect(func(_id: String, _peer: int) -> void: intercom.say("gate_locked"))
 	play.door_passed.connect(func(_id: String, _peer: int) -> void: intercom.say("gate_open"))
 	if lab.items:
-		lab.items.picked.connect(func(item: String, _peer: int) -> void:
-			if item == "spore_shooter":
-				intercom.say("armed"))
+		lab.items.picked.connect(func(item: String, peer: int) -> void:
+			if item == "spore_shooter" and multiplayer.is_server() and not _armed_fired:
+				_armed_fired = true
+				lab.play.triggered.emit("armed", peer))
 		lab.items.local_picked.connect(_on_local_picked)
 	lab.player_spawned.connect(_on_player_spawned)
 	lab.mode_changed.connect(func(_mode: String) -> void:
 		_was_dead.clear()
-		deaths = 0)
+		deaths = 0
+		_armed_fired = false)
 
 
 ## Host: a trigger id fired; the intercom has a line for it, or it's the ending.

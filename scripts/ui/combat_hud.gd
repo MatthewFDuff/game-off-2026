@@ -125,6 +125,8 @@ func _process(delta: float) -> void:
 	if me.health < _last_health - 0.01:
 		_flash_time = DAMAGE_FLASH_TIME
 	_last_health = me.health
+	# The health bar belongs to combat: nothing to show before the spore shooter is in hand.
+	_bar_back.visible = me.has_weapon
 	var fraction := clampf(me.health / maxf(me.max_health, 1.0), 0.0, 1.0)
 	_bar_fill.size.x = (BAR_SIZE.x - 4) * fraction
 	_bar_label.text = "%d" % ceili(me.health)

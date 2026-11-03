@@ -253,7 +253,7 @@ func _marker(m: Dictionary) -> void:
 ## light in glow rooms (both of those are emergency-powered: they come on when the power goes).
 func _lights(room: Dictionary) -> void:
 	var extent: Vector3i = room.to - room.from
-	var top := float(room.to.y - 4)
+	var top := float(room.to.y - 4) if int(room.get("lamp_up", -1)) < 0 else float(room.from.y + int(room.lamp_up))
 	var spots: Array = []
 	if not room.dark and int(room.lights) > 0:
 		match int(room.lights):
@@ -263,24 +263,26 @@ func _lights(room: Dictionary) -> void:
 				spots = [Vector2(0.5, 0.25), Vector2(0.5, 0.75)] if extent.z >= extent.x else [Vector2(0.25, 0.5), Vector2(0.75, 0.5)]
 			_:
 				spots = [Vector2(0.25, 0.25), Vector2(0.75, 0.25), Vector2(0.25, 0.75), Vector2(0.75, 0.75)]
-	var range := clampf(maxf(extent.x, extent.z) / 10.0 * 0.9 / maxf(1.0, spots.size() / 2.0), 6.0, 16.0)
+	var range := clampf(maxf(extent.x, extent.z) / 10.0 * 0.8, 8.0, 18.0)
+	if float(room.get("lamp_range", -1.0)) > 0.0:
+		range = float(room.lamp_range)
 	for s: Vector2 in spots:
 		var light := LevelSchema.new_marker("light", Vector3(room.from.x + s.x * extent.x, top, room.from.z + s.y * extent.z))
 		light.color = Color(1.0, 0.92, 0.78)
-		light.energy = 1.4
+		light.energy = float(room.get("lamp_energy", 4.0))
 		light.range = range
 		_add("", light)
 	if room.route:
 		var red := LevelSchema.new_marker("light", Vector3(room.from.x + 0.5 * extent.x, top, room.from.z + 0.5 * extent.z))
 		red.color = Color(1.0, 0.18, 0.12)
-		red.energy = 0.9
+		red.energy = 2.0
 		red.range = clampf(maxf(extent.x, extent.z) / 10.0 * 0.7, 6.0, 12.0)
 		red.power = "emergency"
 		_add("", red)
 	if room.glow:
 		var glow := LevelSchema.new_marker("light", Vector3(room.from.x + 0.5 * extent.x, float(room.from.y + 8), room.from.z + 0.5 * extent.z))
 		glow.color = Color(0.4, 1.0, 0.75)
-		glow.energy = 0.7
+		glow.energy = 1.5
 		glow.range = clampf(maxf(extent.x, extent.z) / 10.0, 6.0, 16.0)
 		glow.power = "emergency"
 		_add("", glow)

@@ -7,7 +7,6 @@ class_name Lines
 const INTERCOM := {
 	say_yard = "Welcome to Fung AI Site 3. You are the night shift. Please sign in at the desk.",
 	say_signin = "Thank you. Your supervisor tonight is the model. Follow its instructions on any screen. Please proceed to Level 0.",
-	say_blast_door = "This door requires facility power. Facility power is on. Enjoy.",
 	say_lobby = "This is Administration. The grow rooms are off limits to expendable staff, except tonight.",
 	say_break_room = "The coffee machine is Fung AI property. Coffee is $4.",
 	say_training = "This is your station. The model will walk you through the experiment. Have a productive shift.",

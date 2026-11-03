@@ -3,7 +3,7 @@ extends SceneTree
 ##   godot --headless --path . --script res://tests/laboratory_play_test.gd
 ## Starts it solo, checks the spawn is in the yard on facility power with every door registered,
 ## then teleports the local player along the story: the training terminal's trigger puts the power
-## on backup and unlocks grow room 0; the lobby vent spawner wakes once the case trigger fires; the
+## on backup and unlocks grow room 0 (its shrooms wait for the pickup); the lobby vent spawner wakes once the case trigger fires; the
 ## blue keycard opens the lift; reaching a clone vat sets the checkpoint; the generator starts the
 ## finale and the elevator door opens when it ends.
 ##
@@ -61,10 +61,8 @@ func _run() -> void:
 	_check("power goes to backup", play.power == "backup", play.power)
 	var grow_open := await _wait_until(func() -> bool: return play.is_door_open("d_0_grow"), 3.0)
 	_check("grow room 0 unlocks and opens", not play.is_door_locked("d_0_grow") and grow_open)
-	_check("the grow room spawner is on", director.spawners.s_0_grow_1.active)
+	_check("the grow room stays quiet until the player is armed", not director.spawners.s_0_grow_1.active and _lab.enemies.get_child_count() == 0)
 	_check("the blast door now refuses", play.door_refusal("d_g_blast") != "")
-	var spawned := await _wait_until(func() -> bool: return _lab.enemies.get_child_count() > 0, 12.0)
-	_check("shrooms come out of the grow beds", spawned, str(_lab.enemies.get_child_count()))
 
 	# The case trigger wakes the lobby vent; the blue card opens the lift.
 	_teleport_to("grow_0", 0.85, 0.7)
@@ -80,6 +78,10 @@ func _run() -> void:
 		_me.teleport(gun.global_position - Vector3.UP * 0.35)
 	var armed := await _wait_until(func() -> bool: return _me.has_weapon, 3.0)
 	_check("the case drops the spore shooter and picking it up arms the player", armed, "dropped: %s" % (gun != null))
+	await _frames(3)
+	_check("arming wakes the grow room spawner", director.spawners.s_0_grow_1.active)
+	var spawned := await _wait_until(func() -> bool: return _lab.enemies.get_child_count() > 0, 12.0)
+	_check("shrooms come out of the grow beds", spawned, str(_lab.enemies.get_child_count()))
 	_check("the lift refuses without the blue card", play.door_refusal("d_0_lift").contains("blue"), play.door_refusal("d_0_lift"))
 	play.add_keycard("blue")
 	_check("the blue card opens the lift", play.door_refusal("d_0_lift") == "")
