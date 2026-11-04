@@ -175,7 +175,7 @@ func ignite(at: Vector3, radius: float, max_count := 40, exposed_only := true) -
 
 @rpc("any_peer", "reliable")
 func _request_ignite(at: Vector3, radius: float, max_count: int, exposed_only: bool) -> void:
-	if multiplayer.is_server():
+	if _from_level() and at.is_finite() and is_finite(radius):
 		_ignite(at, radius, max_count, exposed_only)
 
 
@@ -207,8 +207,13 @@ func douse(at: Vector3, radius: float) -> void:
 
 @rpc("any_peer", "reliable")
 func _request_douse(at: Vector3, radius: float) -> void:
-	if multiplayer.is_server():
+	if _from_level() and at.is_finite() and is_finite(radius):
 		_douse(at, minf(radius, MAX_IGNITE_RADIUS * 2.0))
+
+
+## Host: whether a request comes from a peer in the level (not one still loading, or gone).
+func _from_level() -> bool:
+	return multiplayer.is_server() and multiplayer.get_remote_sender_id() in lab.peers_in_level
 
 
 func _douse(at: Vector3, radius: float) -> void:

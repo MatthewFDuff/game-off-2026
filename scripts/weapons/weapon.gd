@@ -124,6 +124,8 @@ var _flame: CPUParticles3D
 ## id -> Projectile (fired here, or copies of the owner's).
 var _projectiles := {}
 var _next_projectile := 1
+## Owner: peers told the loaded ammo (select tells them of changes; peers that come later get it here).
+var _ammo_told: Array[int] = []
 
 
 func _ready() -> void:
@@ -174,6 +176,8 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if player and player.is_local and _ammo_told != player.net_peers:
+		_tell_ammo()
 	_sync_timer -= delta
 	if _sync_timer > 0.0 or player == null or player.net_peers.is_empty():
 		return
@@ -200,6 +204,14 @@ func select(ammo_name: String) -> bool:
 		for peer_id in player.net_peers:
 			_remote_ammo.rpc_id(peer_id, ammo_name)
 	return true
+
+
+## Owner: peers that joined since (a late joiner's copy shows the gun's tint from the start).
+func _tell_ammo() -> void:
+	for peer_id in player.net_peers:
+		if peer_id not in _ammo_told:
+			_remote_ammo.rpc_id(peer_id, current)
+	_ammo_told = player.net_peers.duplicate()
 
 
 ## Ammo types this player can load, in slot order (basic always).

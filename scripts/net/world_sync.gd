@@ -20,6 +20,8 @@ signal blob_received(tag: String, bytes: PackedByteArray)
 const PART_SIZE := 4000
 ## Requests from peers are clamped to this so a bad packet can't carve out the whole level.
 const MAX_CARVE_RADIUS := 3.0
+## ...and to this hardness: the strongest weapon's blast_power (explosive), so a peer can't dig bedrock.
+const MAX_CARVE_POWER := 6
 ## Voxels per set_voxels RPC (13 bytes each, so a part stays near PART_SIZE).
 const SET_PART := 300
 
@@ -55,10 +57,14 @@ func carve_sphere(center: Vector3, radius: float, max_hardness: int, normal := V
 		_request_carve.rpc_id(1, center, radius, max_hardness, normal)
 
 
+## Only from a peer that has the world (so the carve lands on both sides), within the caps.
 @rpc("any_peer", "reliable")
 func _request_carve(center: Vector3, radius: float, max_hardness: int, normal: Vector3) -> void:
-	if multiplayer.is_server():
-		carve_sphere(center, minf(radius, MAX_CARVE_RADIUS), max_hardness, normal)
+	if not multiplayer.is_server() or multiplayer.get_remote_sender_id() not in _synced:
+		return
+	if not center.is_finite() or not is_finite(radius) or not normal.is_finite():
+		return
+	carve_sphere(center, minf(radius, MAX_CARVE_RADIUS), mini(max_hardness, MAX_CARVE_POWER), normal)
 
 
 @rpc("authority", "reliable")

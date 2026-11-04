@@ -297,6 +297,8 @@ godot --headless --path . --script res://tests/shift_save_test.gd     # saving a
 godot --headless --path . --script res://tests/waiting_room_test.gd   # the waiting room: sign-in count, admittance door, the session's level change to the laboratory
 tools/net_test.sh                                                     # two-process co-op: sync, snapshots, live reload
 tools/net_test.sh editor_test                                         # two-process co-op editing, rooms, presence and locks, play-test, save
+tools/net_test.sh door_net_test                                       # two-process co-op doors: the client's view of a door, E on it, a joiner mid-slide, the level change
+tools/net_test.sh coop_audit_net_test                                 # two-process co-op: a late joiner's ammo tint, an entering player isn't a target, teleports snap
 godot --path . --script res://tests/editor_screenshots.gd -- <dir>   # editor and pattern screenshots (needs a window)
 godot --path . --script res://tests/laboratory_shots.gd -- <dir>     # the laboratory's floor plans and a few views (needs a window)
 godot --path . --script res://tests/cubicle_shots.gd -- <dir>        # the cubicle: the room, the hallway, every console page (needs a window)

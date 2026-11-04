@@ -62,6 +62,8 @@ signal door_passed(id: String, peer_id: int)
 
 ## How close (meters) a player must be to use a door or prop.
 const DOOR_REACH := 3.0
+## Extra meters the host allows a peer's use request, since its player's position here lags its own.
+const USE_SLACK := 2.0
 ## Meters from a clone vat marker that makes it the checkpoint.
 const CHECKPOINT_REACH := 3.0
 const POWER_STATES := ["facility", "backup", "restored"]
@@ -298,16 +300,17 @@ func set_door(id: String, open: bool) -> void:
 	door.target = target
 	door.target_open = open
 	lab.world_sync.stamp_model(door.origin, door.model.size, door.model.voxels, true)
-	_door_motion(id, door.origin, target, duration)
+	_door_motion(id, door.origin, target, duration, open)
 	for peer_id in lab.world_sync.synced_peers():
-		_door_motion.rpc_id(peer_id, id, door.origin, target, duration)
+		_door_motion.rpc_id(peer_id, id, door.origin, target, duration, open)
 	await get_tree().create_timer(duration).timeout
 	if not active or not _doors.has(id):
 		return
 	lab.world_sync.stamp_model(target, door.model.size, door.model.voxels)
-	door.origin = target
-	door.open = open
-	door.moving = false
+	_door_settled(id, target, open)
+	# Same audience as the motion and the voxels, so a peer still entering hears it end too.
+	for peer_id in lab.world_sync.synced_peers():
+		_door_settled.rpc_id(peer_id, id, target, open)
 
 
 ## Host (story scripts): locks or unlocks a door.
@@ -326,13 +329,17 @@ func _door_locked(id: String, locked: bool) -> void:
 		_doors[id].object.door_locked = locked
 
 
-## Every peer: slides a mesh of the door while its voxels are gone.
+## Every peer: slides a mesh of the door while its voxels are gone. The door is `moving` (E on it
+## does nothing) until _door_settled.
 @rpc("authority", "reliable")
-func _door_motion(id: String, from: Vector3i, to: Vector3i, duration: float) -> void:
+func _door_motion(id: String, from: Vector3i, to: Vector3i, duration: float, open: bool) -> void:
 	var door: Dictionary = _doors.get(id, {})
 	if door.is_empty():
 		return
 	door.origin = from
+	door.moving = true
+	door.target = to
+	door.target_open = open
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = lab.view.prop_mesh(door.object.name, door.object.facing)
 	mesh.material_override = lab.world.material
@@ -343,25 +350,62 @@ func _door_motion(id: String, from: Vector3i, to: Vector3i, duration: float) -> 
 	# Linger a frame past the end so the stamped voxels are there before the mesh goes.
 	tween.tween_interval(0.1)
 	tween.tween_callback(mesh.queue_free)
-	if not multiplayer.is_server():
-		door.origin = to
+
+
+## Every peer: the door is stamped at origin and has stopped, open or closed. Peers learn `open`
+## here, so their prompt and their E (request_use) say the right way.
+@rpc("authority", "reliable")
+func _door_settled(id: String, origin: Vector3i, open: bool) -> void:
+	var door: Dictionary = _doors.get(id, {})
+	if door.is_empty():
+		return
+	door.origin = origin
+	door.open = open
+	door.moving = false
 
 
 # --- Using things (E) ---------------------------------------------------------------------------
 
 ## Any peer: asks the host to use a door or prop (the interact key). The host checks it's allowed
-## (locks, keycards, power, charges) and tells the user why not if it isn't.
+## (locks, keycards, power, charges) and tells the user why not if it isn't. A peer's E on a door
+## asks for the way it saw it go (the host ignores it if the door is already that way or moving),
+## so a stale view or two players pressing E at once don't shut a door the other just opened.
 func request_use(id: String) -> void:
 	if multiplayer.is_server():
 		_use(id, multiplayer.get_unique_id())
+	elif _doors.has(id):
+		_request_door.rpc_id(1, id, not _doors[id].open)
 	else:
 		_request_use.rpc_id(1, id)
 
 
 @rpc("any_peer", "reliable")
 func _request_use(id: String) -> void:
-	if multiplayer.is_server():
-		_use(id, multiplayer.get_remote_sender_id())
+	var sender := multiplayer.get_remote_sender_id()
+	if _can_use(sender, id):
+		_use(id, sender)
+
+
+@rpc("any_peer", "reliable")
+func _request_door(id: String, open: bool) -> void:
+	var sender := multiplayer.get_remote_sender_id()
+	if _can_use(sender, id):
+		_use(id, sender, 1 if open else 0)
+
+
+## Host: a peer's request counts only from a player in the level, alive, and near the thing (its
+## own in_view reach, with slack for where its state packets lag behind it).
+func _can_use(peer_id: int, id: String) -> bool:
+	if not multiplayer.is_server() or peer_id not in lab.peers_in_level:
+		return false
+	var player: Player = lab.players.get(peer_id)
+	if player == null or not is_instance_valid(player) or player.is_dead:
+		return false
+	var box := box_of(id)
+	if box.size == Vector3.ZERO:
+		return true # Not a door or usable; _use sorts it out.
+	var eye: Vector3 = player.global_position + Vector3.UP * player.standing_height
+	return eye.clamp(box.position, box.end).distance_to(eye) <= DOOR_REACH + USE_SLACK
 
 
 ## A prop's state: {used, charges}, defaults (unused, its charges field) if it hasn't been touched.
@@ -372,19 +416,24 @@ func state_of(id: String) -> Dictionary:
 	return {used = false, charges = int(object.get("charges", 0))}
 
 
-## Host: what E does (see LevelSchema.USES).
-func _use(id: String, peer_id: int) -> void:
+## Host: what E does (see LevelSchema.USES). door_open: for a door, 1 open or 0 close (what the
+## user saw); -1 toggles.
+func _use(id: String, peer_id: int, door_open := -1) -> void:
 	if not active:
 		return
 	if _doors.has(id):
+		var door: Dictionary = _doors[id]
+		var open: bool = not door.open if door_open < 0 else door_open == 1
+		if door.moving or open == door.open:
+			return
 		var why := door_refusal(id)
 		if why != "":
 			lab.notify_peer(peer_id, why)
 			door_refused.emit(id, peer_id)
 		else:
-			if not _doors[id].open and door_key(id) != "":
+			if open and door_key(id) != "":
 				door_passed.emit(id, peer_id)
-			set_door(id, not _doors[id].open)
+			set_door(id, open)
 		return
 	var object: Dictionary = lab.level.objects.get(id, {})
 	if object.get("kind") != "prop":
@@ -1112,13 +1161,17 @@ func _restored_state(id: String, saved: Dictionary) -> Dictionary:
 
 
 ## Host: a late joiner gets the power, keycards, whether the party is armed, prop states, door
-## locks, where doors are, and the checkpoint.
+## locks, where doors are, and the checkpoint. A door mid-slide goes as moving, toward its target
+## (the joiner is synced already, so the slide's _door_settled reaches it).
 func _send_state(peer_id: int) -> void:
 	if not multiplayer.is_server() or not active:
 		return
 	var doors := {}
 	for id: String in _doors:
-		doors[id] = [_doors[id].origin, _doors[id].open, _doors[id].object.door_locked]
+		var door: Dictionary = _doors[id]
+		var moving: bool = door.moving and door.has("target")
+		doors[id] = [door.origin, door.open, door.object.door_locked, moving,
+				door.target if moving else door.origin, door.target_open if moving else door.open]
 	_full_state.rpc_id(peer_id, power, keycards, armed, prop_state, doors, checkpoint)
 
 
@@ -1132,9 +1185,13 @@ func _full_state(state: String, cards: Array, party_armed: bool, props: Dictiona
 	prop_state = props.duplicate(true)
 	for id: String in doors:
 		if _doors.has(id):
-			_doors[id].origin = doors[id][0]
-			_doors[id].open = doors[id][1]
-			_doors[id].object.door_locked = doors[id][2]
+			var door: Dictionary = _doors[id]
+			door.origin = doors[id][0]
+			door.open = doors[id][1]
+			door.object.door_locked = doors[id][2]
+			door.moving = doors[id][3]
+			door.target = doors[id][4]
+			door.target_open = doors[id][5]
 
 
 # --- Triggers and kill zones (host) ----------------------------------------------------------------

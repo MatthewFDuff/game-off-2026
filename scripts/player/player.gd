@@ -137,6 +137,10 @@ const MAX_INTERPOLATED_STEP := 2.0
 const NET_SEND_RATE := 30.0
 ## Remote players are drawn this far in the past so there's always a newer state to blend toward.
 const REMOTE_DELAY := 0.1
+## A received state this far (meters) from the last one is a teleport (a respawn at the vat, an
+## entry spot): the remote copy jumps there instead of sliding across. Well over a giant's shove
+## between two states, even with a few dropped.
+const TELEPORT_STEP := 4.0
 
 ## False on the copies of other peers' players.
 var is_local := true
@@ -682,8 +686,11 @@ func _send_state(delta: float) -> void:
 func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool, armed := true) -> void:
 	has_weapon = armed
 	var now := Time.get_ticks_msec() / 1000.0
-	if _remote_states.is_empty():
-		global_position = feet # First state: appear there instead of sliding in from the spawn.
+	# First state, a teleport or a revive: appear there instead of sliding in from the old spot.
+	if _remote_states.is_empty() or (is_dead and not dead) or feet.distance_to(_remote_states.back()[1]) > TELEPORT_STEP:
+		_remote_states.clear()
+		global_position = feet
+		rotation.y = yaw
 	_remote_states.append([now, feet, yaw, pitch])
 	if _remote_states.size() > 16:
 		_remote_states.pop_front()

@@ -192,7 +192,8 @@ func _physics_process(_delta: float) -> void:
 		var at := pickup.global_position
 		for peer_id: int in lab.players:
 			var player: Player = lab.players[peer_id]
-			if not is_instance_valid(player) or player.is_dead or player.editing:
+			# Not a joiner's player before it's in: it stands where the host will put it, unmoved.
+			if not is_instance_valid(player) or player.is_dead or player.editing or peer_id not in lab.peers_in_level:
 				continue
 			var feet := player.global_position
 			var nearest := Vector3(feet.x, clampf(at.y, feet.y, feet.y + player.standing_height), feet.z)

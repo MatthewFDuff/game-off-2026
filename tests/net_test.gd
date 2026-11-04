@@ -244,6 +244,7 @@ func _client(net: Node) -> void:
 
 	# Interactables: open the fridge by request; the host's power cut must reach us.
 	var fridge_id := _fridge_id(lab)
+	await _stand_by(lab, me, fridge_id)
 	lab.play.request_use(fridge_id)
 	var opened := await _wait_until(func() -> bool: return lab.play.state_of(fridge_id).used, 10.0)
 	_check("the client sees the container opened", opened)
@@ -423,6 +424,15 @@ func _interact_hash(lab) -> String:
 	var used: Array = lab.play.prop_state.keys().filter(func(id: String) -> bool: return lab.play.prop_state[id].used)
 	used.sort()
 	return "interact %s %s" % [lab.play.power, " ".join(used)]
+
+
+## Moves the client's player next to a usable thing and waits for the host's copy to follow (the
+## host only honours a use request from within reach).
+func _stand_by(lab, me, id: String) -> void:
+	var box: AABB = lab.play.box_of(id)
+	var c := box.get_center()
+	me.teleport(Vector3(c.x + box.size.x * 0.5 + 1.0, box.position.y + 0.1, c.z))
+	await _wait_seconds(0.4)
 
 
 ## The break room fridge (the first fridge prop).

@@ -179,8 +179,10 @@ func pulse(strength: float) -> void:
 	if not multiplayer.is_server():
 		return
 	_apply_pulse(strength)
-	for peer_id in world_sync.synced_peers():
-		_apply_pulse.rpc_id(peer_id, strength)
+	# A look, not a voxel edit: the peers in the level (a joiner resets its pulse as play starts).
+	for peer_id in lab.peers_in_level if lab else []:
+		if peer_id != 1:
+			_apply_pulse.rpc_id(peer_id, strength)
 
 
 @rpc("authority", "reliable")

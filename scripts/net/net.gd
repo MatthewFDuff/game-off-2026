@@ -170,10 +170,23 @@ func change_level(level_name: String) -> void:
 		return
 	session = session.duplicate()
 	session.level = level_name
+	# Peers stop streaming into the old level first: the host's load can take seconds, and every
+	# packet for a player the new level hasn't spawned yet is an error. A frame sends it.
+	_level_closing.rpc()
+	await get_tree().process_frame
+	if not in_session:
+		return
 	get_tree().change_scene_to_file(LEVEL_SCENE)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_level_changed.rpc(session)
+
+
+@rpc("authority", "reliable")
+func _level_closing() -> void:
+	var scene := get_tree().current_scene
+	if scene and scene.has_method("stop_streaming"):
+		scene.stop_streaming()
 
 
 @rpc("authority", "reliable")

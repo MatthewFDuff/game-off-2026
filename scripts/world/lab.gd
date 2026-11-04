@@ -33,7 +33,9 @@ signal mode_changed(mode: String)
 ## (EnemyManager sends it the enemies here).
 signal peer_entered(peer_id: int)
 
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
+## Loaded when a player spawns, not preloaded: player.tscn's scripts reach Lab, and a preload here
+## mid-way through loading player.tscn gets an empty scene.
+const PLAYER_SCENE_PATH := "res://scenes/player.tscn"
 ## Seconds dead before respawning (at the clone vat, or a spawn).
 const RESPAWN_DELAY := 3.0
 ## The death fade: how red it gets and how long it takes to come in and to clear after respawning.
@@ -378,7 +380,7 @@ func _player_index(peer_id: int) -> int:
 func _spawn_player(peer_id: int, feet: Vector3, yaw: float) -> void:
 	if players.has(peer_id):
 		return
-	var player: Player = PLAYER_SCENE.instantiate()
+	var player: Player = load(PLAYER_SCENE_PATH).instantiate()
 	player.name = str(peer_id)
 	player.world = world
 	var weapon: Weapon = player.get_node("Weapon")
@@ -415,6 +417,14 @@ func _despawn_player(peer_id: int) -> void:
 		players.erase(peer_id)
 		player.queue_free()
 		player_despawned.emit(peer_id)
+
+
+## This peer, as the host moves the session to another level (Net.change_level): the local player
+## stops streaming, since the host's next level doesn't have it yet.
+func stop_streaming() -> void:
+	var me := local_player()
+	if me:
+		me.net_peers = []
 
 
 ## The local player streams its movement to everyone else in the level.

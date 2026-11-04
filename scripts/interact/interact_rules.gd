@@ -309,7 +309,7 @@ func _dead_teammate_near(peer_id: int) -> int:
 	var best_distance := DEFIB_REACH
 	for other_id: int in play.lab.players:
 		var other: Player = play.lab.players[other_id]
-		if other_id == peer_id or not is_instance_valid(other) or not other.is_dead:
+		if other_id == peer_id or not is_instance_valid(other) or not other.is_dead or other_id not in play.lab.peers_in_level:
 			continue
 		var distance := other.global_position.distance_to(user.global_position)
 		if distance <= best_distance:
@@ -675,18 +675,20 @@ func _wet(room: String) -> void:
 
 ## Host: a room's lights "off", "flicker" or back "on", everywhere.
 func set_room_lights(room: String, mode: String) -> void:
-	_room_lights(room, mode)
+	_room_lights(room, mode, true)
 	for peer_id in play._peers():
-		_room_lights.rpc_id(peer_id, room, mode)
+		_room_lights.rpc_id(peer_id, room, mode, true)
 
 
+## Every peer: a room's lights mode; sound is false for a late joiner catching up (_send_state).
 @rpc("authority", "reliable")
-func _room_lights(room: String, mode: String) -> void:
+func _room_lights(room: String, mode: String, sound: bool) -> void:
 	if mode == "on":
 		room_lights.erase(room)
 	else:
 		room_lights[room] = mode
-	Sfx.play_at("power_down" if mode == "off" else "power_up", play.lab.view.to_world(room_box(room).get_center()), -6.0)
+	if sound:
+		Sfx.play_at("power_down" if mode == "off" else "power_up", play.lab.view.to_world(room_box(room).get_center()), -6.0)
 
 
 ## Every peer: a room's (or trigger volume's) box in voxels, or an empty AABB if id is neither.
@@ -763,7 +765,7 @@ func _send_state(peer_id: int) -> void:
 	if not multiplayer.is_server() or not play.active:
 		return
 	for room: String in room_lights:
-		_room_lights.rpc_id(peer_id, room, str(room_lights[room]))
+		_room_lights.rpc_id(peer_id, room, str(room_lights[room]), false)
 	for room: String in _sprinkling:
 		_set_rain.rpc_id(peer_id, room, true)
 

@@ -56,6 +56,10 @@ const KNOCKBACK := {rifle = 1.2, shotgun = 2.5, flame = 0.0, blast = 7.0, ricoch
 const MAX_STATUS := 30.0
 ## Seconds a sunk enemy (sink) takes to go down into the floor.
 const SINK_TIME := 0.5
+## Separation: enemies closer than CROWD_RANGE meters push apart; the crowd is bucketed in columns
+## of CROWD_CELL meters (at least CROWD_RANGE, so the 3 x 3 cells around one hold every neighbour).
+const CROWD_RANGE := 0.9
+const CROWD_CELL := 1.0
 
 @export var lab: Lab
 @export var world: VoxelWorld
@@ -85,6 +89,9 @@ var _state_timer := 0.0
 var _scenes := {}
 ## Host, during a peer's hit (request_hit): that peer's id, else 0 (Enemy._on_damaged).
 var _hit_peer := 0
+## Host: separation's buckets, Vector2i column -> [Enemy], and the physics frame they were built.
+var _crowd_cells := {}
+var _crowd_frame := -1
 
 
 func _ready() -> void:
@@ -124,6 +131,8 @@ func clear() -> void:
 		cloud.queue_free()
 	clouds.clear()
 	lures.clear()
+	_crowd_cells.clear()
+	_crowd_frame = -1
 
 
 func get_enemy(id: int) -> Enemy:
@@ -297,7 +306,7 @@ func request_hit(id: int, damage: float, point: Vector3, kind := "rifle") -> voi
 
 @rpc("any_peer", "reliable")
 func _request_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
-	if multiplayer.is_server():
+	if _from_level() and is_finite(damage) and point.is_finite():
 		_apply_hit(id, damage, point, kind)
 
 
@@ -351,7 +360,7 @@ func request_status(id: int, status: String, seconds: float) -> void:
 
 @rpc("any_peer", "reliable")
 func _request_status(id: int, status: String, seconds: float) -> void:
-	if multiplayer.is_server():
+	if _from_level() and is_finite(seconds):
 		_apply_status(id, status, seconds)
 
 
@@ -462,7 +471,7 @@ func request_cloud(type: String, at: Vector3, radius := -1.0, seconds := -1.0) -
 
 @rpc("any_peer", "reliable")
 func _request_cloud(type: String, at: Vector3, radius: float, seconds: float) -> void:
-	if multiplayer.is_server() and active and Cloud.TYPES.has(type):
+	if _from_level() and active and Cloud.TYPES.has(type) and at.is_finite() and is_finite(radius) and is_finite(seconds):
 		_spawn_cloud(type, at, minf(radius, 8.0), minf(seconds, MAX_STATUS))
 
 
@@ -535,14 +544,22 @@ func _attacked(id: int) -> void:
 
 # --- Targets and steering ------------------------------------------------------------------------
 
-## Players enemies go after (and the flow field leads to): in the level, alive (remote players'
-## deaths arrive with their state packets), not editing.
+## Players enemies go after (and the flow field leads to): in the level (peers_in_level: a joiner's
+## player is spawned on the host before it has the level, standing where it will land), alive
+## (remote players' deaths arrive with their state packets), not editing.
 func targets() -> Array[Player]:
 	var out: Array[Player] = []
-	for player: Player in lab.players.values():
-		if is_instance_valid(player) and not player.is_dead and not player.editing:
+	for peer_id: int in lab.players:
+		var player: Player = lab.players[peer_id]
+		if is_instance_valid(player) and not player.is_dead and not player.editing and peer_id in lab.peers_in_level:
 			out.append(player)
 	return out
+
+
+## Host: whether a request comes from a peer in the level (a joiner still loading, or a peer
+## that has left, can't hit, status or spawn anything).
+func _from_level() -> bool:
+	return multiplayer.is_server() and multiplayer.get_remote_sender_id() in lab.peers_in_level
 
 
 ## The nearest target to a position, or null.
@@ -613,18 +630,39 @@ func lure_for(at: Vector3) -> Variant:
 	return best
 
 
-## Push away from nearby enemies so a crowd spreads out instead of stacking.
+## Push away from nearby enemies so a crowd spreads out instead of stacking. Only the enemies in the
+## grid cells around it are checked (_crowd_cells), not every enemy against every other.
 func separation(enemy: Enemy) -> Vector3:
+	if _crowd_frame != Engine.get_physics_frames():
+		_build_crowd()
 	var push := Vector3.ZERO
-	for other: Enemy in enemies.values():
-		if other == enemy:
-			continue
-		var offset := enemy.global_position - other.global_position
-		offset.y = 0.0
-		var distance := offset.length()
-		if distance < 0.9 and distance > 0.001:
-			push += offset / distance * (0.9 - distance) / 0.9
+	var at := enemy.global_position
+	var cx := floori(at.x / CROWD_CELL)
+	var cz := floori(at.z / CROWD_CELL)
+	for dz in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			for other: Variant in _crowd_cells.get(Vector2i(cx + dx, cz + dz), []):
+				if not is_instance_valid(other) or other == enemy:
+					continue
+				var offset: Vector3 = at - (other as Enemy).global_position
+				offset.y = 0.0
+				var distance: float = offset.length()
+				if distance < CROWD_RANGE and distance > 0.001:
+					push += offset / distance * (CROWD_RANGE - distance) / CROWD_RANGE
 	return push
+
+
+## Host, once per physics frame: buckets the enemies by CROWD_CELL columns for separation.
+func _build_crowd() -> void:
+	_crowd_frame = Engine.get_physics_frames()
+	_crowd_cells.clear()
+	for other: Enemy in enemies.values():
+		var at := other.global_position
+		var cell := Vector2i(floori(at.x / CROWD_CELL), floori(at.z / CROWD_CELL))
+		if _crowd_cells.has(cell):
+			_crowd_cells[cell].append(other)
+		else:
+			_crowd_cells[cell] = [other]
 
 
 ## Host: points the flow field at every living player now (the director ranks spawners by it
