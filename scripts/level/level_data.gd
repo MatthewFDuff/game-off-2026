@@ -18,7 +18,7 @@ const FORMAT := 1
 ## `wake` action; HordeDirector.dormant). Missing keys take defaults.
 
 ## Keys whose values are vectors / colors; JSON stores them as arrays / hex strings.
-const VECTOR3I_KEYS := ["origin", "size", "door_offset", "size_in_chunks", "from", "to"]
+const VECTOR3I_KEYS := ["origin", "size", "door_offset", "size_in_chunks", "from", "to", "a", "b"]
 const VECTOR3_KEYS := ["position"]
 const COLOR_KEYS := ["color", "ambient_color", "fog_color"]
 
@@ -74,7 +74,8 @@ static func create(level_name: String, size_in_chunks: Vector3i, fill: String, p
 ## middle (rock; a room object, so it can be resized) or a floor slab (empty), with a spawn and a light.
 func _add_starter(world: VoxelWorld) -> void:
 	var size: Vector3i = world.get_size_in_voxels()
-	var floor_y := mini(40, size.y / 4)
+	# Rock: a room 4 m down. Empty: a slab on the world's bottom, the ground you build on.
+	var floor_y := mini(40, size.y / 4) if settings.fill == "rock" else 3
 	var center := Vector3i(size.x / 2, floor_y, size.z / 2)
 	var half := Vector3i(50, 0, 50)
 	if settings.fill == "rock":
@@ -84,7 +85,13 @@ func _add_starter(world: VoxelWorld) -> void:
 		objects[room.id] = room
 		WorldSync.run_op(world, LevelStructure.op({}, {room.id: room}, [room], settings, size))
 	else:
-		world.fill_box(center - half - Vector3i(0, 3, 0), center + half, settings.room_floor, false)
+		# Build mode: one storey on a starter floor (LevelBuild).
+		var storeys := LevelBuild.new_storeys(floor_y)
+		var ground := LevelBuild.new_slab("floor", 0)
+		ground.shapes.append(LevelBuild.rect_shape(center - half, center + half, settings.room_floor))
+		objects[storeys.id] = storeys
+		objects[ground.id] = ground
+		WorldSync.run_op(world, LevelStructure.op({}, objects, [storeys, ground], settings, size))
 	var spawn := LevelSchema.new_marker("spawn", Vector3(center) + Vector3(0.5, 0.0, 10.5), 180.0)
 	spawn.id = new_id("spawn")
 	objects[spawn.id] = spawn

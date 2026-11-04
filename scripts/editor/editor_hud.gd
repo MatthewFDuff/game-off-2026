@@ -12,13 +12,19 @@ extends CanvasLayer
 ## and wheel, and modals keep everything.
 
 const THEME := preload("res://assets/ui/editor_theme.tres")
-const INSPECTOR_WIDTH := 272
-const DRAWER_HEIGHT := 158
-const BAR_HEIGHT := 52
-const MARGIN := 10
-const TILE_SIZE := Vector2(86, 86)
-const ICON_SIZE := 48
+## Compact: it's a tool, so small text and tight spacing leave the most room for the world.
+const INSPECTOR_WIDTH := 232
+## Catalog heights: material swatches are small (they're just colors), props get room for pictures.
+const DRAWER_HEIGHT := 128
+const SWATCH_DRAWER_HEIGHT := 100
+const BAR_HEIGHT := 38
+const MARGIN := 6
+const TILE_SIZE := Vector2(64, 64)
+const ICON_SIZE := 40
+const SWATCH_SIZE := Vector2(26, 26)
 const ROOM_TARGETS := {floor = "Floor", wall = "Walls", ceiling = "Ceiling"}
+## What the catalog sets for the Wall tool: the wall, or its left face.
+const WALL_TARGETS := {wall = "Wall", inner = "Inner face"}
 
 @export var lab: Lab
 
@@ -31,6 +37,9 @@ var _roster := HBoxContainer.new()
 ## peer id -> the label showing which view they're in.
 var _roster_views := {}
 var _tool_buttons: Array[Button] = []
+## The tools on the rail, in order (EditorTool.tools(): they depend on the level).
+var _rail_tools: Array = []
+var _rail_column: VBoxContainer
 var _inspector: PanelContainer
 var _inspector_title := Label.new()
 var _content := VBoxContainer.new()
@@ -40,15 +49,23 @@ var _view_buttons: Array[Button] = []
 var _cut_buttons: Array[Button] = []
 var _cut_row: HBoxContainer
 var _walls_button: Button
+## Build mode (empty levels, builder view): the active storey, ▼ / ▲, and its wall height.
+var _storey_row: HBoxContainer
+var _storey_label: Label
+var _storey_height: PaperNumber
 var _drawer: PanelContainer
 var _drawer_header := HBoxContainer.new()
 var _drawer_tabs := HBoxContainer.new()
 var _drawer_tiles := HFlowContainer.new()
 var _search := LineEdit.new()
 var _drawer_open := true
+## Shown in the drawer's place while it's hidden, to bring it back.
+var _drawer_show: Button
 var _category := "All"
 ## Which lining the catalog sets for the room tool.
 var _room_target := "wall"
+## Which material the catalog sets for the Wall tool (WALL_TARGETS).
+var _wall_target := "wall"
 var _rail: PanelContainer
 var _hint: PanelContainer
 var _hint_label := Label.new()
@@ -135,8 +152,10 @@ func _process(delta: float) -> void:
 		elif other and other.has_node("Presence"):
 			var seen: Dictionary = other.get_node("Presence").state
 			label.text = "" if seen.is_empty() else ("builder" if seen.get("builder", false) else "walk")
+	if tool.tools() != _rail_tools:
+		_fill_rail(tool.tools())
 	for i in _tool_buttons.size():
-		_tool_buttons[i].set_pressed_no_signal(i == tool.tool)
+		_tool_buttons[i].set_pressed_no_signal(_rail_tools[i] == tool.tool)
 	for i in _grid_buttons.size():
 		_grid_buttons[i].set_pressed_no_signal(i == tool.snap_index)
 	_free_cursor_button.set_pressed_no_signal(tool.free_cursor)
@@ -147,12 +166,17 @@ func _process(delta: float) -> void:
 	for i in _cut_buttons.size():
 		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
 	_walls_button.set_pressed_no_signal(tool.camera.walls_down)
+	_storey_row.visible = tool.builder and tool.is_build_level()
+	if _storey_row.visible:
+		var st := LevelBuild.storeys(lab.level.objects)
+		_storey_label.text = "%d / %d" % [tool.storey + 1, maxi(st.heights.size(), 1)]
+		_storey_height.set_value_quietly(LevelBuild.storey_height(st, tool.storey) * lab.world.voxel_size)
 	_hint_label.text = _hint_text()
 	var readout := tool.volume_readout()
 	_readout.visible = readout != ""
 	if readout != _readout_label.text:
 		_readout_label.text = readout
-	_toast.offset_top = BAR_HEIGHT + MARGIN + (48 if _readout.visible else 0)
+	_toast.offset_top = BAR_HEIGHT + MARGIN + (_readout.size.y + MARGIN if _readout.visible else 0.0)
 	_toast_time -= delta
 	_toast.visible = _toast_time > 0.0
 	_toast.modulate.a = clampf(_toast_time * 2.0, 0.0, 1.0)
@@ -166,10 +190,16 @@ func _hint_text() -> String:
 		if tool.volume.step == VolumeSteps.Step.FLOOR:
 			return "Click the far corner of the floor  ·  wheel: size, Shift+wheel: the other side  ·  type a size (2.5 m, 25v)  ·  Tab: next size  ·  RMB / Backspace: back"
 		return "Click to build  ·  move the mouse or wheel: height  ·  type a size  ·  Tab: next size  ·  RMB / Backspace: back to the floor  ·  Esc: cancel"
+	if tool.wall.dragging:
+		if tool.wall.rect_mode:
+			return "Release to build four walls  ·  wheel: height  ·  Esc: cancel"
+		return "Release to build  ·  wheel: height  ·  type a length (2.5 m, 25v), Tab: the height  ·  Enter: keep it  ·  Esc: cancel"
 	if tool.builder:
 		var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap()]
 		var camera := tool.camera
-		if camera.is_cutting():
+		if tool.is_build_level():
+			parts.append("Storey %d (PgUp / PgDn)" % (tool.storey + 1))
+		elif camera.is_cutting():
 			parts.append("Cut %.1f m (%s)" % [camera.cut_layer * lab.world.voxel_size, EditorCamera.CUT_NAMES[camera.cut_mode]])
 		parts.append("RMB drag orbit · WASD pan · wheel zoom")
 		parts.append("%s: walk" % view)
@@ -193,7 +223,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.keycode == KEY_TAB:
 		get_viewport().set_input_as_handled() # No focus hopping between controls.
 		# Sizing a volume: Tab moves to the next size.
-		if event.pressed and not event.echo and tool != null and tool.volume.is_active() and not EditorInput.blocks_keyboard():
+		if event.pressed and not event.echo and tool != null and (tool.volume.is_active() or tool.wall.dragging) and not EditorInput.blocks_keyboard():
 			tool.next_size()
 		return
 	if InputSetup.pressed(event, "editor_help") and not EditorInput.text_focused():
@@ -216,11 +246,15 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if visible and InputSetup.pressed(event, "editor_catalog") and EditorInput.world_may_use(event):
-		_drawer_open = not _drawer_open
+		_set_drawer_open(not _drawer_open)
 		if _drawer_open:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		_layout()
 		get_viewport().set_input_as_handled()
+
+
+func _set_drawer_open(open: bool) -> void:
+	_drawer_open = open
+	_layout()
 
 
 ## Every button in the editor UI: no keyboard focus (so Space and Enter never press one) and a click.
@@ -270,15 +304,15 @@ func _build_top_bar() -> void:
 	bar.offset_top = MARGIN
 	bar.custom_minimum_size.y = BAR_HEIGHT - MARGIN
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_theme_constant_override("separation", 8)
+	bar.add_theme_constant_override("separation", 6)
 	_root.add_child(bar)
 
 	var level := _surface("PaperPill")
 	var level_row := HBoxContainer.new()
 	level_row.add_theme_constant_override("separation", 8)
-	level_row.add_child(_label("Level editor", "MutedLabel", 12))
+	level_row.add_child(_label("Level editor", "MutedLabel", 10))
 	_level_label.theme_type_variation = "HeaderTitle"
-	_level_label.add_theme_font_size_override("font_size", 18)
+	_level_label.add_theme_font_size_override("font_size", 14)
 	level_row.add_child(_level_label)
 	level.add_child(level_row)
 	bar.add_child(level)
@@ -330,9 +364,9 @@ func _update_roster() -> void:
 		var chip := PanelContainer.new()
 		var style := PaperPalette.card(PaperPalette.RADIUS_CHIP, 3)
 		style.border_color = entry.color
-		style.set_content_margin_all(6)
-		style.content_margin_left = 10
-		style.content_margin_right = 10
+		style.set_content_margin_all(3)
+		style.content_margin_left = 7
+		style.content_margin_right = 7
 		chip.add_theme_stylebox_override("panel", style)
 		chip.mouse_filter = Control.MOUSE_FILTER_STOP
 		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -347,8 +381,8 @@ func _update_roster() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 6)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(_label(entry.name, "Label", 14))
-		var view := _label("", "MutedLabel", 11)
+		row.add_child(_label(entry.name, "Label", 12))
+		var view := _label("", "MutedLabel", 10)
 		row.add_child(view)
 		_roster_views[peer_id] = view
 		chip.add_child(row)
@@ -362,22 +396,33 @@ func _build_tool_rail() -> void:
 	var rail := _surface("PaperCard")
 	_rail = rail
 	rail.position = Vector2(MARGIN, BAR_HEIGHT + MARGIN)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 4)
-	rail.add_child(column)
-	for i in EditorTool.TOOL_NAMES.size():
+	_rail_column = VBoxContainer.new()
+	_rail_column.add_theme_constant_override("separation", 2)
+	rail.add_child(_rail_column)
+	_fill_rail(EditorTool.ROCK_TOOLS)
+	_root.add_child(rail)
+	rail.resized.connect(_layout)
+
+
+## The rail's buttons for these tools, numbered by place (EditorTool.SLOT_ACTIONS).
+func _fill_rail(tools: Array) -> void:
+	_rail_tools = tools.duplicate()
+	for button in _tool_buttons:
+		button.queue_free()
+	_tool_buttons.clear()
+	for i in tools.size():
+		var which: EditorTool.Tool = tools[i]
+		var key := InputSetup.describe(EditorTool.SLOT_ACTIONS[i]) if i < EditorTool.SLOT_ACTIONS.size() else ""
 		var button := PopButton.new()
-		button.text = "%s  %s" % [InputSetup.describe(EditorTool.TOOL_ACTIONS[i]), EditorTool.TOOL_NAMES[i]]
+		button.text = "%s  %s" % [key, EditorTool.TOOL_NAMES[which]]
 		button.theme_type_variation = "ToggleButton"
 		button.toggle_mode = true
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.add_theme_font_size_override("font_size", 14)
-		button.tooltip_text = "%s (%s)\n%s" % [EditorTool.TOOL_NAMES[i], InputSetup.describe(EditorTool.TOOL_ACTIONS[i]), EditorTool.TOOL_ABOUT[i]]
-		button.pressed.connect(func() -> void: tool.set_tool(i as EditorTool.Tool))
-		column.add_child(button)
+		button.add_theme_font_size_override("font_size", 12)
+		button.tooltip_text = "%s (%s)\n%s" % [EditorTool.TOOL_NAMES[which], key, EditorTool.TOOL_ABOUT[which]]
+		button.pressed.connect(func() -> void: tool.set_tool(which))
+		_rail_column.add_child(button)
 		_tool_buttons.append(button)
-	_root.add_child(rail)
-	rail.resized.connect(_layout)
 
 
 func _build_inspector() -> void:
@@ -390,23 +435,23 @@ func _build_inspector() -> void:
 	_inspector.offset_top = BAR_HEIGHT + MARGIN
 	_root.add_child(_inspector)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 8)
+	column.add_theme_constant_override("separation", 5)
 	_inspector.add_child(column)
 	_inspector_title.theme_type_variation = "HeaderTitle"
-	_inspector_title.add_theme_font_size_override("font_size", 20)
+	_inspector_title.add_theme_font_size_override("font_size", 15)
 	column.add_child(_inspector_title)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	column.add_child(scroll)
 	_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_content.add_theme_constant_override("separation", 6)
+	_content.add_theme_constant_override("separation", 4)
 	scroll.add_child(_content)
 	column.add_child(HSeparator.new())
 
 	var grid := HBoxContainer.new()
 	grid.add_theme_constant_override("separation", 4)
-	grid.add_child(_label("Grid", "MutedLabel", 12))
+	grid.add_child(_label("Grid", "MutedLabel", 11))
 	for i in EditorTool.SNAPS.size():
 		var chip := _button(str(EditorTool.SNAPS[i]), "ChipButton", "Snap corners to %d voxel%s (%s cycles)" % [EditorTool.SNAPS[i], "" if EditorTool.SNAPS[i] == 1 else "s", InputSetup.describe("editor_grid")],
 				func() -> void:
@@ -428,7 +473,7 @@ func _build_inspector() -> void:
 
 	var view := HBoxContainer.new()
 	view.add_theme_constant_override("separation", 4)
-	view.add_child(_label("View", "MutedLabel", 12))
+	view.add_child(_label("View", "MutedLabel", 11))
 	for i in 2:
 		var chip := _button(["Builder", "Walk"][i], "ChipButton", ["Orbit from above with the mouse free", "First person: walk, or fly with %s" % InputSetup.describe("editor_fly")][i] + " (%s switches)" % InputSetup.describe("editor_view"),
 				func() -> void: tool.set_view(i == 0))
@@ -439,7 +484,7 @@ func _build_inspector() -> void:
 
 	_cut_row = HBoxContainer.new()
 	_cut_row.add_theme_constant_override("separation", 4)
-	_cut_row.add_child(_label("Cut", "MutedLabel", 12))
+	_cut_row.add_child(_label("Cut", "MutedLabel", 11))
 	var cut_tips := ["Show everything", "Cut at the ceiling of the room you're looking at", "Set the height with %s / %s" % [InputSetup.describe("editor_cut_up"), InputSetup.describe("editor_cut_down")]]
 	for i in EditorCamera.CUT_NAMES.size():
 		var chip := _button(EditorCamera.CUT_NAMES[i], "ChipButton", "%s (%s cycles)" % [cut_tips[i], InputSetup.describe("editor_cut_mode")],
@@ -452,6 +497,22 @@ func _build_inspector() -> void:
 	_walls_button.toggle_mode = true
 	_cut_row.add_child(_walls_button)
 	column.add_child(_cut_row)
+
+	_storey_row = HBoxContainer.new()
+	_storey_row.add_theme_constant_override("separation", 4)
+	_storey_row.add_child(_label("Storey", "MutedLabel", 11))
+	_storey_row.add_child(_button("▼", "ChipButton", "The storey below (%s)" % InputSetup.describe("editor_cut_down"), func() -> void: tool.change_storey(-1)))
+	_storey_label = _label("1 / 1", "Label", 12)
+	_storey_row.add_child(_storey_label)
+	_storey_row.add_child(_button("▲", "ChipButton", "The storey above; past the top adds one (%s)" % InputSetup.describe("editor_cut_up"), func() -> void: tool.change_storey(1)))
+	_storey_height = PaperNumber.make(3.0, 0.3, 20.0, 0.1)
+	_storey_height.tooltip_text = "This storey's wall height (m): walls that follow it and the storeys above move"
+	_storey_height.custom_minimum_size.x = 40
+	_storey_height.committed.connect(func(meters: float) -> void: tool.set_storey_height(roundi(meters / lab.world.voxel_size)))
+	_storey_row.add_child(_storey_height)
+	_storey_row.add_child(_label("m tall", "MutedLabel", 11))
+	_storey_row.visible = false
+	column.add_child(_storey_row)
 
 
 func _build_drawer() -> void:
@@ -473,22 +534,30 @@ func _build_drawer() -> void:
 	_drawer_tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_drawer_header.add_child(_drawer_tabs)
 	_search.placeholder_text = "Search"
-	_search.custom_minimum_size.x = 150
+	_search.custom_minimum_size.x = 120
 	_search.clear_button_enabled = true
 	_search.text_changed.connect(func(_text: String) -> void: _fill_drawer())
 	_search.set_meta("revert", func() -> void: pass)
 	_drawer_header.add_child(_search)
 	_drawer_header.add_child(_button("Hide", "ChipButton", "Hide the catalog (%s)" % InputSetup.describe("editor_catalog"),
-			func() -> void:
-				_drawer_open = false
-				_layout()))
+			func() -> void: _set_drawer_open(false)))
+	_drawer_show = _button("Catalog (%s)" % InputSetup.describe("editor_catalog"), "ChipButton", "Show the catalog",
+			func() -> void: _set_drawer_open(true))
+	_drawer_show.anchor_top = 1.0
+	_drawer_show.anchor_bottom = 1.0
+	_drawer_show.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_drawer_show.offset_left = MARGIN
+	_drawer_show.offset_bottom = -MARGIN
+	_drawer_show.offset_top = -MARGIN
+	_drawer_show.visible = false
+	_root.add_child(_drawer_show)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	column.add_child(scroll)
 	_drawer_tiles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_drawer_tiles.add_theme_constant_override("h_separation", 6)
-	_drawer_tiles.add_theme_constant_override("v_separation", 6)
+	_drawer_tiles.add_theme_constant_override("h_separation", 4)
+	_drawer_tiles.add_theme_constant_override("v_separation", 4)
 	scroll.add_child(_drawer_tiles)
 
 
@@ -502,7 +571,7 @@ func _build_hint() -> void:
 	_hint.anchor_bottom = 1.0
 	_hint.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_hint_label.theme_type_variation = "MutedLabel"
-	_hint_label.add_theme_font_size_override("font_size", 12)
+	_hint_label.add_theme_font_size_override("font_size", 11)
 	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.add_child(_hint_label)
@@ -522,8 +591,8 @@ func _build_readout() -> void:
 	_readout_label.scroll_active = false
 	_readout_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_readout_label.add_theme_color_override("default_color", PaperPalette.INK)
-	_readout_label.add_theme_font_size_override("normal_font_size", 16)
-	_readout_label.add_theme_font_size_override("bold_font_size", 16)
+	_readout_label.add_theme_font_size_override("normal_font_size", 13)
+	_readout_label.add_theme_font_size_override("bold_font_size", 13)
 	_readout_label.add_theme_font_override("bold_font", preload("res://assets/ui/fonts/Lato-Black.ttf"))
 	_readout.add_child(_readout_label)
 	_readout.visible = false
@@ -537,7 +606,7 @@ func _build_toast() -> void:
 	_toast.anchor_right = 0.5
 	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_toast.offset_top = BAR_HEIGHT + MARGIN
-	_toast_label.add_theme_font_size_override("font_size", 14)
+	_toast_label.add_theme_font_size_override("font_size", 12)
 	_toast.add_child(_toast_label)
 	_toast.visible = false
 	_root.add_child(_toast)
@@ -554,17 +623,32 @@ func _show_toast(text: String) -> void:
 func _drawer_has_content() -> bool:
 	if tool.tool == EditorTool.Tool.OPENING:
 		return false
-	return tool.tool != EditorTool.Tool.SELECT or _room_selected()
+	return tool.tool != EditorTool.Tool.SELECT or _room_selected() or _wall_selected()
 
 
 func _room_selected() -> bool:
 	return tool.tool == EditorTool.Tool.SELECT and tool.selection().get("kind") == "room"
 
 
+func _wall_selected() -> bool:
+	return tool.tool == EditorTool.Tool.SELECT and tool.selection().get("kind") == "wall"
+
+
+## The catalog shows materials (small swatches, a shorter drawer) rather than props or markers.
+func _drawer_has_swatches() -> bool:
+	return tool != null and not tool.tool in [EditorTool.Tool.PROP, EditorTool.Tool.MARKER]
+
+
 func _layout() -> void:
-	var drawer_shown := _drawer_open and tool != null and _drawer_has_content()
+	var has_content := tool != null and _drawer_has_content()
+	var drawer_shown := _drawer_open and has_content
 	_drawer.visible = drawer_shown
-	var bottom := DRAWER_HEIGHT + MARGIN * 2 if drawer_shown else MARGIN
+	_drawer_show.visible = not _drawer_open and has_content
+	var height := SWATCH_DRAWER_HEIGHT if _drawer_has_swatches() else DRAWER_HEIGHT
+	_drawer.offset_top = -height - MARGIN
+	var bottom := height + MARGIN * 2 if drawer_shown else MARGIN
+	if _drawer_show.visible:
+		bottom = _drawer_show.size.y + MARGIN * 2
 	_inspector.offset_bottom = -MARGIN
 	_hint.offset_bottom = -bottom
 	_hint.offset_top = -bottom
@@ -593,13 +677,13 @@ func _modal(title: String) -> Control:
 	center.add_child(sheet)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 16)
+		margin.add_theme_constant_override("margin_" + side, 10)
 	sheet.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
+	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
 	var heading := HBoxContainer.new()
-	var title_label := _label(title, "HeaderTitle", 24)
+	var title_label := _label(title, "HeaderTitle", 18)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	heading.add_child(title_label)
 	heading.add_child(_button("Close", "ChipButton", "Close (Esc)", func() -> void: _set_modal(modal, false)))
@@ -626,13 +710,28 @@ func _set_modal(modal: Control, open: bool) -> void:
 func _build_help() -> Control:
 	var modal := _modal("Level editor keys")
 	var body: VBoxContainer = modal.get_meta("body")
-	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 32)
-	body.add_child(columns)
+	# Two sections a row, scrolling when the screen is short.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size.y = clampf(get_viewport().get_visible_rect().size.y - 200.0, 300.0, 900.0)
+	body.add_child(scroll)
+	var columns := GridContainer.new()
+	columns.columns = 2
+	columns.add_theme_constant_override("h_separation", 28)
+	columns.add_theme_constant_override("v_separation", 14)
+	var clear := MarginContainer.new() # Room for the scroll bar.
+	clear.add_theme_constant_override("margin_right", 16)
+	clear.add_child(columns)
+	scroll.add_child(clear)
 	var sections := [
-		["Tools", [["Select", "editor_tool_select"], ["Room", "editor_tool_room"], ["Box", "editor_tool_box"],
-			["Brush", "editor_tool_brush"], ["Replace", "editor_tool_replace"], ["Opening", "editor_tool_opening"], ["Prop", "editor_tool_prop"],
-			["Marker", "editor_tool_marker"], ["Brush size", "editor_brush_smaller", "editor_brush_bigger"]]],
+		["Tools", [["Pick a tool", "1 ... 9, 0 (in rail order)"], ["Brush size", "editor_brush_smaller", "editor_brush_bigger"]]],
+		["Build mode (empty levels)", [["Storey up / down", "editor_cut_up", "editor_cut_down"],
+			["Floor / Ceiling: an area", "LMB drag"], ["...fill inside walls", "LMB click"], ["...erase", "Shift+LMB"],
+			["...cover every closed room", "Auto (Ceiling)"], ["Wall: draw one", "LMB drag"], ["...four around an area", "Ctrl+LMB drag"],
+			["...erase along walls", "Shift+LMB drag"], ["...its height, its length", "Wheel, type 2.5 / 25v (Tab)"],
+			["...pick its inner face", "Alt+LMB on it"], ["Selected wall: move an end", "Drag an end handle"],
+			["...slide it", "Drag the middle handle"], ["...length, split, merge", "Inspector"],
+			["...openings, doors", "Opening tool, door props"]]],
 		["Editing", [["Rotate", "editor_rotate"], ["Grid snap", "editor_grid"], ["Free cursor", "editor_free_cursor"],
 			["Move selection", "editor_move"], ["Duplicate", "editor_duplicate"], ["Delete", "editor_delete"],
 			["Undo", "editor_undo"], ["Redo", "editor_redo"]]],
@@ -641,8 +740,10 @@ func _build_help() -> Control:
 			["Use the tool", "LMB / RMB"], ["Pick material or prop", "Alt+LMB"]]],
 		["Builder view", [["Switch view", "editor_view"], ["Orbit", "RMB / MMB drag"], ["Pan", "WASD, Shift+MMB drag"],
 			["Zoom", "Wheel"], ["Turn 45°", "editor_orbit_left", "editor_orbit_right"], ["Frame selection", "editor_frame"],
-			["Whole level", "editor_frame_all"], ["Cut height", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
-			["Walls down", "editor_walls_down"],
+			["Whole level", "editor_frame_all"], ["Cut height (rock levels)", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
+			["Walls down", "editor_walls_down"], ["Front / right / top", "editor_view_front", "editor_view_right", "editor_view_top"],
+			["Other side, turn around", "Ctrl+Num", "editor_view_around"], ["Turn, tilt", "Num 4 6 8 2"],
+			["Orthographic", "editor_view_ortho"], ["Zoom", "editor_zoom_in", "editor_zoom_out"],
 			["Brush carve", "Shift+LMB"]]],
 		["Walk view", [["Move", "WASD, Space / Ctrl"], ["Fly on / off", "editor_fly"], ["Fly speed", "Wheel, Shift fast"]]],
 		["Room, Box, Replace", [["Corner, floor, height", "LMB ×3"], ["Size", "Wheel"], ["Other floor side", "Shift+Wheel"],
@@ -651,33 +752,33 @@ func _build_help() -> Control:
 	for section: Array in sections:
 		var grid := GridContainer.new()
 		grid.columns = 2
-		grid.add_theme_constant_override("h_separation", 16)
-		grid.add_theme_constant_override("v_separation", 6)
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 3)
 		var column := VBoxContainer.new()
-		column.add_child(_label(section[0], "Label", 18))
+		column.add_child(_label(section[0], "Label", 14))
 		column.add_child(grid)
 		columns.add_child(column)
 		for row: Array in section[1]:
-			grid.add_child(_label(row[0], "BodyText", 14))
+			grid.add_child(_label(row[0], "BodyText", 12))
 			var keys: Array[String] = []
 			for key: String in row.slice(1):
 				keys.append(InputSetup.describe(key) if InputSetup.EDITOR_KEYS.has(key) else key)
-			grid.add_child(_label(" ".join(keys), "AccentLabel", 14))
-	body.add_child(_label("Walk view: Esc frees the mouse to use the panels; click the world to take it back.", "MutedBody", 12))
+			grid.add_child(_label(" ".join(keys), "AccentLabel", 12))
+	body.add_child(_label("Walk view: Esc frees the mouse to use the panels; click the world to take it back.", "MutedBody", 11))
 	return modal
 
 
 func _build_menu() -> Control:
 	var modal := _modal("Menu")
 	var body: VBoxContainer = modal.get_meta("body")
-	body.custom_minimum_size.x = 320
+	body.custom_minimum_size.x = 260
 	body.add_child(_button("Back to editing", "PrimaryButton", "", func() -> void:
 		_set_modal(modal, false)
 		tool.resume()))
 	body.add_child(_button("Save", "Button", InputSetup.describe("editor_save"), lab.request_save))
 	body.add_child(_button("Keys and controls", "Button", InputSetup.describe("editor_help"), func() -> void: _set_modal(_help, true)))
 	_menu_info.theme_type_variation = "MutedBody"
-	_menu_info.add_theme_font_size_override("font_size", 12)
+	_menu_info.add_theme_font_size_override("font_size", 11)
 	body.add_child(_menu_info)
 	body.add_child(_button("End session" if multiplayer.is_server() else "Leave to menu", "DangerButton",
 			"Unsaved changes are lost", func() -> void: Net.leave()))
@@ -705,6 +806,34 @@ func _refresh() -> void:
 			_number_row("Size", tool.brush_size, 1, 20, 1, func(v: float) -> void: tool.brush_size = int(v))
 			_check_row("Cube", tool.brush_cube, func(on: bool) -> void: tool.brush_cube = on)
 			_material_row("Material", tool.material)
+		EditorTool.Tool.FLOOR, EditorTool.Tool.CEILING:
+			var is_floor: bool = tool.tool == EditorTool.Tool.FLOOR
+			_material_row("Material", tool.room_floor if is_floor else tool.room_ceiling)
+			_note("Storey %d. Drag an area to %s it, or click inside walls to fill the room they close in. Shift erases. Corners snap to wall ends, walls and edges already there. Pick a material in the catalog or Alt+click one." % [
+					tool.storey + 1, "floor" if is_floor else "cover"])
+			if not is_floor:
+				var auto := _button("Auto ceiling", "Button", "A ceiling over every room the walls close in that has a floor", func() -> void:
+					tool.auto_ceiling()
+					tool.resume())
+				_content.add_child(auto)
+		EditorTool.Tool.WALL:
+			for target: String in WALL_TARGETS:
+				var id: int = tool.room_wall if target == "wall" else tool.wall_inner
+				var row := _material_row(WALL_TARGETS[target], id) if id > 0 else _row(WALL_TARGETS[target], _label("Same as the wall", "MutedLabel", 11))
+				row.modulate.a = 1.0 if target == _wall_target else 0.7
+			if tool.wall_inner > 0:
+				_content.add_child(_button("No inner face", "ChipButton", "Both faces in the wall's material", func() -> void:
+					tool.wall_inner = 0
+					_refresh()))
+			_number_row("Thickness", tool.wall_thickness, 1, 10, 1, func(v: float) -> void: tool.wall_thickness = int(v))
+			var meters: float = lab.world.voxel_size
+			_check_row("Storey height", tool.wall_height <= 0, func(on: bool) -> void:
+				tool.wall_height = -1 if on else LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), tool.storey)
+				_refresh())
+			if tool.wall_height > 0:
+				_number_row("Height (m)", tool.wall_height * meters, 0.1, 50.0, 0.1, func(v: float) -> void: tool.wall_height = maxi(roundi(v / meters), 1))
+			_check_row("Floor and ceiling", tool.wall_slabs, func(on: bool) -> void: tool.wall_slabs = on)
+			_note("Storey %d. Drag a wall: it snaps to 8 directions and to wall ends, walls and floor edges. While dragging, the wheel sets its height and typing its length (Tab: the height). Ctrl+drag: four walls around an area (with its floor and ceiling when checked). Shift+drag along walls erases. The inner face is the left side, going from where you pressed." % (tool.storey + 1))
 		EditorTool.Tool.ROOM:
 			_heading("Lining")
 			for target: String in ROOM_TARGETS:
@@ -759,20 +888,20 @@ func _refresh() -> void:
 
 
 func _heading(text: String) -> void:
-	_content.add_child(_label(text, "Label", 16))
+	_content.add_child(_label(text, "Label", 13))
 
 
 func _note(text: String) -> void:
-	var label := _label(text, "MutedBody", 12)
+	var label := _label(text, "MutedBody", 11)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(INSPECTOR_WIDTH - 40, 0)
+	label.custom_minimum_size = Vector2(INSPECTOR_WIDTH - 28, 0)
 	_content.add_child(label)
 
 
 func _row(text: String, control: Control) -> HBoxContainer:
 	var row := HBoxContainer.new()
-	var label := _label(text, "Label", 13)
-	label.custom_minimum_size = Vector2(96, 0)
+	var label := _label(text, "Label", 12)
+	label.custom_minimum_size = Vector2(84, 0)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(label)
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -785,11 +914,11 @@ func _material_row(text: String, id: int) -> HBoxContainer:
 	var value := HBoxContainer.new()
 	var swatch := TextureRect.new()
 	swatch.texture = _material_icon(id)
-	swatch.custom_minimum_size = Vector2(22, 22)
+	swatch.custom_minimum_size = Vector2(16, 16)
 	swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	swatch.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	value.add_child(swatch)
-	value.add_child(_label(VoxelMaterials.get_material_name(id), "BodyText", 13))
+	value.add_child(_label(VoxelMaterials.get_material_name(id), "BodyText", 12))
 	return _row(text, value)
 
 
@@ -811,7 +940,7 @@ func _selection() -> void:
 	var object: Dictionary = lab.level.objects.get(tool.selected, {})
 	if object.is_empty():
 		_inspector_title.text = "Select"
-		_note("Click a room, opening, prop or marker in the world to select it.")
+		_note("Click a room, wall, opening, prop or marker in the world to select it.")
 		_content.add_child(_button("Check level", "Button", "List props that float or sit inside a wall", func() -> void:
 			_problems = PropPlacement.problems(lab.world, lab.level.objects)
 			_problems_checked = true
@@ -852,7 +981,9 @@ func _selection() -> void:
 		"room":
 			_inspector_title.text = object.name if object.name != "" else "Room"
 		"opening":
-			_inspector_title.text = str(object.type).capitalize()
+			_inspector_title.text = str(object.type).capitalize() + (" in a wall" if str(object.get("wall", "")) != "" else "")
+		"wall":
+			_inspector_title.text = "Wall"
 		_:
 			_inspector_title.text = LevelSchema.MARKERS[object.type].label
 	if object.kind == "room":
@@ -863,21 +994,51 @@ func _selection() -> void:
 			row.modulate.a = 1.0 if target == _room_target else 0.7
 	elif object.kind == "opening" and object.door != "":
 		_note("Cut by the door %s: move or delete the door to change it." % object.door)
-	for field: Dictionary in LevelSchema.fields_for(object):
-		_field(object, field)
+	if object.kind == "wall":
+		_wall_inspector(object)
+	else:
+		for field: Dictionary in LevelSchema.fields_for(object):
+			_field(object, field)
 	if object.kind == "room":
 		_check_row("Move contents with it", tool.move_contents, func(on: bool) -> void: tool.move_contents = on)
 	var buttons := HFlowContainer.new()
 	buttons.add_theme_constant_override("h_separation", 6)
 	buttons.add_theme_constant_override("v_separation", 6)
-	for action in [["Move", "Button", "editor_move", tool._start_move], ["Duplicate", "Button", "editor_duplicate", tool._duplicate],
-			["Delete", "DangerButton", "editor_delete", tool.delete_selected]]:
+	var actions := [["Move", "Button", "editor_move", tool._start_move], ["Duplicate", "Button", "editor_duplicate", tool._duplicate]]
+	if object.kind == "wall":
+		actions.append_array([["Split", "Button", "", tool.split_selected], ["Merge", "Button", "", tool.merge_selected]])
+	actions.append(["Delete", "DangerButton", "editor_delete", tool.delete_selected])
+	for action in actions:
 		var button := _button(action[0], action[1], InputSetup.describe(action[2]), func() -> void:
 			action[3].call()
 			tool.resume())
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buttons.add_child(button)
 	_content.add_child(buttons)
+
+
+## A selected wall: its length, height and faces (the catalog paints the one picked), then its id,
+## storey and thickness.
+func _wall_inspector(object: Dictionary) -> void:
+	var meters: float = lab.world.voxel_size
+	var st := LevelBuild.storeys(lab.level.objects)
+	_note("Storey %d. Drag the handles on its ends to move them (walls joined there follow) or the one in the middle to slide it; click one to pick it up, the wheel nudges it. Split cuts it at its middle; Merge joins it to the wall in line with it." % (int(object.storey) + 1))
+	for target: String in WALL_TARGETS:
+		var id := int(object.material if target == "wall" else object.inner)
+		var row := _material_row(WALL_TARGETS[target], id) if id > 0 else _row(WALL_TARGETS[target], _label("Same as the wall", "MutedLabel", 11))
+		row.modulate.a = 1.0 if target == _wall_target else 0.7
+	if int(object.inner) > 0:
+		_content.add_child(_button("No inner face", "ChipButton", "Both faces in the wall's material", func() -> void: tool.set_wall_field("inner", 0)))
+	_number_row("Length (m)", LevelBuild.wall_length(object) * meters, 0.1, 400.0, 0.1, func(v: float) -> void: tool.set_wall_length(v))
+	_check_row("Storey height", int(object.height) <= 0, func(on: bool) -> void:
+		tool.set_wall_field("height", -1 if on else LevelBuild.storey_height(st, int(object.storey))))
+	if int(object.height) > 0:
+		_number_row("Height (m)", int(object.height) * meters, 0.1, 100.0, 0.1, func(v: float) -> void: tool.set_wall_field("height", maxi(roundi(v / meters), 1)))
+	# Storeys count from 1 on screen (the storey bar's way), from 0 in the object.
+	_number_row("Storey", int(object.storey) + 1, 1, 64, 1, func(v: float) -> void: tool.set_wall_field("storey", int(v) - 1))
+	for field: Dictionary in LevelSchema.WALL_FIELDS:
+		if field.key in ["id", "thickness"]:
+			_field(object, field)
 
 
 ## One property row; changing it sends the edited object to LevelEdits.
@@ -937,7 +1098,7 @@ func _field(object: Dictionary, field: Dictionary) -> void:
 				var number := PaperNumber.make(value[axis], field.get("min", -1024), field.get("max", 1024))
 				number.custom_minimum_size.x = 40
 				number.add_theme_constant_override("minimum_character_width", 1)
-				number.add_theme_font_size_override("font_size", 14)
+				number.add_theme_font_size_override("font_size", 12)
 				number.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 				fields.append(number)
 				row.add_child(number)
@@ -947,7 +1108,7 @@ func _field(object: Dictionary, field: Dictionary) -> void:
 			# Label above, so three numbers get the card's width.
 			var block := VBoxContainer.new()
 			block.add_theme_constant_override("separation", 2)
-			block.add_child(_label(label + "  (x, y, z)", "Label", 13))
+			block.add_child(_label(label + "  (x, y, z)", "Label", 12))
 			block.add_child(row)
 			_content.add_child(block)
 
@@ -981,11 +1142,22 @@ func _fill_drawer() -> void:
 	var filter := _search.text.strip_edges().to_lower()
 	var group := ButtonGroup.new()
 	match tool.tool:
-		EditorTool.Tool.BOX, EditorTool.Tool.BRUSH, EditorTool.Tool.REPLACE, EditorTool.Tool.ROOM, EditorTool.Tool.SELECT:
-			if tool.tool == EditorTool.Tool.SELECT and not _room_selected():
+		EditorTool.Tool.BOX, EditorTool.Tool.BRUSH, EditorTool.Tool.REPLACE, EditorTool.Tool.ROOM, EditorTool.Tool.SELECT, EditorTool.Tool.FLOOR, EditorTool.Tool.CEILING, EditorTool.Tool.WALL:
+			if tool.tool == EditorTool.Tool.SELECT and not _room_selected() and not _wall_selected():
 				return
-			if tool.tool == EditorTool.Tool.ROOM or _room_selected():
-				_drawer_tabs.add_child(_label("Lines the", "MutedLabel", 12))
+			if tool.tool == EditorTool.Tool.WALL or _wall_selected():
+				_drawer_tabs.add_child(_label("Paints the", "MutedLabel", 11))
+				var tabs := ButtonGroup.new()
+				for target: String in WALL_TARGETS:
+					var tab := _button(WALL_TARGETS[target], "ChipButton", "The catalog sets the %s" % WALL_TARGETS[target].to_lower(), func() -> void:
+						_wall_target = target
+						_refresh())
+					tab.toggle_mode = true
+					tab.button_group = tabs
+					tab.button_pressed = target == _wall_target
+					_drawer_tabs.add_child(tab)
+			elif tool.tool == EditorTool.Tool.ROOM or _room_selected():
+				_drawer_tabs.add_child(_label("Lines the", "MutedLabel", 11))
 				var tabs := ButtonGroup.new()
 				for target: String in ROOM_TARGETS:
 					var tab := _button(ROOM_TARGETS[target], "ChipButton", "The catalog sets the room's %s" % ROOM_TARGETS[target].to_lower(), func() -> void:
@@ -996,12 +1168,12 @@ func _fill_drawer() -> void:
 					tab.button_pressed = target == _room_target
 					_drawer_tabs.add_child(tab)
 			else:
-				_drawer_tabs.add_child(_label("Materials", "Label", 15))
+				_drawer_tabs.add_child(_label("Materials", "Label", 12))
 			for id: int in _material_ids():
 				var material_name := VoxelMaterials.get_material_name(id)
 				if filter != "" and not material_name.to_lower().contains(filter):
 					continue
-				var tile := _tile(material_name, _material_icon(id), group, "Palette index %d" % id)
+				var tile := _tile("", _material_icon(id), group, "%s (palette index %d)" % [material_name, id], true)
 				tile.set_meta("value", id)
 				tile.pressed.connect(func() -> void: _pick_material(id))
 		EditorTool.Tool.PROP:
@@ -1032,7 +1204,7 @@ func _fill_drawer() -> void:
 					_refresh())
 				_prop_tiles[prop_name] = tile
 		EditorTool.Tool.MARKER:
-			_drawer_tabs.add_child(_label("Markers", "Label", 15))
+			_drawer_tabs.add_child(_label("Markers", "Label", 12))
 			for type: String in LevelSchema.MARKERS:
 				var label: String = LevelSchema.MARKERS[type].label
 				if filter != "" and not label.to_lower().contains(filter):
@@ -1045,7 +1217,9 @@ func _fill_drawer() -> void:
 	_sync_drawer()
 
 
-func _tile(text: String, icon: Texture2D, group: ButtonGroup, tip: String) -> Button:
+## A catalog tile: a picture with its name under it, or (swatch) just a small color square, named
+## in its tooltip.
+func _tile(text: String, icon: Texture2D, group: ButtonGroup, tip: String, swatch := false) -> Button:
 	var tile := Button.new()
 	tile.theme_type_variation = "ToggleButton"
 	tile.toggle_mode = true
@@ -1058,13 +1232,22 @@ func _tile(text: String, icon: Texture2D, group: ButtonGroup, tip: String) -> Bu
 	tile.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 	tile.clip_text = true
 	tile.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	tile.add_theme_font_size_override("font_size", 11)
+	tile.add_theme_font_size_override("font_size", 10)
 	tile.add_theme_constant_override("icon_max_width", ICON_SIZE)
 	# The theme tints button icons ink (they're meant to be glyphs); these are pictures.
 	for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
 		tile.add_theme_color_override("icon_%s_color" % state, Color.WHITE)
 	tile.custom_minimum_size = TILE_SIZE
 	_drawer_tiles.add_child(tile)
+	if swatch:
+		tile.custom_minimum_size = SWATCH_SIZE
+		tile.add_theme_constant_override("icon_max_width", int(SWATCH_SIZE.x) - 8)
+		tile.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+		# The theme's tile padding (now that it's in the tree) is too much for a swatch.
+		for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			var box := tile.get_theme_stylebox(state).duplicate() as StyleBox
+			box.set_content_margin_all(3)
+			tile.add_theme_stylebox_override(state, box)
 	return tile
 
 
@@ -1076,8 +1259,17 @@ func _sync_drawer() -> void:
 			current = tool.material
 		EditorTool.Tool.ROOM:
 			current = tool.get("room_" + _room_target)
+		EditorTool.Tool.WALL:
+			current = tool.room_wall if _wall_target == "wall" else tool.wall_inner
+		EditorTool.Tool.FLOOR:
+			current = tool.room_floor
+		EditorTool.Tool.CEILING:
+			current = tool.room_ceiling
 		EditorTool.Tool.SELECT:
-			current = tool.selection().get(_room_target)
+			if _wall_selected():
+				current = tool.selection().get("material" if _wall_target == "wall" else "inner")
+			else:
+				current = tool.selection().get(_room_target)
 		EditorTool.Tool.PROP:
 			current = tool.prop_name
 		EditorTool.Tool.MARKER:
@@ -1088,13 +1280,24 @@ func _sync_drawer() -> void:
 
 
 func _pick_material(id: int) -> void:
-	if _room_selected():
+	if _wall_selected():
+		tool.set_wall_field("material" if _wall_target == "wall" else "inner", id)
+	elif _room_selected():
 		var room := tool.selection().duplicate()
 		if room.get(_room_target) != id:
 			room[_room_target] = id
 			lab.edits.put_object(room, room.id)
 	elif tool.tool == EditorTool.Tool.ROOM:
 		tool.set("room_" + _room_target, id)
+	elif tool.tool == EditorTool.Tool.WALL:
+		if _wall_target == "wall":
+			tool.room_wall = id
+		else:
+			tool.wall_inner = id
+	elif tool.tool == EditorTool.Tool.FLOOR:
+		tool.room_floor = id
+	elif tool.tool == EditorTool.Tool.CEILING:
+		tool.room_ceiling = id
 	else:
 		tool.material = id
 	_refresh()

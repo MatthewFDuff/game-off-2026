@@ -127,6 +127,30 @@ func _run() -> void:
 	await _key(KEY_H)
 	await _frames(2)
 	_check("H again: walls up", not camera.walls_down and world.material.get_shader_parameter("walls_down_dir") == Vector2.ZERO)
+
+	# Numpad views: 7 top, 3 from the right, 9 turns around, 5 orthographic and back.
+	await _key(KEY_KP_7)
+	_check("Num 7: top view", camera.pitch == camera.PITCH_MAX, str(camera.pitch))
+	await _key(KEY_KP_3)
+	_check("Num 3: from the right", is_equal_approx(wrapf(camera.yaw, -180.0, 180.0), 90.0) and camera.pitch == camera.PITCH_MIN, "%s %s" % [camera.yaw, camera.pitch])
+	await _key(KEY_KP_9)
+	_check("Num 9: turned around", is_equal_approx(wrapf(camera.yaw, -180.0, 180.0), -90.0), str(camera.yaw))
+	await _key(KEY_KP_5)
+	await _frames(2)
+	_check("Num 5: orthographic", camera.orthographic and camera.camera.projection == Camera3D.PROJECTION_ORTHOGONAL)
+	await _key(KEY_KP_5)
+	await _frames(2)
+	_check("...and back to perspective", not camera.orthographic and camera.camera.projection == Camera3D.PROJECTION_PERSPECTIVE)
+
+	# From outside the world the aim comes in through its edge (outside reads as solid); past the
+	# world's bottom, the cursor lands on the ground there.
+	var extent: Vector3 = Vector3(world.get_size_in_voxels()) * world.voxel_size
+	var above: Vector3 = world.global_position + Vector3(extent.x * 0.5, extent.y + 10.0, extent.z * 0.5)
+	var hit: Dictionary = camera.raycast(above, Vector3.DOWN)
+	_check("a ray from above the world comes in through the top", hit.hit and hit.distance > 10.0, str(hit))
+	var ground: Dictionary = tool._ground_hit(above, Vector3.DOWN)
+	_check("the world's bottom is ground for the cursor", ground.hit and ground.voxel.y == -1 and ground.normal == Vector3.UP, str(ground))
+	_check("...but not off the world's footprint", not tool._ground_hit(above + Vector3(extent.x, 0.0, 0.0), Vector3.DOWN).hit)
 	camera.look_from(ATRIUM, 0.0)
 	camera.pitch = 89.0
 	camera.distance = 6.0

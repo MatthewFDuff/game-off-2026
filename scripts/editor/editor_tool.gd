@@ -18,11 +18,16 @@ signal changed
 ## Esc asked for the menu (nothing left to back out of).
 signal menu_requested
 
-enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, OPENING, PROP, MARKER }
+enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, OPENING, PROP, MARKER, FLOOR, WALL, CEILING }
 
-const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Opening", "Prop", "Marker"]
-const TOOL_ACTIONS := ["editor_tool_select", "editor_tool_room", "editor_tool_box", "editor_tool_brush",
-		"editor_tool_replace", "editor_tool_opening", "editor_tool_prop", "editor_tool_marker"]
+const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Opening", "Prop", "Marker", "Floor", "Wall", "Ceiling"]
+## The number keys, by place on the rail (1 ... 9, 0); the rail's tools depend on the level (tools()).
+const SLOT_ACTIONS := ["editor_tool_select", "editor_tool_room", "editor_tool_box", "editor_tool_brush",
+		"editor_tool_replace", "editor_tool_opening", "editor_tool_prop", "editor_tool_marker", "editor_tool_slot_9", "editor_tool_slot_10"]
+## The rail in rock levels (carving rooms) and in build levels (empty: floors, walls and ceilings on
+## storeys, no Room tool).
+const ROCK_TOOLS := [Tool.SELECT, Tool.ROOM, Tool.BOX, Tool.BRUSH, Tool.REPLACE, Tool.OPENING, Tool.PROP, Tool.MARKER]
+const BUILD_TOOLS := [Tool.SELECT, Tool.FLOOR, Tool.WALL, Tool.CEILING, Tool.BOX, Tool.BRUSH, Tool.REPLACE, Tool.OPENING, Tool.PROP, Tool.MARKER]
 ## Short how-tos for tooltips.
 const TOOL_ABOUT := [
 	"Pick a room, opening, prop or marker to move, resize or change it",
@@ -33,9 +38,12 @@ const TOOL_ABOUT := [
 	"Cut a doorway, window or hole through a wall (doors cut their own)",
 	"Place props from the catalog",
 	"Place spawns, lights, triggers and other markers",
+	"Paint the storey's floor: drag an area, or click inside walls to fill them",
+	"Draw walls on the storey: drag a wall, Ctrl+drag a room of four, Shift+drag along walls to erase",
+	"Cover the storey: drag an area, click inside walls, or Auto over every closed room",
 ]
 const TOOL_HINTS := [
-	"LMB select · drag a room's handles to resize · M move · Ctrl+D duplicate · R rotate · Delete",
+	"LMB select · drag a room's or wall's handles · M move · Ctrl+D duplicate · R rotate · Delete",
 	"LMB corner, LMB floor, LMB height (the inside of the room) · wheel / type sizes · Alt+LMB: room from a carved space",
 	"LMB corner, floor, height: fill · RMB first: carve · wheel / type sizes · Tab next size",
 	"LMB hold: paint · RMB hold: carve · [ ] size",
@@ -43,6 +51,9 @@ const TOOL_HINTS := [
 	"LMB on a wall: cut the opening through it",
 	"LMB place (it sits on what you aim at; red: no spot) · R / RMB turn · Alt+LMB pick a placed prop's type",
 	"LMB place the marker · facing follows your view",
+	"LMB drag: paint an area · LMB click inside walls: fill · Shift: erase · Alt+LMB: pick a material",
+	"LMB drag: a wall (snaps to 8 directions, wall ends, walls, floor edges) · wheel: height · type: length · Ctrl: four walls · Shift: erase along walls",
+	"LMB drag: cover an area · LMB click inside walls: fill · Shift: erase · Auto (inspector): every closed room",
 ]
 const SNAPS := [1, 5, 10]
 ## How far the cursor reaches, in meters.
@@ -66,6 +77,9 @@ var prop_name := "chair"
 var facing := 0
 var marker_type := "light"
 var selected := ""
+## Build mode (empty levels): the storey being worked on (LevelBuild). Page Up / Down change it, the
+## cutaway opens it, and the cursor lands on its floor plane where nothing else is.
+var storey := 0
 ## Room tool linings (from the level's defaults).
 var room_floor := VoxelMaterials.CONCRETE
 var room_wall := VoxelMaterials.WALL_PAINT
@@ -94,6 +108,18 @@ var opening_sill := 10
 var move_contents := true
 ## Resize handles on a selected room.
 var handles := RoomHandles.new()
+## End and middle handles on a selected wall (build levels).
+var wall_handles := WallHandles.new()
+## Floor and Ceiling tools (build levels): their aim, snapping and drag.
+var build := BuildTools.new()
+## Wall tool (build levels): its drag, and the walls it draws: material (room_wall), the left face's
+## material (0: none), thickness, height (-1: the storey's), and whether Ctrl's rectangle also gets
+## a floor and a ceiling.
+var wall := WallTool.new()
+var wall_inner := 0
+var wall_thickness := 2
+var wall_height := -1
+var wall_slabs := true
 ## Last height built per tool, in voxels: the next one starts there.
 var _last_height := {Tool.ROOM: 30, Tool.BOX: 10, Tool.REPLACE: 10}
 ## This frame's aim ray (mouse or crosshair).
@@ -119,6 +145,8 @@ var _cursor_box := AABB()
 var _locked := ""
 var _preview_box := AABB()
 var _ghost_state := {}
+## The selected object as its outline was last drawn (LevelView.set_selected).
+var _outlined := {}
 const WARN_DELAY := 0.4
 ## 0 none, 1 painting, 2 carving
 var _stroke := 0
@@ -132,7 +160,18 @@ var _ghost := MeshInstance3D.new()
 var _volume_lines := MeshInstance3D.new()
 ## A faint grid on the surface under the cursor (builder view).
 var _grid := MeshInstance3D.new()
+## The Wall tool's preview: the walls being drawn (fill and edges), and their box for presence.
+var _wall_fill := MeshInstance3D.new()
+var _wall_lines := MeshInstance3D.new()
+var _wall_box := AABB()
+## The same prisms' corners in voxels, for presence_state.
+var _wall_prisms: Array = []
 const GRID_RADIUS := 3.0
+## The world's limits: its box's edges, and a meter grid on its bottom (in an empty level, the
+## ground you build on; the cursor lands on it where there's nothing else).
+var _bounds := MeshInstance3D.new()
+var _ground := MeshInstance3D.new()
+const BOUNDS_COLOR := Color(0.55, 0.75, 1.0, 0.55)
 ## Width, height and length labels on the sized box's edges (Vector3 axis order).
 var _size_labels: Array[Label3D] = []
 
@@ -161,13 +200,43 @@ func _ready() -> void:
 	grid_material.shader = preload("res://shaders/editor_grid.gdshader")
 	grid_material.set_shader_parameter("radius", GRID_RADIUS)
 	_grid.material_override = grid_material
+	_bounds.mesh = ImmediateMesh.new()
+	var bounds_material := LevelView._line_material(BOUNDS_COLOR)
+	bounds_material.no_depth_test = false # Behind rock in a rock level, so only the open edges show.
+	bounds_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_bounds.material_override = bounds_material
+	_ground.mesh = PlaneMesh.new()
+	var ground_material := ShaderMaterial.new()
+	ground_material.shader = preload("res://shaders/editor_grid.gdshader")
+	ground_material.set_shader_parameter("radius", 1e6) # No fade.
+	ground_material.set_shader_parameter("color", Color(BOUNDS_COLOR, 0.32))
+	_ground.material_override = ground_material
 	_ghost.transparency = 0.45
 	_invalid_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_invalid_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_invalid_material.albedo_color = Color(1.0, 0.25, 0.2, 0.55)
 	volume.world = lab.world
 	handles.world = lab.world
+	build.world = lab.world
+	build.view = lab.view
+	build.edits = lab.edits
+	wall.world = lab.world
+	wall.view = lab.view
+	wall.edits = lab.edits
+	for node in [_wall_fill, _wall_lines]:
+		node.mesh = ImmediateMesh.new()
+		node.visible = false
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		lab.view.add_child.call_deferred(node)
+	var wall_fill_material := StandardMaterial3D.new()
+	wall_fill_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wall_fill_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	wall_fill_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_wall_fill.material_override = wall_fill_material
+	_wall_lines.material_override = LevelView._line_material(Color.WHITE)
 	handles.build.call_deferred(lab.view)
+	wall_handles.world = lab.world
+	wall_handles.build.call_deferred(lab.view)
 	for i in 3:
 		var label := Label3D.new()
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -179,7 +248,7 @@ func _ready() -> void:
 		label.outline_modulate = Color(0.06, 0.09, 0.12)
 		label.render_priority = 10
 		_size_labels.append(label)
-	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid] + _size_labels:
+	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, _bounds, _ground] + _size_labels:
 		node.visible = false
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		lab.view.add_child.call_deferred(node)
@@ -203,10 +272,11 @@ func _load_room_defaults() -> void:
 
 
 func _exit_tree() -> void:
-	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, camera] + _size_labels:
+	for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, _bounds, _ground, _wall_fill, _wall_lines, camera] + _size_labels:
 		if is_instance_valid(node):
 			node.queue_free()
 	handles.free_meshes()
+	wall_handles.free_meshes()
 
 
 func is_active() -> bool:
@@ -226,9 +296,12 @@ func set_tool(new_tool: Tool) -> void:
 func select(id: String) -> void:
 	selected = id
 	handles.cancel()
+	wall_handles.cancel()
 	var object: Dictionary = lab.level.objects.get(id, {})
 	handles.room = object if object.get("kind") == "room" else {}
+	wall_handles.wall = object if object.get("kind") == "wall" else {}
 	lab.view.set_selected(id)
+	_outlined = object
 	changed.emit()
 
 
@@ -323,6 +396,9 @@ func _release() -> void:
 func cancel() -> void:
 	volume.cancel()
 	handles.cancel()
+	wall_handles.cancel()
+	build.cancel()
+	wall.cancel()
 	_grab = {}
 	_grab_id = ""
 	_end_stroke()
@@ -332,26 +408,30 @@ func cancel() -> void:
 
 ## Something to back out of with Esc: a volume being sized, a move or a stroke.
 func has_step() -> bool:
-	return volume.is_active() or handles.is_busy() or not _grab.is_empty() or _stroke != 0
+	return volume.is_active() or handles.is_busy() or wall_handles.is_busy() or not _grab.is_empty() or _stroke != 0 or build.dragging or wall.dragging
 
 
 func _process(delta: float) -> void:
 	if camera.active != (builder and is_active()):
 		_apply_view()
-	camera.zoom_enabled = not volume.is_active() and not handles.is_busy()
+	camera.zoom_enabled = not volume.is_active() and not handles.is_busy() and not wall_handles.is_busy() and not wall.dragging
 	if not is_active():
-		for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid] + _size_labels:
+		for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, _bounds, _ground, _wall_fill, _wall_lines] + _size_labels:
 			node.visible = false
 		return
 	if not selected.is_empty() and not lab.level.objects.has(selected):
 		select("") # Removed by someone else (or undone).
 	camera.cut_step = snap()
+	_update_storey()
+	if not tool in tools():
+		set_tool(Tool.SELECT) # Not on this level's rail (Room in a build level).
 	_check_floating()
-	if _locked != "" and _grab.is_empty() and not handles.is_busy():
+	if _locked != "" and _grab.is_empty() and not handles.is_busy() and not wall_handles.is_busy():
 		_release()
 	_update_cursor()
 	if volume.is_active() and is_aiming():
 		volume.aim(_aim_from, _aim_direction)
+	_update_build_aim()
 	# Keep the handles on the room as it is now (someone else may have changed it); the auto cut
 	# opens the selected room.
 	var focus := selection()
@@ -359,6 +439,13 @@ func _process(delta: float) -> void:
 	if not handles.is_busy():
 		handles.room = focus if focus.get("kind") == "room" and tool == Tool.SELECT else {}
 	handles.update(get_viewport().get_camera_3d(), pointer(), _aim_from, _aim_direction, snap())
+	if not wall_handles.is_busy():
+		wall_handles.wall = focus if focus.get("kind") == "wall" and tool == Tool.SELECT else {}
+	wall_handles.update(get_viewport().get_camera_3d(), pointer(), _aim_from, _aim_direction, snap(), lab.level.objects)
+	# A build piece's outline follows it when it changes (resized, someone else's edit).
+	if focus != _outlined:
+		lab.view.set_selected(selected)
+		_outlined = focus
 	if _stroke != 0:
 		_dab_timer -= delta
 		if _dab_timer <= 0.0:
@@ -385,7 +472,7 @@ func _update_cursor() -> void:
 	var object_distance := INF
 	var cutting := camera.is_cutting()
 	for object: Dictionary in lab.level.objects.values():
-		if object.id == _grab_id or object.kind == "room" or (object.kind == "opening" and tool != Tool.SELECT):
+		if object.id == _grab_id or object.kind == "room" or (object.kind == "opening" and tool != Tool.SELECT) or LevelBuild.is_build(object):
 			continue
 		var box := LevelSchema.box_of(object)
 		if cutting and box.position.y >= camera.cut_layer:
@@ -402,6 +489,13 @@ func _update_cursor() -> void:
 		cursor_normal = Vector3i.UP
 		return
 	var hit: Dictionary = camera.raycast(from, direction) if builder else world.raycast(from, direction, REACH)
+	if is_build_level():
+		# Build mode draws on the active storey's floor: its plane, unless something is in front of it.
+		var plane := storey_plane_hit(from, direction)
+		if plane.hit and (not hit.hit or plane.distance < hit.distance - 0.01):
+			hit = plane
+	if not hit.hit:
+		hit = _ground_hit(from, direction)
 	has_cursor = hit.hit or object_under != ""
 	if hit.hit:
 		solid_cell = hit.voxel
@@ -419,7 +513,177 @@ func _update_cursor() -> void:
 	elif object_under != "" and hit.hit and hit.distance < object_distance:
 		object_under = "" # Behind a wall.
 	if tool == Tool.SELECT and object_under == "" and hit.hit:
-		object_under = room_under()
+		object_under = build_under() if is_build_level() else ""
+		if object_under == "":
+			object_under = room_under()
+
+
+## The tool rail for this level (EditorTool.ROCK_TOOLS or BUILD_TOOLS); the number keys pick by
+## place on it.
+func tools() -> Array:
+	return BUILD_TOOLS if is_build_level() else ROCK_TOOLS
+
+
+## The material the Floor or Ceiling tool paints.
+func _slab_material() -> int:
+	return room_ceiling if tool == Tool.CEILING else room_floor
+
+
+## Floor and Ceiling tools: aim at the storey's floor top or ceiling bottom; the Wall tool at the
+## floor top.
+func _update_build_aim() -> void:
+	_update_wall_aim()
+	if not tool in [Tool.FLOOR, Tool.CEILING] or not is_build_level():
+		build.has_aim = false
+		build.cancel()
+		return
+	var st := LevelBuild.storeys(lab.level.objects)
+	build.kind = "ceiling" if tool == Tool.CEILING else "floor"
+	build.storey = storey
+	build.plane_y = LevelBuild.top_y(st, storey) if tool == Tool.CEILING else LevelBuild.floor_y(st, storey)
+	if is_aiming():
+		build.update_aim(_aim_from, _aim_direction, lab.level.objects, snap())
+	elif not build.dragging:
+		build.has_aim = false
+
+
+func _update_wall_aim() -> void:
+	if tool != Tool.WALL or not is_build_level():
+		wall.has_aim = false
+		wall.cancel()
+		return
+	var st := LevelBuild.storeys(lab.level.objects)
+	wall.storey = storey
+	wall.plane_y = LevelBuild.floor_y(st, storey)
+	wall.storey_height = LevelBuild.storey_height(st, storey)
+	if is_aiming():
+		wall.update_aim(_aim_from, _aim_direction, lab.level.objects, snap())
+	elif not wall.dragging:
+		wall.has_aim = false
+	wall.update_end(snap())
+
+
+## The height a new wall starts at (voxels): the tool's, or the storey's.
+func _wall_start_height() -> int:
+	return wall_height if wall_height > 0 else LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), storey)
+
+
+## Ceiling tool's Auto: covers every closed-in room on the storey that has a floor.
+func auto_ceiling() -> void:
+	if not is_build_level():
+		return
+	build.storey = storey
+	lab.notify(build.auto_ceiling(lab.level.objects, room_ceiling), false)
+
+
+## A build mode level (empty): floors, walls and ceilings on storeys.
+func is_build_level() -> bool:
+	return lab.level != null and lab.level.settings.get("fill", "rock") == "empty"
+
+
+## The active storey's floor top (voxel y) and the storeys as they are.
+func storey_floor() -> int:
+	return LevelBuild.floor_y(LevelBuild.storeys(lab.level.objects), storey)
+
+
+## Where a ray meets the active storey's floor top, inside the world's footprint, as a hit on the
+## layer under it (like _ground_hit).
+func storey_plane_hit(from: Vector3, direction: Vector3) -> Dictionary:
+	var world := lab.world
+	var y := world.global_position.y + storey_floor() * world.voxel_size
+	if direction.y >= -1e-4 or from.y <= y:
+		return {hit = false}
+	var distance := (from.y - y) / -direction.y
+	var point := from + direction * distance
+	var size: Vector3i = world.get_size_in_voxels()
+	var voxel: Vector3i = world.world_to_voxel(point + Vector3.UP * 0.01)
+	if voxel.x < 0 or voxel.z < 0 or voxel.x >= size.x or voxel.z >= size.z:
+		return {hit = false}
+	return {hit = true, voxel = Vector3i(voxel.x, voxel.y - 1, voxel.z), normal = Vector3.UP, distance = distance, position = point}
+
+
+## Keeps the active storey in range (someone else may drop one) and points the camera's cut and
+## Page Up / Down at it in build levels.
+func _update_storey() -> void:
+	if not is_build_level():
+		camera.storey_cut = -1
+		camera.on_storey_key = Callable()
+		return
+	var st := LevelBuild.storeys(lab.level.objects)
+	storey = clampi(storey, 0, maxi(st.heights.size() - 1, 0))
+	# Cut at the top of the walls (the ceiling cut away, so you see in and the cap shows the walls);
+	# with the Ceiling tool, over the ceiling, so it shows what is covered.
+	camera.storey_cut = LevelBuild.top_y(st, storey) + (int(st.slab) if tool == Tool.CEILING else 0)
+	if not camera.on_storey_key.is_valid():
+		camera.on_storey_key = change_storey
+
+
+## Moves to the storey above (step 1) or below (-1). Going past the top adds a storey as tall as the
+## top one; coming back down from an empty top storey drops it again.
+func change_storey(step: int) -> void:
+	var objects: Dictionary = lab.level.objects
+	var st: Dictionary = LevelBuild.storeys(objects).duplicate(true)
+	var count: int = st.heights.size()
+	var target := storey + step
+	if target < 0:
+		return
+	if target >= count:
+		st.heights.append(LevelBuild.storey_height(st, count - 1) if count > 0 else LevelBuild.DEFAULT_HEIGHT)
+		lab.edits.put_object(st, LevelBuild.STOREYS_ID if objects.has(LevelBuild.STOREYS_ID) else "")
+		lab.notify("Storey %d (new)" % (target + 1), false)
+	elif step < 0 and storey == count - 1 and storey > 0 and storey_is_empty(storey):
+		st.heights.resize(count - 1)
+		lab.edits.put_object(st, LevelBuild.STOREYS_ID)
+		lab.notify("Storey %d" % (target + 1), false)
+	else:
+		lab.notify("Storey %d" % (target + 1), false)
+	storey = target
+	# The camera looks at the storey's floor.
+	camera.pivot.y = lab.world.global_position.y + LevelBuild.floor_y(st, storey) * lab.world.voxel_size
+	cancel()
+	changed.emit()
+
+
+## Nothing on the storey: no walls, and no floor or ceiling shapes.
+func storey_is_empty(index: int) -> bool:
+	var objects: Dictionary = lab.level.objects
+	for kind in ["floor", "ceiling"]:
+		if not objects.get(LevelBuild.slab_id(kind, index), {}).get("shapes", []).is_empty():
+			return false
+	for object: Dictionary in objects.values():
+		if object.kind == "wall" and int(object.storey) == index:
+			return false
+	return true
+
+
+## Sets the active storey's wall height (voxels): the walls that follow it and the storeys above move.
+func set_storey_height(voxels: int) -> void:
+	var objects: Dictionary = lab.level.objects
+	var st: Dictionary = LevelBuild.storeys(objects).duplicate(true)
+	while st.heights.size() <= storey:
+		st.heights.append(LevelBuild.DEFAULT_HEIGHT)
+	if int(st.heights[storey]) == voxels or voxels < 1:
+		return
+	st.heights[storey] = voxels
+	lab.edits.put_object(st, LevelBuild.STOREYS_ID if objects.has(LevelBuild.STOREYS_ID) else "")
+
+
+## Where a ray that hit nothing meets the world's bottom (the ground of an empty level), as a hit on
+## the layer under it: the cell above is in the world, the "solid" one just outside it.
+func _ground_hit(from: Vector3, direction: Vector3) -> Dictionary:
+	var world := lab.world
+	var bottom := world.global_position.y
+	if direction.y >= -1e-4 or from.y <= bottom:
+		return {hit = false}
+	var distance := (from.y - bottom) / -direction.y
+	if builder and camera.is_cutting() and camera.cut_y() <= bottom:
+		return {hit = false}
+	var point := from + direction * distance
+	var size: Vector3i = world.get_size_in_voxels()
+	var voxel: Vector3i = world.world_to_voxel(point + Vector3.UP * 0.01)
+	if voxel.x < 0 or voxel.z < 0 or voxel.x >= size.x or voxel.z >= size.z:
+		return {hit = false}
+	return {hit = true, voxel = Vector3i(voxel.x, -1, voxel.z), normal = Vector3.UP, distance = distance, position = point}
 
 
 ## The outward normal of the box face nearest a point on it.
@@ -459,6 +723,16 @@ func room_under() -> String:
 	return inside_best if inside_best != "" else lining_best
 
 
+## The wall (or opening in a wall) under the cursor, for the Select tool; "" none.
+func build_under() -> String:
+	var objects: Dictionary = lab.level.objects
+	for voxel in [cell, solid_cell]:
+		var id := LevelBuild.opening_at(objects, voxel)
+		if id != "":
+			return id
+	return LevelBuild.wall_at(objects, solid_cell, storey)
+
+
 ## A cell snapped down to the grid.
 func snapped_cell(c: Vector3i) -> Vector3i:
 	var s := snap()
@@ -482,6 +756,8 @@ func _start_cell(carve: bool) -> Vector3i:
 			if start.y <= 0 or lab.world.get_voxel(start + Vector3i.DOWN) != 0:
 				break
 			start.y -= 1
+	if tool == Tool.ROOM and not _starts_on_solid(carve):
+		start.y = maxi(start.y, room_thickness) # On the world's bottom: room for the floor under it.
 	var snapped := snapped_cell(start)
 	return Vector3i(snapped.x, start.y, snapped.z)
 
@@ -496,6 +772,20 @@ func _input(event: InputEvent) -> void:
 			var resized := handles.release(pointer())
 			if not resized.is_empty():
 				_commit_resize(resized)
+		if event.button_index == MOUSE_BUTTON_LEFT and wall_handles.is_busy() and is_active():
+			var done := wall_handles.release(pointer())
+			if not done.is_empty():
+				_commit_wall_change(done)
+		if event.button_index == MOUSE_BUTTON_LEFT and build.dragging and is_active():
+			var toast := build.release(lab.level.objects, _slab_material())
+			if toast != "":
+				lab.notify(toast, false)
+			changed.emit()
+		if event.button_index == MOUSE_BUTTON_LEFT and wall.dragging and is_active():
+			var said := wall.finish(lab.level.objects, room_wall, wall_thickness, wall_inner, wall_slabs, room_floor, room_ceiling)
+			if said != "":
+				lab.notify(said, false)
+			changed.emit()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -539,6 +829,10 @@ func _mouse(event: InputEventMouseButton) -> void:
 		handles.nudge(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
 		get_viewport().set_input_as_handled()
 		return
+	if wall_handles.is_busy() and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		wall_handles.nudge(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+		get_viewport().set_input_as_handled()
+		return
 	# Sizing a volume: the wheel grows or shrinks the active size (Shift: the other floor size).
 	if volume.is_active() and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
 		var grow := event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_RIGHT]
@@ -548,6 +842,11 @@ func _mouse(event: InputEventMouseButton) -> void:
 			on_axis = Vector3.AXIS_Z if on_axis == Vector3.AXIS_X else Vector3.AXIS_X
 		volume.apply_typed()
 		volume.nudge(on_axis, 1 if grow else -1)
+		get_viewport().set_input_as_handled()
+		return
+	# Drawing a wall: the wheel sets its height.
+	if wall.dragging and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		wall.nudge_height(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1, snap())
 		get_viewport().set_input_as_handled()
 		return
 	# Builder view: the camera has the wheel and the right button (a right click comes back as
@@ -571,7 +870,18 @@ func _mouse(event: InputEventMouseButton) -> void:
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.press(pointer(), _aim_from, _aim_direction):
 		return
-	if event.alt_pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and wall_handles.hover != WallHandles.Handle.NONE \
+			and not wall_handles.is_busy() and not _hold(wall_handles.wall.get("id", "")):
+		return
+	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and wall_handles.press(pointer(), _aim_from, _aim_direction):
+		return
+	if tool in [Tool.FLOOR, Tool.CEILING] and event.button_index == MOUSE_BUTTON_LEFT and not event.alt_pressed:
+		build.press(event.shift_pressed)
+		changed.emit()
+	elif tool == Tool.WALL and event.button_index == MOUSE_BUTTON_LEFT and not event.alt_pressed:
+		wall.begin(event.shift_pressed, event.ctrl_pressed, _wall_start_height())
+		changed.emit()
+	elif event.alt_pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_pick()
 	elif event.shift_pressed and event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.BRUSH:
 		if has_cursor:
@@ -586,9 +896,12 @@ func _mouse(event: InputEventMouseButton) -> void:
 func _key(event: InputEventKey) -> bool:
 	if volume.is_active() and _volume_key(event):
 		return true
-	for i in TOOL_ACTIONS.size():
-		if InputSetup.pressed(event, TOOL_ACTIONS[i]):
-			set_tool(i as Tool)
+	if wall.dragging and _wall_key(event):
+		return true
+	var rail := tools()
+	for i in mini(SLOT_ACTIONS.size(), rail.size()):
+		if InputSetup.pressed(event, SLOT_ACTIONS[i]):
+			set_tool(rail[i])
 			return true
 	# F frames the selection in the builder view and toggles flying in the walk view.
 	if InputSetup.pressed(event, "editor_view"):
@@ -629,7 +942,7 @@ func _key(event: InputEventKey) -> bool:
 ## Builder view: centers the camera on the selection, or on the cursor.
 func frame_selection() -> void:
 	if selected != "" and lab.level.objects.has(selected):
-		var box := LevelSchema.box_of(lab.level.objects[selected])
+		var box := LevelBuild.box_of(lab.level.objects[selected], lab.level.objects)
 		camera.frame(AABB(lab.view.to_world(box.position), box.size * lab.world.voxel_size))
 	elif has_cursor:
 		camera.pivot = lab.view.to_world(Vector3(cell) + Vector3(0.5, 0.0, 0.5))
@@ -795,17 +1108,60 @@ func _volume_key(event: InputEventKey) -> bool:
 
 ## Tab while sizing: the next dimension.
 func next_size() -> void:
-	volume.cycle_axis()
+	if wall.dragging:
+		wall.next_size()
+	else:
+		volume.cycle_axis()
 	changed.emit()
+
+
+## Keys while drawing a wall: digits, "." and "v" type its length (or height, after Tab);
+## Backspace erases; Enter keeps it.
+func _wall_key(event: InputEventKey) -> bool:
+	var code := event.keycode
+	if event.ctrl_pressed or event.alt_pressed:
+		return false
+	var character := ""
+	if code >= KEY_0 and code <= KEY_9:
+		character = str(code - KEY_0)
+	elif code >= KEY_KP_0 and code <= KEY_KP_9:
+		character = str(code - KEY_KP_0)
+	elif code in [KEY_PERIOD, KEY_KP_PERIOD, KEY_COMMA]:
+		character = "."
+	elif code == KEY_V and wall.typed != "":
+		character = "v"
+	if character != "":
+		wall.type_char(character)
+	elif code == KEY_BACKSPACE and wall.typed != "":
+		wall.erase_char()
+	elif code in [KEY_ENTER, KEY_KP_ENTER]:
+		wall.apply_typed()
+	else:
+		return false
+	changed.emit()
+	return true
 
 
 ## The sized volume for the HUD's readout, as BBCode ("" when not sizing): name, the three sizes in
 ## meters (the active one highlighted, with what's being typed) and in voxels.
 func volume_readout() -> String:
 	var box := {}
+	var muted := PaperPalette.INK_MUTED.to_html(false)
+	var editing_wall := {}
+	if wall_handles.is_busy() and not wall_handles.result.is_empty():
+		if not wall_handles.result.valid:
+			return "[b]Wall[/b]   [color=#%s]%s[/color]" % [PaperPalette.DANGER.to_html(false), wall_handles.result.reason]
+		editing_wall = wall_handles.result.walls[0]
+	elif _grab.get("kind") == "wall" and has_cursor:
+		editing_wall = _grab.duplicate()
+		_place_grab(editing_wall)
+	if not editing_wall.is_empty():
+		var title := "Wall" if wall_handles.is_busy() else ("Duplicate wall" if _grab_id == "" else "Move wall")
+		return "[b]%s[/b]   %.1f m long   [color=#%s](%.0f voxels)[/color]" % [title, LevelBuild.wall_length(editing_wall) * lab.world.voxel_size,
+				muted, LevelBuild.wall_length(editing_wall)]
 	if handles.is_busy() and not handles.resized.is_empty():
 		box = handles.resized
-	elif LevelSchema.is_structure(_grab) and has_cursor:
+	elif LevelSchema.is_structure(_grab) and has_cursor and _grab.kind != "wall":
 		box = _grab.duplicate()
 		_place_grab(box)
 	if not box.is_empty():
@@ -814,6 +1170,31 @@ func volume_readout() -> String:
 		var title := "Resize room" if handles.is_busy() else ("Duplicate " if _grab_id == "" else "Move ") + str(box.kind)
 		return "[b]%s[/b]   %.1f × %.1f × %.1f m   [color=#%s](%d × %d × %d voxels)[/color]" % [title, meters.x, meters.z, meters.y,
 				PaperPalette.INK_MUTED.to_html(false), size.x, size.z, size.y]
+	if wall.dragging:
+		var drawn := wall.segments()
+		var what := "Erase walls" if wall.erase else ("Room of walls" if wall.rect_mode else "Wall")
+		var voxel := lab.world.voxel_size
+		var accent := PaperPalette.ACCENT.to_html(false)
+		if wall.rect_mode:
+			var r := Vector2(wall.end - wall.start).abs() * voxel
+			return "[b]%s[/b]   %.1f × %.1f m, %.1f m tall" % [what, r.x, r.y, wall.height * voxel]
+		var length_text := (wall.typed + "_") if wall.typed != "" and not wall.typing_height else "%.1f" % (wall.length() * voxel)
+		var height_text := (wall.typed + "_") if wall.typed != "" and wall.typing_height else "%.1f" % (wall.height * voxel)
+		if wall.typing_height:
+			height_text = "[color=#%s][b][u]%s[/u][/b][/color]" % [accent, height_text]
+		else:
+			length_text = "[color=#%s][b][u]%s[/u][/b][/color]" % [accent, length_text]
+		if drawn.is_empty() and wall.typed == "":
+			return "[b]%s[/b]   drag out the wall  ·  wheel: height  ·  type: length" % what
+		return "[b]%s[/b]   %s m long × %s m tall   [color=#%s](%.0f × %d voxels)[/color]" % [what, length_text, height_text,
+				PaperPalette.INK_MUTED.to_html(false), wall.length(), wall.height]
+	if build.dragging:
+		var r := build.rect()
+		var area := Vector2(r.size) * lab.world.voxel_size
+		var what := ("Erase " + build.kind) if build.erase else build.kind.capitalize()
+		if r.size.x == 0 and r.size.y == 0:
+			return "[b]%s[/b]   release to fill the walls around it, or drag an area" % what
+		return "[b]%s[/b]   %.1f × %.1f m   [color=#%s](%d × %d voxels)[/color]" % [what, area.x, area.y, PaperPalette.INK_MUTED.to_html(false), r.size.x, r.size.y]
 	if not volume.is_active():
 		return ""
 	var size := volume.size()
@@ -865,9 +1246,33 @@ func _pick() -> void:
 		prop_name = lab.level.objects[object_under].name
 		facing = lab.level.objects[object_under].facing
 	elif has_cursor and lab.world.get_voxel(solid_cell) != 0:
-		material = lab.world.get_voxel(solid_cell)
-		lab.notify("Material: " + VoxelMaterials.get_material_name(material), false)
+		var picked := lab.world.get_voxel(solid_cell)
+		if tool == Tool.WALL and _on_inner_face(solid_cell, picked):
+			wall_inner = picked
+			lab.notify("Inner face: " + VoxelMaterials.get_material_name(picked), false)
+			changed.emit()
+			return
+		if tool == Tool.WALL:
+			room_wall = picked
+		elif tool == Tool.FLOOR:
+			room_floor = picked
+		elif tool == Tool.CEILING:
+			room_ceiling = picked
+		else:
+			material = picked
+		lab.notify("Material: " + VoxelMaterials.get_material_name(picked), false)
 	changed.emit()
+
+
+## Whether a voxel is on the inner (left) face of a build wall that has one, in that face's material.
+func _on_inner_face(voxel: Vector3i, picked: int) -> bool:
+	var objects: Dictionary = lab.level.objects
+	var id := LevelBuild.wall_at(objects, voxel, storey)
+	if id == "":
+		return false
+	var wall_object: Dictionary = objects[id]
+	return int(wall_object.inner) > 0 and picked == int(wall_object.inner) and int(wall_object.thickness) >= 2 \
+			and LevelBuild.across_of(wall_object, Vector2(voxel.x + 0.5, voxel.z + 0.5)) < 0.0
 
 
 func _rotate() -> void:
@@ -898,7 +1303,10 @@ func delete_selected() -> void:
 	if selected == "":
 		return
 	var object := selection()
-	if object.get("kind") == "room":
+	if object.get("kind") == "wall":
+		lab.edits.put_objects(WallHandles.removal(lab.level.objects, object))
+		_warn_floating(LevelBuild.box_of(object, lab.level.objects))
+	elif object.get("kind") == "room":
 		# The room fills back in, with its openings; door props in its walls go too.
 		var puts: Array = [[selected, {}]]
 		for other: Dictionary in lab.level.objects.values():
@@ -941,6 +1349,24 @@ func _duplicate() -> void:
 func _commit_move() -> void:
 	var object := _grab.duplicate()
 	_place_grab(object)
+	if object.kind == "wall":
+		var objects: Dictionary = lab.level.objects
+		var e := LevelBuild.ends(object)
+		if _grab_id != "" and objects.has(_grab_id):
+			var was: Dictionary = objects[_grab_id]
+			var change := WallHandles.reshape(objects, was, e[0], e[1], e[0] - LevelBuild.ends(was)[0], false)
+			lab.edits.put_objects(change.puts)
+		elif objects.has(_grab_source):
+			object.erase("id")
+			var puts: Array = [["", object]]
+			for opening in LevelBuild.openings_in(objects, _grab_source):
+				var copy := opening.duplicate()
+				copy.erase("id")
+				copy.wall = "$0"
+				puts.append(["", copy])
+			lab.edits.put_objects(puts)
+		cancel()
+		return
 	if object.kind == "room":
 		var objects: Dictionary = lab.level.objects
 		if _grab_id != "" and objects.has(_grab_id):
@@ -964,6 +1390,14 @@ func _place_grab(object: Dictionary) -> void:
 	match object.kind:
 		"prop":
 			_placed(object, prop_spot(object.name, _grab_rotation, _grab_id))
+		"wall":
+			# Its start on the grid point under the cursor (on the active storey's floor).
+			var s := snap()
+			var e := LevelBuild.ends(object)
+			var start := Vector2i(roundi(cell.x / float(s)) * s, roundi(cell.z / float(s)) * s)
+			var offset := start - e[0]
+			object.a = Vector3i(start.x, 0, start.y)
+			object.b = Vector3i(e[1].x + offset.x, 0, e[1].y + offset.y)
 		"room", "opening":
 			# Centered on the cursor; it stands on the floor there, or keeps its height over cut rock.
 			var size: Vector3i = object.to - object.from
@@ -1010,6 +1444,10 @@ func opening_at_cursor() -> Dictionary:
 	if not has_cursor or cursor_normal.y != 0:
 		return {}
 	var objects: Dictionary = lab.level.objects
+	if is_build_level():
+		var on_wall := wall_opening_at_cursor()
+		if not on_wall.is_empty():
+			return on_wall
 	var room_id := LevelStructure.room_at(objects, AABB(Vector3(solid_cell) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
 	var bottom := RoomTools.floor_under(lab.world, cell) if room_id == "" else int(objects[room_id].from.y)
 	match opening_type:
@@ -1026,7 +1464,43 @@ func _place_opening() -> void:
 	if at.is_empty():
 		lab.notify("Aim at a wall to cut an opening", false)
 		return
+	if at.has("wall"):
+		if at.has("reason"):
+			lab.notify(at.reason, false)
+			return
+		lab.edits.put_object(LevelSchema.new_wall_opening(at.wall, at.along, at.width, at.sill, at.height, opening_type))
+		return
 	lab.edits.put_object(LevelSchema.new_opening(at.from, at.to, at.room, opening_type))
+
+
+## Opening tool on a build wall: the opening it would cut there (LevelSchema.new_wall_opening's
+## fields, with `wall`), centered on the cursor along the wall on the grid; {} when the cursor isn't
+## on a wall; with `reason` when it doesn't fit.
+func wall_opening_at_cursor() -> Dictionary:
+	var objects: Dictionary = lab.level.objects
+	var wall_id := LevelBuild.wall_at(objects, solid_cell, storey)
+	if wall_id == "":
+		return {}
+	var on: Dictionary = objects[wall_id]
+	var st := LevelBuild.storeys(objects)
+	var length := LevelBuild.wall_length(on)
+	var height := LevelBuild.wall_height(on, st)
+	var floor_top := LevelBuild.floor_y(st, int(on.storey))
+	var out := {wall = wall_id, width = opening_width, height = mini(opening_height, height), along = 0, sill = 0}
+	if length < opening_width:
+		out.reason = "The wall is shorter than the opening"
+		return out
+	var center := LevelBuild.along_of(on, Vector2(solid_cell.x + 0.5, solid_cell.z + 0.5))
+	var s := snap()
+	out.along = clampi(roundi((center - opening_width * 0.5) / s) * s, 0, floori(length) - opening_width)
+	match opening_type:
+		"window":
+			out.sill = opening_sill
+		"hole":
+			out.sill = maxi(solid_cell.y - floor_top - opening_height / 2, 0)
+	out.sill = clampi(out.sill, 0, maxi(height - 1, 0))
+	out.height = mini(opening_height, height - out.sill)
+	return out
 
 
 ## Where a prop would go at the cursor (PropPlacement.place), worked out once per change of aim.
@@ -1035,6 +1509,14 @@ func prop_spot(name: String, rotation: int, ignore: String) -> Dictionary:
 	if key != _spot_key:
 		_spot_key = key
 		_spot = PropPlacement.place(lab.world, lab.level.objects, name, rotation, cell, solid_cell, cursor_normal, snap(), ignore)
+		# A sliding door needs a straight wall; in a 45° one its panel would cut across the steps.
+		if _spot.valid and _spot.mount == "door" and is_build_level():
+			var wall_id := LevelBuild.wall_at(lab.level.objects, solid_cell, storey)
+			if wall_id != "":
+				var step := LevelBuild.ends(lab.level.objects[wall_id])
+				if step[0].x != step[1].x and step[0].y != step[1].y:
+					_spot.valid = false
+					_spot.reason = "doors go in straight walls"
 	return _spot
 
 
@@ -1079,7 +1561,7 @@ func _check_floating() -> void:
 ## What this person is doing, for everyone else (EditorPresence): the view and builder camera, the
 ## cursor box, the preview box or prop ghost (voxels), the selection.
 func presence_state() -> Dictionary:
-	var out := {builder = builder, selected = selected}
+	var out := {builder = builder, selected = selected, storey = storey}
 	if builder:
 		out.camera = camera.camera.global_transform
 		out.pivot = camera.pivot
@@ -1089,17 +1571,25 @@ func presence_state() -> Dictionary:
 		out.preview = _preview_box
 	if _ghost.visible and not _ghost_state.is_empty():
 		out.ghost = _ghost_state
+	if _wall_fill.visible and _wall_box.has_volume():
+		out.erase("preview")
+		out.prisms = _wall_prisms.map(func(c: Array) -> PackedVector3Array: return PackedVector3Array(c))
 	return out
 
 
 ## The builder view's grid: on the floor under the cursor (or the floor being sized), at the snap.
 func _update_grid() -> void:
 	var sizing_floor := volume.is_active() and volume.step == VolumeSteps.Step.FLOOR
-	_grid.visible = builder and (sizing_floor or (has_cursor and cursor_normal == Vector3i.UP and tool != Tool.SELECT and tool != Tool.BRUSH))
+	var on_plane := (build.has_aim and tool in [Tool.FLOOR, Tool.CEILING]) or (wall.has_aim and tool == Tool.WALL)
+	_grid.visible = builder and (sizing_floor or on_plane or (has_cursor and cursor_normal == Vector3i.UP and tool != Tool.SELECT and tool != Tool.BRUSH))
 	if not _grid.visible:
 		return
 	var center: Vector3 = lab.view.to_world(Vector3(cell) + Vector3(0.5, 0.0, 0.5))
 	var y := volume.plane_y() if sizing_floor else center.y
+	if on_plane:
+		var aimer: BuildTools = wall if tool == Tool.WALL else build
+		y = lab.view.to_world(Vector3(0, aimer.plane_y, 0)).y
+		center = lab.view.to_world(Vector3(aimer.aim.x, aimer.plane_y, aimer.aim.y))
 	if sizing_floor:
 		var ray_y := _aim_direction.y
 		if absf(ray_y) > 1e-4:
@@ -1111,6 +1601,233 @@ func _update_grid() -> void:
 	material.set_shader_parameter("origin", lab.world.global_position)
 	material.set_shader_parameter("spacing", snap() * lab.world.voxel_size)
 	material.set_shader_parameter("center", center)
+
+
+## Floor and Ceiling tools: the area being dragged, at the slab it paints (red when erasing), and
+## what the aim snaps to.
+func _update_build_preview() -> void:
+	if not tool in [Tool.FLOOR, Tool.CEILING] or not build.has_aim:
+		return
+	var st := LevelBuild.storeys(lab.level.objects)
+	var y := LevelBuild.slab_range(build.kind, storey, st)
+	if build.dragging:
+		var r := build.rect()
+		var color := Color(1.0, 0.3, 0.3) if build.erase else (Color(0.85, 0.9, 1.0) if build.kind == "ceiling" else Color(0.3, 0.6, 1.0))
+		(_volume.material_override as StandardMaterial3D).albedo_color = Color(color, 0.3)
+		var box := AABB(Vector3(r.position.x, y.x, r.position.y), Vector3(maxi(r.size.x, 1), y.y - y.x, maxi(r.size.y, 1)))
+		var size := box.size * lab.world.voxel_size
+		_volume.scale = size
+		_volume.position = lab.view.to_world(box.position) + size * 0.5
+		_volume.visible = true
+		_preview_box = box
+		if r.size.x > 0 and r.size.y > 0:
+			_place_size_labels(AABB(lab.view.to_world(box.position), size), -1, false)
+	elif build.snapped_to != "grid":
+		var label := _size_labels[0]
+		label.text = build.snapped_to
+		label.modulate = LABEL_ACTIVE_COLOR
+		label.font_size = 22
+		label.position = lab.view.to_world(Vector3(build.snapped.x, build.plane_y + 2, build.snapped.y))
+		label.visible = true
+
+
+## Wall tool: the walls being drawn as see-through prisms with their edges (red when erasing), their
+## length and height, and what the aim snaps to.
+func _update_wall_preview() -> void:
+	_wall_fill.visible = false
+	_wall_lines.visible = false
+	_wall_box = AABB()
+	_wall_prisms = []
+	if tool != Tool.WALL or not wall.has_aim:
+		return
+	var drawn := wall.segments()
+	if drawn.is_empty():
+		if wall.snapped_to != "grid" and not wall.dragging or (wall.dragging and wall.snapped_to != "grid"):
+			_snap_label(wall.snapped, wall.plane_y, wall.snapped_to)
+		return
+	var color := Color(1.0, 0.3, 0.3) if wall.erase else Color(0.3, 0.6, 1.0)
+	var thickness := wall_thickness if not wall.erase else 2
+	var y0 := wall.plane_y
+	var y1 := wall.plane_y + wall.height
+	(_wall_fill.material_override as StandardMaterial3D).albedo_color = Color(color, 0.3)
+	(_wall_lines.material_override as StandardMaterial3D).albedo_color = Color(color, 0.9)
+	var fill := _wall_fill.mesh as ImmediateMesh
+	var lines := _wall_lines.mesh as ImmediateMesh
+	fill.clear_surfaces()
+	lines.clear_surfaces()
+	fill.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	lines.surface_begin(Mesh.PRIMITIVE_LINES)
+	for segment: Array in drawn:
+		var corners := _wall_corners(segment[0], segment[1], thickness, y0, y1)
+		_wall_prisms.append(LevelBuild.prism_corners(Vector2(segment[0]), Vector2(segment[1]), thickness, y0, y1, thickness * 0.5))
+		for quad in [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]]:
+			for i in [0, 1, 2, 0, 2, 3]:
+				fill.surface_add_vertex(corners[quad[i]])
+		for edge in [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]:
+			lines.surface_add_vertex(corners[edge[0]])
+			lines.surface_add_vertex(corners[edge[1]])
+		var lo := Vector2(segment[0]).min(Vector2(segment[1])) - Vector2.ONE * (thickness * 0.5 + 1.0)
+		var hi := Vector2(segment[0]).max(Vector2(segment[1])) + Vector2.ONE * (thickness * 0.5 + 1.0)
+		var box := AABB(Vector3(lo.x, y0, lo.y), Vector3(hi.x - lo.x, y1 - y0, hi.y - lo.y))
+		_wall_box = box if not _wall_box.has_volume() else _wall_box.merge(box)
+	fill.surface_end()
+	lines.surface_end()
+	_wall_fill.visible = true
+	_wall_lines.visible = true
+	# Length along the (first) wall's middle, height at its end.
+	var a: Vector2i = drawn[0][0]
+	var b: Vector2i = drawn[0][1]
+	var voxel := lab.world.voxel_size
+	var labels := [
+		[(Vector2(a) + Vector2(b)) * 0.5, y0, "%.1f m" % (Vector2(b - a).length() * voxel), not wall.typing_height],
+		[Vector2(b), (y0 + y1) * 0.5, "%.1f m" % (wall.height * voxel), wall.typing_height],
+	]
+	for i in labels.size():
+		var spot: Array = labels[i]
+		var label := _size_labels[i]
+		label.text = (wall.typed + "_") if spot[3] and wall.typed != "" else spot[2]
+		label.modulate = LABEL_ACTIVE_COLOR if spot[3] else LABEL_COLOR
+		label.font_size = 28 if spot[3] else 24
+		label.position = lab.view.to_world(Vector3(spot[0].x, spot[1], spot[0].y))
+		label.visible = true
+	if wall.snapped_to != "grid" and not wall.rect_mode and wall.end == wall.snapped:
+		_snap_label(wall.snapped, wall.plane_y, wall.snapped_to)
+
+
+## Walls being reshaped (handles) or moved, and the Opening tool's cut in a wall, as see-through
+## prisms on the Wall tool's preview meshes (red when it can't be done).
+func _update_wall_edit_preview() -> void:
+	var objects: Dictionary = lab.level.objects
+	var prisms: Array = []
+	var color := Color(0.3, 0.6, 1.0)
+	if wall_handles.is_busy() and not wall_handles.result.is_empty():
+		for changed_wall: Dictionary in wall_handles.result.walls:
+			prisms.append(LevelBuild.corners_of(changed_wall, objects))
+		if not wall_handles.result.valid:
+			color = Color(1.0, 0.3, 0.3)
+	elif _grab.get("kind") == "wall" and has_cursor:
+		var moved := _grab.duplicate()
+		_place_grab(moved)
+		prisms.append(LevelBuild.corners_of(moved, objects))
+	elif tool == Tool.OPENING and is_build_level():
+		var at := wall_opening_at_cursor()
+		if not at.is_empty():
+			var opening := LevelSchema.new_wall_opening(at.wall, at.along, at.width, at.sill, at.height)
+			prisms.append(LevelBuild.corners_of(opening, objects))
+			color = Color(1.0, 0.3, 0.3) if at.has("reason") else Color(1.0, 0.6, 0.2)
+	if prisms.is_empty():
+		return
+	(_wall_fill.material_override as StandardMaterial3D).albedo_color = Color(color, 0.3)
+	(_wall_lines.material_override as StandardMaterial3D).albedo_color = Color(color, 0.9)
+	var fill := _wall_fill.mesh as ImmediateMesh
+	var lines := _wall_lines.mesh as ImmediateMesh
+	fill.clear_surfaces()
+	lines.clear_surfaces()
+	fill.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	lines.surface_begin(Mesh.PRIMITIVE_LINES)
+	_wall_box = AABB()
+	_wall_prisms = prisms
+	for voxel_corners: Array in prisms:
+		var corners: Array[Vector3] = []
+		for c: Vector3 in voxel_corners:
+			corners.append(lab.view.to_world(c))
+			_wall_box = AABB(c, Vector3.ZERO) if _wall_box.size == Vector3.ZERO and _wall_box.position == Vector3.ZERO else _wall_box.expand(c)
+		for quad in [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]]:
+			for i in [0, 1, 2, 0, 2, 3]:
+				fill.surface_add_vertex(corners[quad[i]])
+		for edge in [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]:
+			lines.surface_add_vertex(corners[edge[0]])
+			lines.surface_add_vertex(corners[edge[1]])
+	fill.surface_end()
+	lines.surface_end()
+	_wall_fill.visible = true
+	_wall_lines.visible = true
+
+
+## Drops a wall's handle: one edit with the walls joined to it, their openings and its doors.
+func _commit_wall_change(done: Dictionary) -> void:
+	if not done.valid:
+		lab.notify(done.reason, false)
+		return
+	if done.puts.is_empty():
+		return
+	lab.edits.put_objects(done.puts)
+	var box := AABB()
+	for changed_wall: Dictionary in done.walls:
+		var b := LevelBuild.box_of(changed_wall, lab.level.objects)
+		box = b if not box.has_volume() else box.merge(b)
+	_warn_floating(box)
+
+
+## Inspector: the selected wall's length (meters), b moving along it.
+func set_wall_length(meters: float) -> void:
+	var object := selection()
+	if object.get("kind") != "wall":
+		return
+	var done := WallHandles.with_length(lab.level.objects, object, meters / lab.world.voxel_size)
+	_commit_wall_change(done)
+
+
+## Inspector: splits the selected wall in two at its middle.
+func split_selected() -> void:
+	var object := selection()
+	if object.get("kind") != "wall":
+		return
+	var puts := WallHandles.split(lab.level.objects, object, snap())
+	if puts.is_empty():
+		lab.notify("Too short to split", false)
+		return
+	lab.edits.put_objects(puts)
+
+
+## Inspector: merges the selected wall with a joined wall in line with it.
+func merge_selected() -> void:
+	var object := selection()
+	if object.get("kind") != "wall":
+		return
+	var done := WallHandles.merge(lab.level.objects, object)
+	if not done.ok:
+		lab.notify(done.reason, false)
+		return
+	lab.edits.put_objects(done.puts)
+
+
+## Inspector: one field of the selected wall (material, inner, thickness, height).
+func set_wall_field(key: String, value: int) -> void:
+	var object := selection()
+	if object.get("kind") != "wall" or int(object.get(key, 0)) == value:
+		return
+	var changed_wall := object.duplicate()
+	changed_wall[key] = value
+	lab.edits.put_object(changed_wall, object.id)
+
+
+## The 8 corners (world space) of a wall's cells from a to b (voxel x, z), the way VoxelWorld lays
+## them out: thickness across its line, half of it past each end. Bit 0: along, bit 1: up, bit 2:
+## across.
+func _wall_corners(a: Vector2i, b: Vector2i, thickness: int, y0: int, y1: int) -> Array[Vector3]:
+	var d := Vector2(b - a)
+	var length := d.length()
+	var u := d / length if length > 0.0 else Vector2(1, 0)
+	var across := Vector2(u.y, -u.x)
+	var half := thickness * 0.5
+	var out: Array[Vector3] = []
+	for i in 8:
+		var along := length + half if i & 1 else -half
+		var side := half if i & 4 else -half
+		var p := Vector2(a) + u * along + across * side
+		out.append(lab.view.to_world(Vector3(p.x, y1 if i & 2 else y0, p.y)))
+	return out
+
+
+## A label over a snapped point (voxel x, z) saying what it snapped to; the last size label.
+func _snap_label(point: Vector2i, y: int, kind: String) -> void:
+	var label := _size_labels[2]
+	label.text = kind
+	label.modulate = LABEL_ACTIVE_COLOR
+	label.font_size = 22
+	label.position = lab.view.to_world(Vector3(point.x, y + 2, point.y))
+	label.visible = true
 
 
 ## Width / height / length on the edges of the box (world space) nearest the camera; active_axis is
@@ -1146,8 +1863,31 @@ func _view_yaw() -> float:
 
 # --- Previews ------------------------------------------------------------------------------------
 
+## The world's box edges and its bottom grid, redrawn when the world's size changes.
+func _update_bounds() -> void:
+	_bounds.visible = true
+	_ground.visible = true
+	var size: Vector3i = lab.world.get_size_in_voxels()
+	if _bounds.get_meta("size", Vector3i.ZERO) == size:
+		return
+	_bounds.set_meta("size", size)
+	lab.view.draw_box(_bounds.mesh, AABB(Vector3.ZERO, Vector3(size)))
+	var extent := Vector3(size) * lab.world.voxel_size
+	(_ground.mesh as PlaneMesh).size = Vector2(extent.x, extent.z)
+	_ground.global_position = lab.world.global_position + Vector3(extent.x * 0.5, 0.002, extent.z * 0.5)
+	var material := _ground.material_override as ShaderMaterial
+	material.set_shader_parameter("origin", lab.world.global_position)
+	material.set_shader_parameter("spacing", 1.0)
+	material.set_shader_parameter("center", _ground.global_position)
+
+
 func _update_previews() -> void:
+	_update_bounds()
 	_cursor_lines.visible = has_cursor and not volume.is_active() and tool in [Tool.BOX, Tool.ROOM, Tool.BRUSH, Tool.REPLACE]
+	if tool in [Tool.FLOOR, Tool.CEILING]:
+		_cursor_lines.visible = build.has_aim
+	elif tool == Tool.WALL:
+		_cursor_lines.visible = wall.has_aim
 	_volume.visible = false
 	_ghost.visible = false
 	_cursor_box = AABB()
@@ -1156,7 +1896,12 @@ func _update_previews() -> void:
 		label.visible = false
 	if _cursor_lines.visible:
 		var box: AABB
-		if tool == Tool.BRUSH:
+		if tool in [Tool.FLOOR, Tool.CEILING, Tool.WALL]:
+			# The point the aim snaps to (the wall's end while drawing), a little square on the plane.
+			var aimer: BuildTools = wall if tool == Tool.WALL else build
+			var point: Vector2i = wall.end if tool == Tool.WALL and wall.dragging else aimer.snapped
+			box = AABB(Vector3(point.x - 1, aimer.plane_y, point.y - 1), Vector3(2, 1, 2))
+		elif tool == Tool.BRUSH:
 			box = AABB(Vector3(cell) - Vector3.ONE * (brush_size - 1), Vector3.ONE * (brush_size * 2 - 1))
 		else:
 			# Where the first click would start: a grid cell's footprint on the surface.
@@ -1184,11 +1929,13 @@ func _update_previews() -> void:
 	var preview_color := Color(0.3, 0.6, 1.0)
 	if handles.is_busy() and not handles.resized.is_empty():
 		box_preview = handles.resized
-	elif LevelSchema.is_structure(_grab) and has_cursor:
+	elif LevelSchema.is_structure(_grab) and has_cursor and _grab.kind != "wall":
 		box_preview = _grab.duplicate()
 		_place_grab(box_preview)
 	elif tool == Tool.OPENING:
 		box_preview = opening_at_cursor()
+		if box_preview.has("wall"):
+			box_preview = {} # A prism along the wall (_update_wall_edit_preview).
 	if box_preview.get("kind", "opening") == "opening":
 		preview_color = Color(1.0, 0.6, 0.2)
 	if not box_preview.is_empty():
@@ -1203,6 +1950,9 @@ func _update_previews() -> void:
 			if handles.active[a] != 0:
 				axis = a
 		_place_size_labels(AABB(lab.view.to_world(Vector3(box_preview.from)), size), axis, true)
+	_update_build_preview()
+	_update_wall_preview()
+	_update_wall_edit_preview()
 	# The fill hides behind walls; its edges always show.
 	_volume_lines.visible = _volume.visible
 	if _volume.visible:

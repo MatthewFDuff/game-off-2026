@@ -58,5 +58,5 @@ static func card(radius := RADIUS_SHEET, rim := RIM_SHEET) -> StyleBoxFlat:
 	box.shadow_color = SHADOW
 	box.shadow_size = 1
 	box.shadow_offset = SHADOW_OFFSET
-	box.set_content_margin_all(10.0)
+	box.set_content_margin_all(6.0)
 	return box

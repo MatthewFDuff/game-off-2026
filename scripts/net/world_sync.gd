@@ -147,7 +147,8 @@ static func op_bounds(op: Dictionary) -> Array[Vector3i]:
 ##            into neighbouring rooms stay open (rock levels); otherwise the shell is built (empty levels)
 ##   sphere   {center: Vector3, radius, material}  voxel units
 ##   replace  {from, to, material, source}         swap source for material inside the box
-##   structure {from, to, before_rooms, after_rooms, before_openings, after_openings, base, base_set}
+##   structure {from, to, before_rooms, after_rooms, before_openings, after_openings, base, base_set,
+##            before_build, after_build}
 ##            a room / opening change over [from, to): VoxelWorld.apply_structure (LevelEdits
 ##            builds it from the level's room and opening objects)
 @rpc("authority", "reliable")
@@ -181,41 +182,53 @@ static func run_op(world: VoxelWorld, op: Dictionary) -> void:
 		"replace":
 			world.replace_in_box(op.from, op.to, op.material, PackedByteArray([op.source]))
 		"structure":
-			world.apply_structure(op.from, op.to, op.before_rooms, op.after_rooms, op.before_openings, op.after_openings, op.base, op.base_set)
+			world.apply_structure(op.from, op.to, op.before_rooms, op.after_rooms, op.before_openings, op.after_openings, op.base, op.base_set,
+					op.get("before_build", PackedInt32Array()), op.get("after_build", PackedInt32Array()))
 
 
-## Sends a box of voxels in slices so no RPC gets near the size ENet drops. mode: 0 stamp,
-## 1 erase stamp, 2 set box.
+## Applies a box of voxels here in one go, and sends it to the others in slices so no RPC gets near
+## the size ENet drops. mode: 0 stamp, 1 erase stamp, 2 set box.
 func _sliced(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int) -> void:
 	if not multiplayer.is_server():
 		push_error("only the host writes models and boxes")
 		return
+	_apply_box(origin, size, voxels, mode)
+	if _synced.is_empty():
+		return
 	var rows := clampi(PART_SIZE / size.x, 1, size.y)
 	var depth := clampi(PART_SIZE / (size.x * rows), 1, size.z)
+	# In more than one part, the parts only mark chunks for remeshing (it catches up over the next
+	# frames): remeshing the same chunks for every thin slice of a big undo took seconds.
+	var whole := rows >= size.y and depth >= size.z
 	for y0 in range(0, size.y, rows):
 		for z0 in range(0, size.z, depth):
 			var part_size := Vector3i(size.x, mini(rows, size.y - y0), mini(depth, size.z - z0))
+			# Whole rows at a time (a part is full rows of the box, in the same order).
 			var part := PackedByteArray()
-			part.resize(part_size.x * part_size.y * part_size.z)
-			var any := mode == 2
 			for z in part_size.z:
 				for y in part_size.y:
 					var from := (y0 + y) * size.x + (z0 + z) * size.x * size.y
-					var row := voxels.slice(from, from + size.x)
-					var to := y * part_size.x + z * part_size.x * part_size.y
-					for x in size.x:
-						part[to + x] = row[x]
-						any = any or row[x] != 0
+					part.append_array(voxels.slice(from, from + size.x))
+			var any := mode == 2 or part.count(0) != part.size()
 			if not any:
 				continue
 			var part_origin := origin + Vector3i(0, y0, z0)
-			_apply_slice(part_origin, part_size, part, mode)
 			for peer_id in _synced:
-				_apply_slice.rpc_id(peer_id, part_origin, part_size, part, mode)
+				_apply_slice.rpc_id(peer_id, part_origin, part_size, part, mode, whole)
 
 
 @rpc("authority", "reliable")
-func _apply_slice(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int) -> void:
+func _apply_slice(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int, whole: bool) -> void:
+	if whole:
+		_apply_box(origin, size, voxels, mode)
+		return
+	var limit := world.immediate_remesh_limit
+	world.immediate_remesh_limit = 0
+	_apply_box(origin, size, voxels, mode)
+	world.immediate_remesh_limit = limit
+
+
+func _apply_box(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int) -> void:
 	match mode:
 		0:
 			world.stamp(origin, size, voxels, false)

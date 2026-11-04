@@ -10,7 +10,8 @@ class_name LevelSchema
 ## voxels thick, and `order` (where linings overlap the newest wins). An opening is a box cut
 ## through linings (`from` / `to`), part of the wall of `room` (moves with it) and, if a door prop
 ## made it, linked to that `door`. Changing either goes through LevelEdits' structure edits, which
-## rewrite only the voxels nobody painted (VoxelWorld.apply_structure).
+## rewrite only the voxels nobody painted (VoxelWorld.apply_structure). Build mode adds walls,
+## floors, ceilings, the storeys and openings in walls (LevelBuild), changed the same way.
 ##
 ## Field types: "string", "text" (multi-line string), "int", "float", "bool", "color", "vector3i",
 ## "enum" (with `options`).
@@ -123,6 +124,30 @@ const OPENING_FIELDS := [
 	{key = "to", type = "vector3i", label = "To (voxels)"},
 ]
 
+## An opening in a build mode wall: measured along the wall (LevelBuild).
+const WALL_OPENING_FIELDS := [
+	{key = "id", type = "string"},
+	{key = "type", type = "enum", options = OPENING_TYPES, default = "doorway"},
+	{key = "along", type = "int", min = 0, max = 4096, default = 0, label = "From the wall's start (voxels)"},
+	{key = "width", type = "int", min = 1, max = 4096, default = 12, label = "Width (voxels)"},
+	{key = "sill", type = "int", min = 0, max = 1024, default = 0, label = "Sill (voxels off the floor)"},
+	{key = "height", type = "int", min = 1, max = 1024, default = 22, label = "Height (voxels)"},
+]
+
+const WALL_FIELDS := [
+	{key = "id", type = "string"},
+	{key = "storey", type = "int", min = 0, max = 64, default = 0, label = "Storey"},
+	{key = "thickness", type = "int", min = 1, max = 10, default = 2, label = "Thickness (voxels)"},
+	{key = "height", type = "int", min = -1, max = 1024, default = -1, label = "Height (voxels, -1 = the storey's)"},
+	{key = "material", type = "int", min = 1, max = 255, default = 1, label = "Material"},
+	{key = "inner", type = "int", min = 0, max = 255, default = 0, label = "Left face material (0 = same)"},
+]
+
+const STOREY_FIELDS := [
+	{key = "floor", type = "int", min = 1, max = 1024, default = 3, label = "Ground floor top (voxels)"},
+	{key = "slab", type = "int", min = 1, max = 10, default = 3, label = "Floor / ceiling thickness (voxels)"},
+]
+
 ## Placeholder asset prices for the payroll, by prop name prefix. Change freely, or per prop in the
 ## editor.
 const ASSET_VALUES := {
@@ -169,12 +194,18 @@ static func new_room(from: Vector3i, to: Vector3i, floor: int, wall: int, ceilin
 
 
 static func new_opening(from: Vector3i, to: Vector3i, room: String, type := "doorway", door := "") -> Dictionary:
-	return {kind = "opening", type = type, from = from.min(to), to = from.max(to), room = room, door = door}
+	return {kind = "opening", type = type, from = from.min(to), to = from.max(to), room = room, door = door, wall = ""}
 
 
-## Rooms and openings: changed through structure edits.
+## An opening in a build mode wall (LevelBuild): along the wall from its start, off its floor.
+static func new_wall_opening(wall: String, along: int, width: int, sill: int, height: int, type := "doorway") -> Dictionary:
+	return {kind = "opening", type = type, wall = wall, along = along, width = width, sill = sill, height = height,
+			from = Vector3i.ZERO, to = Vector3i.ZERO, room = "", door = ""}
+
+
+## Rooms, openings and build mode's pieces: changed through structure edits.
 static func is_structure(object: Dictionary) -> bool:
-	return object.get("kind") in ["room", "opening"]
+	return object.get("kind") in ["room", "opening", "wall", "floor", "ceiling", "storeys"]
 
 
 ## A prop that's a door (it cuts its own opening).
@@ -213,6 +244,17 @@ static func fill_defaults(object: Dictionary) -> void:
 		fields = OPENING_FIELDS
 		object.room = str(object.get("room", ""))
 		object.door = str(object.get("door", ""))
+		object.wall = str(object.get("wall", ""))
+		if object.wall != "":
+			fields = WALL_OPENING_FIELDS
+	elif object.get("kind") == "wall":
+		fields = WALL_FIELDS
+	elif object.get("kind") == "storeys":
+		fields = STOREY_FIELDS
+		object.heights = object.get("heights", []).map(func(h: Variant) -> int: return int(h))
+	elif object.get("kind") in ["floor", "ceiling"]:
+		object.storey = int(object.get("storey", 0))
+		object.shapes = object.get("shapes", []).map(func(s: Array) -> Array: return s.map(func(v: Variant) -> int: return int(v)))
 	for field: Dictionary in fields:
 		if not field.has("default"):
 			continue
@@ -229,7 +271,13 @@ static func fields_for(object: Dictionary) -> Array:
 	if object.kind == "room":
 		return ROOM_FIELDS
 	if object.kind == "opening":
-		return OPENING_FIELDS
+		return WALL_OPENING_FIELDS if str(object.get("wall", "")) != "" else OPENING_FIELDS
+	if object.kind == "wall":
+		return WALL_FIELDS
+	if object.kind == "storeys":
+		return STOREY_FIELDS
+	if object.kind in ["floor", "ceiling"]:
+		return []
 	return [{key = "id", type = "string"}, {key = "yaw", type = "float", min = -180.0, max = 180.0}] + MARKERS[object.type].fields
 
 
@@ -256,6 +304,8 @@ static func marker_box(object: Dictionary) -> AABB:
 static func box_of(object: Dictionary) -> AABB:
 	if object.kind == "prop":
 		return prop_box(object)
-	if is_structure(object):
+	if object.has("from") and object.has("to"):
 		return AABB(Vector3(object.from), Vector3(object.to - object.from))
+	if is_structure(object):
+		return AABB() # Build mode pieces: LevelBuild.bounds, which needs the storeys.
 	return marker_box(object)

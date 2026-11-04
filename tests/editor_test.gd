@@ -75,6 +75,10 @@ func _host(net: Node) -> void:
 	var room := _find_room(lab)
 	_check("client's room arrived, resized", not room.is_empty() and room.to == ROOM_GROWN, str(room))
 	_check("client's room is carved here", _all(lab.world, [ROOM[0], ROOM_GROWN], M.AIR) and lab.world.get_voxel(ROOM_GROWN + Vector3i(1, -5, -5)) == M.WALL_PAINT)
+	var walls: Array = lab.level.objects.values().filter(func(o: Dictionary) -> bool: return o.kind == "wall")
+	_check("client's wall arrived", walls.size() == 1 and walls[0].b == Vector3i(340, 0, 340), str(walls))
+	_check("...with its opening", not walls.is_empty() and lab.level.objects.values().any(func(o: Dictionary) -> bool: return o.kind == "opening" and o.get("wall", "") == walls[0].id))
+	_check("client's floor shape arrived", lab.level.objects.has("floor_2") and lab.level.objects.floor_2.shapes.size() == 1 and lab.level.objects.has("storeys"))
 	_check("client's doorway is cut", _all(lab.world, [Vector3i(110, 200, 97), Vector3i(122, 222, 100)], M.AIR))
 
 	# Presence: the client is in the builder view, looking at CLIENT_PIVOT, holding the fridge.
@@ -173,6 +177,11 @@ func _client(net: Node) -> void:
 	var grown := _find_room(lab).duplicate()
 	grown.to = ROOM_GROWN
 	lab.edits.put_object(grown, grown.id)
+	# Build mode pieces (no voxels in a rock level, but the objects and ops go round): a wall with an
+	# opening, and a floor shape painted through the host.
+	lab.edits.put_objects([["", LevelBuild.new_wall(2, Vector3i(300, 0, 300), Vector3i(340, 0, 340), M.CONCRETE)],
+			["", LevelSchema.new_wall_opening("$0", 5, 10, 0, 20)]])
+	lab.edits.add_slab_shape("floor", 2, LevelBuild.rect_shape(Vector3i(300, 0, 300), Vector3i(320, 0, 320), M.TILE_LIGHT))
 	# Presence and a soft lock for the host to see: look at CLIENT_PIVOT, hold the fridge.
 	var camera = lab.local_player().get_node("EditorTool").camera
 	camera.look_from(CLIENT_PIVOT, 0.0)

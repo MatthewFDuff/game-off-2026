@@ -1,8 +1,9 @@
 class_name LevelStructure
-## Turns room and opening objects (LevelSchema) into WorldSync "structure" ops: the region a change
-## can touch (the old and new boxes of what changed, linings included), the rooms and openings
-## there before and after, and the level's base (what's left where no room is: rock for rock
-## levels, any natural rock counting as base, or air). VoxelWorld.apply_structure does the voxels.
+## Turns room and opening objects (LevelSchema) and build mode's pieces (LevelBuild) into WorldSync
+## "structure" ops: the region a change can touch (the old and new boxes of what changed, linings
+## included), the rooms, openings and build pieces there before and after, and the level's base
+## (what's left where no room is: rock for rock levels, any natural rock counting as base, or air).
+## VoxelWorld.apply_structure does the voxels.
 
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 
@@ -34,9 +35,18 @@ static func op(before: Dictionary, after: Dictionary, changed: Array, settings: 
 	for object: Dictionary in changed:
 		if object.is_empty() or not LevelSchema.is_structure(object):
 			continue
-		var box := bounds(object)
-		region = box if not any else region.merge(box)
-		any = true
+		# A build piece's voxels depend on the storeys (and an opening's on its wall): its box as it
+		# was and as it will be.
+		var boxes: Array = [LevelBuild.bounds(object, before), LevelBuild.bounds(object, after)] if LevelBuild.is_build(object) else [bounds(object)]
+		if object.kind == "storeys":
+			# Only the storeys from the first that changed up move: from that one's ceiling up.
+			var low := LevelBuild.changed_from(LevelBuild.storeys(before), LevelBuild.storeys(after))
+			boxes = boxes.map(func(box: AABB) -> AABB: return _from_height(box, low))
+		for box: AABB in boxes:
+			if not box.has_volume():
+				continue
+			region = box if not any else region.merge(box)
+			any = true
 	if not any:
 		return {}
 	var from := Vector3i(region.position.floor()).max(Vector3i.ZERO)
@@ -47,7 +57,16 @@ static func op(before: Dictionary, after: Dictionary, changed: Array, settings: 
 	var packed_before := _pack(before, area)
 	var packed_after := _pack(after, area)
 	return {type = "structure", from = from, to = to, before_rooms = packed_before[0], after_rooms = packed_after[0],
-			before_openings = packed_before[1], after_openings = packed_after[1], base = base_of(settings), base_set = base_set(settings)}
+			before_openings = packed_before[1], after_openings = packed_after[1], base = base_of(settings), base_set = base_set(settings),
+			before_build = LevelBuild.pack(before, area), after_build = LevelBuild.pack(after, area)}
+
+
+## The part of a box from voxel y `low` up.
+static func _from_height(box: AABB, low: int) -> AABB:
+	if not box.has_volume() or box.end.y <= low:
+		return AABB()
+	var y := maxf(box.position.y, low)
+	return AABB(Vector3(box.position.x, y, box.position.z), Vector3(box.size.x, box.end.y - y, box.size.z))
 
 
 ## The newest room whose lining (or inside) holds the box's center, or "".
@@ -78,7 +97,7 @@ static func _pack(objects: Dictionary, region: AABB) -> Array[PackedInt32Array]:
 	for object: Dictionary in objects.values():
 		if object.kind == "room" and bounds(object).intersects(region):
 			rooms.append(object)
-		elif object.kind == "opening" and bounds(object).intersects(region):
+		elif object.kind == "opening" and str(object.get("wall", "")) == "" and bounds(object).intersects(region):
 			for v: Vector3i in [object.from, object.to]:
 				openings.append_array([v.x, v.y, v.z])
 	rooms.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:

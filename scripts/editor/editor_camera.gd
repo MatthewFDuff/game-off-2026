@@ -27,6 +27,8 @@ const DISTANCE_MAX := 90.0
 const ZOOM_STEP := 1.15
 ## Degrees per pixel of drag.
 const ORBIT_SPEED := 0.3
+## Numpad 4 / 6 / 8 / 2 step, degrees.
+const TURN_STEP := 15.0
 ## Pixels a right drag moves before it orbits instead of clicking.
 const DRAG_THRESHOLD := 5.0
 ## Pan speed in view distances per second.
@@ -36,6 +38,7 @@ const SMOOTHING := 14.0
 const REACH := 250.0
 ## Nothing is cut away (the shader's cut_height).
 const NO_CUT := 1e9
+const ORTHO_BACK := 120.0
 
 const CAP_SHADER := preload("res://shaders/editor_cut_cap.gdshader")
 
@@ -54,6 +57,13 @@ var cut_step := 5
 ## Walls-down on, and how high the walls stay (meters above the pivot).
 var walls_down := false
 const WALLS_DOWN_HEIGHT := 0.6
+## Build mode (empty levels, EditorTool): the cut sits here (the active storey's ceiling, cut away)
+## whenever cutting isn't off; -1 for the usual Auto / Manual. And Page Up / Down call this with +1 /
+## -1 to change storeys instead of moving the cut, when it's set.
+var storey_cut := -1
+var on_storey_key := Callable()
+## Orthographic (numpad 5): no perspective, for lining up a layout; the zoom distance sets its size.
+var orthographic := false
 ## Off while a tool step uses the wheel to size things.
 var zoom_enabled := true
 ## Auto cut: the ceiling layer of the room being worked on (the selected one), -1 for the room under
@@ -222,8 +232,29 @@ func _exit_walls_down(origin: Vector3, direction: Vector3) -> float:
 	return leave + 0.001 if leave < INF else INF
 
 
-## VoxelWorld.raycast past what walls-down hides.
+## VoxelWorld.raycast past what walls-down hides, from where the ray enters the world: outside it
+## the world reads as solid, so a camera above or beside it would hit itself.
 func _raycast_walls_down(origin: Vector3, direction: Vector3, reach: float) -> Dictionary:
+	var world := lab.world
+	var box := AABB(world.global_position, Vector3(world.get_size_in_voxels()) * world.voxel_size)
+	if box.has_point(origin):
+		return _raycast_walls_down_inside(origin, direction, reach)
+	var entry = box.intersects_ray(origin, direction)
+	if entry == null:
+		return {hit = false}
+	var dir := direction.normalized()
+	var skipped: float = origin.distance_to(entry) + 0.0005
+	if skipped >= reach:
+		return {hit = false}
+	var hit := _raycast_walls_down_inside(origin + dir * skipped, direction, reach - skipped)
+	if hit.hit:
+		if hit.normal == Vector3.ZERO and hit.distance < world.voxel_size:
+			hit.normal = Vector3(EditorTool._face_normal(box, entry)) # Solid right at the edge it came in by.
+		hit.distance += skipped
+	return hit
+
+
+func _raycast_walls_down_inside(origin: Vector3, direction: Vector3, reach: float) -> Dictionary:
 	var travelled := _exit_walls_down(origin, direction.normalized())
 	if travelled >= reach:
 		return {hit = false}
@@ -289,17 +320,49 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif InputSetup.pressed(event, "editor_orbit_right"):
 			yaw = snappedf(yaw, 45.0) - 45.0
 		elif InputSetup.pressed(event, "editor_cut_up"):
-			move_cut(cut_step)
+			if on_storey_key.is_valid():
+				on_storey_key.call(1)
+			else:
+				move_cut(cut_step)
 		elif InputSetup.pressed(event, "editor_cut_down"):
-			move_cut(-cut_step)
+			if on_storey_key.is_valid():
+				on_storey_key.call(-1)
+			else:
+				move_cut(-cut_step)
 		elif InputSetup.pressed(event, "editor_cut_mode") and not event.echo:
 			set_cut_mode((cut_mode + 1) % CUT_NAMES.size() as Cut)
 		elif InputSetup.pressed(event, "editor_walls_down") and not event.echo:
 			set_walls_down(not walls_down)
+		elif zoom_enabled and _numpad_view(event):
+			pass # While a tool step sizes something, the numpad types sizes instead.
 		else:
 			used = false
 		if used:
 			get_viewport().set_input_as_handled()
+
+
+## The numpad view keys; true if the key was one.
+func _numpad_view(event: InputEvent) -> bool:
+	var views := {
+		editor_view_front = func() -> void: view_from(0.0, PITCH_MIN),
+		editor_view_back = func() -> void: view_from(180.0, PITCH_MIN),
+		editor_view_right = func() -> void: view_from(90.0, PITCH_MIN),
+		editor_view_left = func() -> void: view_from(-90.0, PITCH_MIN),
+		editor_view_top = func() -> void: view_from(snappedf(yaw, 90.0), PITCH_MAX),
+		editor_view_around = func() -> void: yaw += 180.0,
+		editor_view_ortho = func() -> void: set_orthographic(not orthographic),
+		editor_turn_left = func() -> void: turn(TURN_STEP),
+		editor_turn_right = func() -> void: turn(-TURN_STEP),
+		editor_tilt_up = func() -> void: turn(0.0, -TURN_STEP),
+		editor_tilt_down = func() -> void: turn(0.0, TURN_STEP),
+		editor_zoom_in = func() -> void: zoom(1.0 / ZOOM_STEP),
+		editor_zoom_out = func() -> void: zoom(ZOOM_STEP),
+	}
+	for action: String in views:
+		if InputSetup.pressed(event, action):
+			views[action].call()
+			return true
+	return false
 
 
 func zoom(factor: float) -> void:
@@ -360,7 +423,9 @@ func _process(delta: float) -> void:
 	if input != Vector2.ZERO:
 		var fast := 3.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 1.0
 		_pan(Vector3(input.x, 0.0, input.y) * distance * PAN_SPEED * fast * delta)
-	if cut_mode == Cut.AUTO:
+	if storey_cut >= 0 and cut_mode != Cut.OFF:
+		cut_layer = storey_cut
+	elif cut_mode == Cut.AUTO:
 		_update_auto_cut(false)
 
 	var blend := 1.0 - exp(-SMOOTHING * delta)
@@ -375,7 +440,35 @@ func _process(delta: float) -> void:
 
 func _place_camera() -> void:
 	var basis := Basis.from_euler(Vector3(deg_to_rad(-_shown_pitch), deg_to_rad(_shown_yaw), 0.0))
-	camera.global_transform = Transform3D(basis, _shown_pivot + basis * Vector3(0.0, 0.0, _shown_distance))
+	# Orthographic stands well back (the zoom is its size, not its distance), so nothing near the
+	# pivot is behind it.
+	var back := maxf(_shown_distance, ORTHO_BACK) if orthographic else _shown_distance
+	camera.global_transform = Transform3D(basis, _shown_pivot + basis * Vector3(0.0, 0.0, back))
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL if orthographic else Camera3D.PROJECTION_PERSPECTIVE
+	# The same height of view at the pivot as in perspective, so switching doesn't jump.
+	camera.size = 2.0 * _shown_distance * tan(deg_to_rad(camera.fov * 0.5))
+
+
+## Numpad views (Blender's keys): a straight-on view of the side the yaw faces, keeping the pivot.
+func view_from(yaw_degrees: float, pitch_degrees: float) -> void:
+	yaw = _nearest_turn(yaw_degrees)
+	pitch = clampf(pitch_degrees, PITCH_MIN, PITCH_MAX)
+
+
+## Turns by degrees (numpad 4 / 6) or tilts (numpad 8 / 2).
+func turn(yaw_degrees: float, pitch_degrees := 0.0) -> void:
+	yaw += yaw_degrees
+	pitch = clampf(pitch + pitch_degrees, PITCH_MIN, PITCH_MAX)
+
+
+func set_orthographic(on: bool) -> void:
+	orthographic = on
+	lab.notify("Orthographic" if on else "Perspective", false)
+
+
+## The yaw equal to target (mod 360) closest to the current one, so the view turns the short way.
+func _nearest_turn(target: float) -> float:
+	return yaw + wrapf(target - yaw, -180.0, 180.0)
 
 
 ## Auto cut: the ceiling over the pivot. Over solid ground (between rooms) it keeps the last one, so

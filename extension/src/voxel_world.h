@@ -254,8 +254,11 @@ public:
 	// it becomes an opening or a room's inside (a new room, or a wall that moved away) or leaves every
 	// room. So hand detail on walls that stay walls survives a resize or a new lining, and a new
 	// room's lining doesn't wall up spaces carved by hand. Returns how many voxels changed.
+	// before_build / after_build are build mode's walls, slabs and wall openings (LevelBuild.pack):
+	// wall openings are openings; walls and slabs are linings (the later one wins, and over rooms').
 	int apply_structure(const Vector3i &from, const Vector3i &to, const PackedInt32Array &before_rooms, const PackedInt32Array &after_rooms,
-			const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set);
+			const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set,
+			const PackedInt32Array &before_build, const PackedInt32Array &after_build);
 	// How many of the model's solid voxels the world still has, unchanged, at origin.
 	int count_matching(const Vector3i &origin, const Vector3i &size, const PackedByteArray &voxels) const;
 	// Returns {free: model voxels over air, supported: model voxels touching or overlapping existing

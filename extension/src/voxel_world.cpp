@@ -779,7 +779,210 @@ inline bool inside(const int32_t *box, int x, int y, int z, int grow) {
 	return x >= box[0] - grow && y >= box[1] - grow && z >= box[2] - grow && x < box[3] + grow && y < box[4] + grow && z < box[5] + grow;
 }
 
-StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array &openings, int base, int x, int y, int z) {
+// Build mode shapes (LevelBuild.pack): records of [type, payload length, payload...].
+enum BuildType { BUILD_WALL = 1, BUILD_SLAB = 2, BUILD_WALL_OPENING = 3 };
+
+// One parsed record, with its box for a quick reject.
+struct BuildShape {
+	int type = 0;
+	const int32_t *data = nullptr; // The payload.
+	int min[3] = {};
+	int max[3] = {}; // Exclusive.
+};
+
+// A wall's frame: a cell center -> (along, across) in voxels, from a toward b. across < 0 is the
+// left of a -> b seen from above (+y up, so with x east and z south: the side a left turn faces).
+struct WallFrame {
+	double ax, az, ux, uz, length;
+	WallFrame(const int32_t *w) {
+		ax = w[0];
+		az = w[1];
+		const double dx = w[2] - w[0], dz = w[3] - w[1];
+		length = Math::sqrt(dx * dx + dz * dz);
+		ux = length > 0.0 ? dx / length : 1.0;
+		uz = length > 0.0 ? dz / length : 0.0;
+	}
+	void at(int x, int z, double &along, double &across) const {
+		const double cx = x + 0.5 - ax, cz = z + 0.5 - az;
+		along = cx * ux + cz * uz;
+		across = cx * uz - cz * ux;
+	}
+};
+
+// A slab shape's ints after [add, material, count]: a polygon of `count` (x, z) points, or for a
+// negative count, -count runs (z, x0, x1), sorted by z, each covering columns x0 <= x < x1 of row z.
+inline int slab_shape_ints(int count) {
+	return count >= 0 ? count * 2 : -count * 3;
+}
+
+// Whether the runs (sorted by z) cover column (x, z).
+bool runs_have(const int32_t *runs, int count, int x, int z) {
+	int lo = 0, hi = count;
+	while (lo < hi) { // The first run with run z >= z.
+		const int mid = (lo + hi) / 2;
+		if (runs[mid * 3] < z) {
+			lo = mid + 1;
+		} else {
+			hi = mid;
+		}
+	}
+	for (int i = lo; i < count && runs[i * 3] == z; i++) {
+		if (x >= runs[i * 3 + 1] && x < runs[i * 3 + 2]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Even-odd test of the point (x, z) against a polygon of `count` (x, z) points.
+bool polygon_has(const int32_t *points, int count, double x, double z) {
+	bool in = false;
+	for (int i = 0, j = count - 1; i < count; j = i++) {
+		const double xi = points[i * 2], zi = points[i * 2 + 1], xj = points[j * 2], zj = points[j * 2 + 1];
+		if ((zi > z) != (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) {
+			in = !in;
+		}
+	}
+	return in;
+}
+
+std::vector<BuildShape> parse_build(const PackedInt32Array &build) {
+	std::vector<BuildShape> shapes;
+	const int32_t *b = build.ptr();
+	const int64_t n = build.size();
+	for (int64_t i = 0; i + 2 <= n;) {
+		BuildShape shape;
+		shape.type = b[i];
+		const int length = b[i + 1];
+		if (length < 0 || i + 2 + length > n) {
+			break;
+		}
+		shape.data = b + i + 2;
+		const int32_t *d = shape.data;
+		if ((shape.type == BUILD_WALL || shape.type == BUILD_WALL_OPENING) && length >= 9) {
+			// ax az bx bz y0 y1 thickness ...: the segment grown by the thickness (and a voxel).
+			const int grow = d[6] / 2 + 2;
+			shape.min[0] = MIN(d[0], d[2]) - grow;
+			shape.max[0] = MAX(d[0], d[2]) + grow;
+			shape.min[2] = MIN(d[1], d[3]) - grow;
+			shape.max[2] = MAX(d[1], d[3]) + grow;
+			shape.min[1] = d[4];
+			shape.max[1] = d[5];
+			shapes.push_back(shape);
+		} else if (shape.type == BUILD_SLAB && length >= 3) {
+			// y0 y1 count, then per shape: add, material, count, then its points or runs.
+			shape.min[1] = d[0];
+			shape.max[1] = d[1];
+			shape.min[0] = shape.min[2] = INT32_MAX;
+			shape.max[0] = shape.max[2] = INT32_MIN;
+			int at = 3;
+			bool whole = true;
+			for (int k = 0; k < d[2]; k++) {
+				if (at + 3 > length || at + 3 + slab_shape_ints(d[at + 2]) > length) {
+					whole = false;
+					break;
+				}
+				const int count = d[at + 2];
+				const int32_t *v = d + at + 3;
+				if (count >= 0) {
+					for (int p = 0; p < count; p++) {
+						shape.min[0] = MIN(shape.min[0], v[p * 2]);
+						shape.max[0] = MAX(shape.max[0], v[p * 2]);
+						shape.min[2] = MIN(shape.min[2], v[p * 2 + 1]);
+						shape.max[2] = MAX(shape.max[2], v[p * 2 + 1]);
+					}
+				} else {
+					for (int r = 0; r < -count; r++) {
+						shape.min[0] = MIN(shape.min[0], v[r * 3 + 1]);
+						shape.max[0] = MAX(shape.max[0], v[r * 3 + 2]);
+						shape.min[2] = MIN(shape.min[2], v[r * 3]);
+						shape.max[2] = MAX(shape.max[2], v[r * 3] + 1);
+					}
+				}
+				at += 3 + slab_shape_ints(count);
+			}
+			if (whole && shape.min[0] < shape.max[0]) {
+				shapes.push_back(shape);
+			}
+		}
+		i += 2 + length;
+	}
+	return shapes;
+}
+
+inline bool shape_may_hold(const BuildShape &shape, int x, int y, int z) {
+	return x >= shape.min[0] && x < shape.max[0] && y >= shape.min[1] && y < shape.max[1] && z >= shape.min[2] && z < shape.max[2];
+}
+
+// Wall: ax az bx bz y0 y1 thickness material inner (-1: none). Its cells are across [-t/2, t/2),
+// along the segment and t/2 past each end (so corners close). inner paints the left half of a wall
+// at least 2 thick. Returns the material, or -1 outside it.
+int wall_material(const int32_t *w, int x, int y, int z) {
+	if (y < w[4] || y >= w[5]) {
+		return -1;
+	}
+	const WallFrame frame(w);
+	double along, across;
+	frame.at(x, z, along, across);
+	const double half = w[6] * 0.5;
+	if (across < -half || across >= half || along < -half || along >= frame.length + half) {
+		return -1;
+	}
+	return (w[8] > 0 && w[6] >= 2 && across < 0.0) ? w[8] : w[7];
+}
+
+// Wall opening: ax az bx bz y0 y1 thickness along0 along1. The wall's cells (a voxel wider on each
+// side, so it always cuts through) with along in [along0, along1).
+bool wall_opening_has(const int32_t *o, int x, int y, int z) {
+	if (y < o[4] || y >= o[5]) {
+		return false;
+	}
+	const WallFrame frame(o);
+	double along, across;
+	frame.at(x, z, along, across);
+	const double half = o[6] * 0.5 + 1.0;
+	return across >= -half && across < half && along >= o[7] && along < o[8];
+}
+
+// Slab: the last of its shapes holding the cell's column decides (add: its material, erase: none).
+int slab_material(const int32_t *d, int x, int y, int z) {
+	if (y < d[0] || y >= d[1]) {
+		return -1;
+	}
+	int material = -1;
+	int at = 3;
+	for (int k = 0; k < d[2]; k++) {
+		const int count = d[at + 2];
+		const bool holds = count >= 0 ? (count >= 3 && polygon_has(d + at + 3, count, x + 0.5, z + 0.5)) : runs_have(d + at + 3, -count, x, z);
+		if (holds) {
+			material = d[at] ? d[at + 1] : -1;
+		}
+		at += 3 + slab_shape_ints(count);
+	}
+	return material;
+}
+
+// The shapes (in order) whose box holds row z, or layer y of those: so each cell only tests the few
+// that can hold it.
+void shapes_in_row(const std::vector<BuildShape> &all, int z, std::vector<const BuildShape *> &out) {
+	out.clear();
+	for (const BuildShape &shape : all) {
+		if (z >= shape.min[2] && z < shape.max[2]) {
+			out.push_back(&shape);
+		}
+	}
+}
+
+void shapes_in_layer(const std::vector<const BuildShape *> &row, int y, std::vector<const BuildShape *> &out) {
+	out.clear();
+	for (const BuildShape *shape : row) {
+		if (y >= shape->min[1] && y < shape->max[1]) {
+			out.push_back(shape);
+		}
+	}
+}
+
+StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array &openings, const std::vector<const BuildShape *> &build, int base, int x, int y, int z) {
 	StructureCell cell;
 	cell.material = uint8_t(base);
 	const int32_t *o = openings.ptr();
@@ -788,6 +991,25 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 			cell.role = ROLE_OPENING;
 			cell.material = 0;
 			return cell;
+		}
+	}
+	int built = -1;
+	for (const BuildShape *shape_ptr : build) {
+		const BuildShape &shape = *shape_ptr;
+		if (!shape_may_hold(shape, x, y, z)) {
+			continue;
+		}
+		if (shape.type == BUILD_WALL_OPENING) {
+			if (wall_opening_has(shape.data, x, y, z)) {
+				cell.role = ROLE_OPENING;
+				cell.material = 0;
+				return cell;
+			}
+			continue;
+		}
+		const int material = shape.type == BUILD_WALL ? wall_material(shape.data, x, y, z) : slab_material(shape.data, x, y, z);
+		if (material > 0) {
+			built = material; // Later shapes win.
 		}
 	}
 	const int32_t *r = rooms.ptr();
@@ -802,7 +1024,11 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 			lining = int(i);
 		}
 	}
-	if (lining >= 0) {
+	if (built > 0) {
+		// Built floors, walls and ceilings are like linings: they only replace untouched voxels.
+		cell.role = ROLE_LINING;
+		cell.material = uint8_t(built);
+	} else if (lining >= 0) {
 		const int32_t *room = r + lining;
 		cell.role = ROLE_LINING;
 		cell.material = uint8_t(y < room[1] ? room[6] : (y >= room[4] ? room[8] : room[7]));
@@ -813,7 +1039,10 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 } // namespace
 
 int VoxelWorld::apply_structure(const Vector3i &from, const Vector3i &to, const PackedInt32Array &before_rooms, const PackedInt32Array &after_rooms,
-		const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set) {
+		const PackedInt32Array &before_openings, const PackedInt32Array &after_openings, int base, const PackedByteArray &base_set,
+		const PackedInt32Array &before_build, const PackedInt32Array &after_build) {
+	const std::vector<BuildShape> build_before = parse_build(before_build);
+	const std::vector<BuildShape> build_after = parse_build(after_build);
 	ERR_FAIL_COND_V_MSG(before_rooms.size() % ROOM_STRIDE != 0 || after_rooms.size() % ROOM_STRIDE != 0, 0, "apply_structure: rooms are 10 ints each.");
 	ERR_FAIL_COND_V_MSG(before_openings.size() % OPENING_STRIDE != 0 || after_openings.size() % OPENING_STRIDE != 0, 0, "apply_structure: openings are 6 ints each.");
 	bool is_base[256] = {};
@@ -825,11 +1054,16 @@ int VoxelWorld::apply_structure(const Vector3i &from, const Vector3i &to, const 
 	int changed = 0;
 	Vector3i lo = hi_box;
 	Vector3i hi = lo_box;
+	std::vector<const BuildShape *> row_before, row_after, layer_before, layer_after;
 	for (int z = lo_box.z; z < hi_box.z; z++) {
+		shapes_in_row(build_before, z, row_before);
+		shapes_in_row(build_after, z, row_after);
 		for (int y = lo_box.y; y < hi_box.y; y++) {
+			shapes_in_layer(row_before, y, layer_before);
+			shapes_in_layer(row_after, y, layer_after);
 			for (int x = lo_box.x; x < hi_box.x; x++) {
-				const StructureCell was = structure_at(before_rooms, before_openings, base, x, y, z);
-				const StructureCell now = structure_at(after_rooms, after_openings, base, x, y, z);
+				const StructureCell was = structure_at(before_rooms, before_openings, layer_before, base, x, y, z);
+				const StructureCell now = structure_at(after_rooms, after_openings, layer_after, base, x, y, z);
 				if (was.role == now.role && was.material == now.material) {
 					continue;
 				}
@@ -1404,7 +1638,8 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("erase_stamp", "origin", "size", "voxels"), &VoxelWorld::erase_stamp);
 	ClassDB::bind_method(D_METHOD("get_box", "from", "to"), &VoxelWorld::get_box);
 	ClassDB::bind_method(D_METHOD("set_box", "from", "to", "voxels"), &VoxelWorld::set_box);
-	ClassDB::bind_method(D_METHOD("apply_structure", "from", "to", "before_rooms", "after_rooms", "before_openings", "after_openings", "base", "base_set"), &VoxelWorld::apply_structure);
+	ClassDB::bind_method(D_METHOD("apply_structure", "from", "to", "before_rooms", "after_rooms", "before_openings", "after_openings", "base", "base_set", "before_build", "after_build"),
+			&VoxelWorld::apply_structure, DEFVAL(PackedInt32Array()), DEFVAL(PackedInt32Array()));
 	ClassDB::bind_method(D_METHOD("count_matching", "origin", "size", "voxels"), &VoxelWorld::count_matching);
 	ClassDB::bind_method(D_METHOD("raycast", "origin", "direction", "max_distance"), &VoxelWorld::raycast, DEFVAL(100.0f));
 	ClassDB::bind_method(D_METHOD("move_box", "feet", "box_size", "motion", "step_height", "allow_step"), &VoxelWorld::move_box, DEFVAL(0.0f), DEFVAL(false));

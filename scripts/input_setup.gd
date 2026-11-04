@@ -36,6 +36,9 @@ const EDITOR_KEYS := {
 	editor_tool_opening = ["6"],
 	editor_tool_prop = ["7"],
 	editor_tool_marker = ["8"],
+	# The 9th and 10th place on the tool rail (build levels have more tools).
+	editor_tool_slot_9 = ["9"],
+	editor_tool_slot_10 = ["0"],
 	editor_rotate = ["R"],
 	editor_grid = ["G"],
 	editor_free_cursor = ["N"],
@@ -43,8 +46,23 @@ const EDITOR_KEYS := {
 	# Builder view camera (the walk view uses the same keys to move and fly).
 	editor_orbit_left = ["Q"],
 	editor_orbit_right = ["E"],
-	editor_frame = ["F"],
+	editor_frame = ["F", "Kp Period"],
 	editor_frame_all = ["Home"],
+	# Numpad views, as in Blender: 1 / 3 / 7 front, right, top (Ctrl: the other side), 9 turn
+	# around, 4 / 6 / 8 / 2 turn and tilt, 5 orthographic, + / - zoom.
+	editor_view_front = ["Kp 1"],
+	editor_view_back = ["Ctrl+Kp 1"],
+	editor_view_right = ["Kp 3"],
+	editor_view_left = ["Ctrl+Kp 3"],
+	editor_view_top = ["Kp 7", "Ctrl+Kp 7"],
+	editor_view_around = ["Kp 9"],
+	editor_view_ortho = ["Kp 5"],
+	editor_turn_left = ["Kp 4"],
+	editor_turn_right = ["Kp 6"],
+	editor_tilt_up = ["Kp 8"],
+	editor_tilt_down = ["Kp 2"],
+	editor_zoom_in = ["Kp Add"],
+	editor_zoom_out = ["Kp Subtract"],
 	editor_cut_up = ["PageUp"],
 	editor_cut_down = ["PageDown"],
 	editor_cut_mode = ["C"],
@@ -183,7 +201,8 @@ static func describe(action: String) -> String:
 	var names: Array[String] = []
 	for spec: String in EDITOR_KEYS.get(action, []):
 		names.append(spec.replace("BracketLeft", "[").replace("BracketRight", "]").replace("Escape", "Esc")
-				.replace("PageUp", "PgUp").replace("PageDown", "PgDn"))
+				.replace("PageUp", "PgUp").replace("PageDown", "PgDn").replace("Kp Period", "Num .").replace("Kp Add", "Num +")
+				.replace("Kp Subtract", "Num -").replace("Kp ", "Num "))
 	return " / ".join(names)
 
 

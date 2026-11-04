@@ -86,7 +86,12 @@ func set_selected(id: String) -> void:
 	_selection.visible = not object.is_empty()
 	if object.is_empty():
 		return
-	var box := LevelSchema.box_of(object)
+	# A wall (or an opening in one) outlines its own prism, square to it even at 45°.
+	var corners := LevelBuild.corners_of(object, lab.level.objects)
+	if not corners.is_empty():
+		draw_corners(_selection.mesh, corners)
+		return
+	var box := LevelBuild.box_of(object, lab.level.objects)
 	draw_box(_selection.mesh, box.grow(0.3))
 
 
@@ -287,12 +292,19 @@ func _gizmo(object: Dictionary) -> Node3D:
 
 ## Draws a box's 12 edges as lines. box is in voxel units; the mesh is in world units.
 func draw_box(mesh: ImmediateMesh, box: AABB) -> void:
-	mesh.clear_surfaces()
-	var lo := to_world(box.position)
-	var hi := to_world(box.end)
 	var corners: Array[Vector3] = []
 	for i in 8:
-		corners.append(Vector3(hi.x if i & 1 else lo.x, hi.y if i & 2 else lo.y, hi.z if i & 4 else lo.z))
+		corners.append(Vector3(box.end.x if i & 1 else box.position.x, box.end.y if i & 2 else box.position.y, box.end.z if i & 4 else box.position.z))
+	draw_corners(mesh, corners)
+
+
+## The edges of a box given as 8 corners in voxels, bit 0 / 1 / 2 of the index picking the far
+## side along its three edges (LevelBuild.prism_corners).
+func draw_corners(mesh: ImmediateMesh, voxel_corners: Array[Vector3]) -> void:
+	mesh.clear_surfaces()
+	var corners: Array[Vector3] = []
+	for c in voxel_corners:
+		corners.append(to_world(c))
 	mesh.surface_begin(Mesh.PRIMITIVE_LINES)
 	for edge in [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]:
 		mesh.surface_add_vertex(corners[edge[0]])

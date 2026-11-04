@@ -64,6 +64,13 @@ func put_objects(puts: Array) -> void:
 	_call("_do_puts", [puts])
 
 
+## Build mode: paints (or erases) a shape (LevelBuild.shape) onto a storey's floor or ceiling
+## (kind), on top of what's there. The host adds it to the slab as it is then, so two people
+## painting at once both land.
+func add_slab_shape(kind: String, storey: int, shape: Array) -> void:
+	_call("_do_slab", [kind, storey, shape])
+
+
 ## Everything between begin_group and end_group undoes as one step (a brush stroke).
 func begin_group() -> void:
 	_call("_do_begin", [])
@@ -105,7 +112,7 @@ func _call(method: String, args: Array) -> void:
 
 @rpc("any_peer", "reliable")
 func _request(method: String, args: Array) -> void:
-	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_puts", "_do_lock", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
+	if multiplayer.is_server() and method in ["_do_voxel_op", "_do_put", "_do_puts", "_do_slab", "_do_lock", "_do_begin", "_do_end", "_do_undo", "_do_redo"]:
 		callv(method, [multiplayer.get_remote_sender_id()] + args)
 
 
@@ -150,6 +157,20 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 			after.id = level.new_id(after.get("type", after.kind))
 	_transition(before, after)
 	_record(peer, {type = "object", before = before, after = after})
+
+
+func _do_slab(peer: int, kind: String, storey: int, shape: Array) -> void:
+	if lab.mode != "edit" or not kind in ["floor", "ceiling"] or storey < 0 or shape.size() < 3 + 3 * 2:
+		return
+	var objects: Dictionary = lab.level.objects
+	var id := LevelBuild.slab_id(kind, storey)
+	var puts: Array = []
+	if not objects.has(LevelBuild.STOREYS_ID):
+		puts.append(["", LevelBuild.storeys(objects)])
+	var slab: Dictionary = objects[id].duplicate(true) if objects.has(id) else LevelBuild.new_slab(kind, storey)
+	slab.shapes.append(shape.map(func(v: Variant) -> int: return int(v)))
+	puts.append([id if objects.has(id) else "", slab])
+	_do_puts(peer, puts)
 
 
 func _do_puts(peer: int, puts: Array) -> void:
