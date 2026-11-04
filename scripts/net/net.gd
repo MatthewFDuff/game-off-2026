@@ -41,7 +41,8 @@ var player_name := "Expendable"
 ## peer id -> {name: String, color: Color}
 var players := {}
 var in_session := false
-## {level: String, mode: "play" or "edit"}
+## {level: String, mode: "play" or "edit"}, plus shift (a story shift begun from the cubicle: the
+## host saves it) and resume (the host restores the save when the level loads).
 var session := {level = DEFAULT_LEVEL, mode = "play"}
 ## Why the last session ended, for the menu to show after it loads. Cleared once shown.
 var end_reason := ""
@@ -78,9 +79,12 @@ func local_id() -> int:
 	return multiplayer.get_unique_id()
 
 
-func start_solo(level := DEFAULT_LEVEL, mode := "play") -> void:
+## Single-player: loads the level at once. extra is merged into session (shift, resume; see
+## docs/shift-save.md).
+func start_solo(level := DEFAULT_LEVEL, mode := "play", extra := {}) -> void:
 	_reset()
 	session = {level = level, mode = mode}
+	session.merge(extra, true)
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	_add_player(1, player_name)
 	_begin()
@@ -100,10 +104,12 @@ func host(port := DEFAULT_PORT, level := DEFAULT_LEVEL, mode := "play") -> Error
 
 
 ## Host: opens a session (server, roster) without loading the level; the host stays in the cubicle.
-## Joiners are accepted with the session marked staged, and stay in theirs until enter_level.
-func open_session(port := DEFAULT_PORT, level := "waiting_room", mode := "play") -> Error:
+## Joiners are accepted with the session marked staged, and stay in theirs until enter_level. extra
+## is merged into session (shift, resume) and reaches joiners with it.
+func open_session(port := DEFAULT_PORT, level := "waiting_room", mode := "play", extra := {}) -> Error:
 	_reset()
 	session = {level = level, mode = mode, staged = true, level_open = false}
+	session.merge(extra, true)
 	var peer := ENetMultiplayerPeer.new()
 	var error := peer.create_server(port, MAX_PLAYERS - 1)
 	if error != OK:

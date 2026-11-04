@@ -3,7 +3,9 @@ extends CanvasLayer
 ## Co-op level HUD: crosshair, who's in the session, and the pause panel, shown whenever the mouse
 ## is released ("SHIFT PAUSED": Resume, Settings, Invite for a co-op host, Leave shift). Settings
 ## and Invite take the buttons' place in the panel until Esc (or the menu's own back) returns.
-## Solo play pauses under it; co-op keeps running. Placeholder until the real HUD exists.
+## Solo play pauses under it; co-op keeps running. In a story shift a line under the buttons says
+## what leaving does (the host saves the shift: Lab.save_shift). Placeholder until the real HUD
+## exists.
 
 @export var lab: Lab
 
@@ -12,6 +14,8 @@ var _roster := Label.new()
 var _pause := PanelContainer.new()
 var _pause_info := Label.new()
 var _pause_hint := Label.new()
+## What Leave shift does to the shift (shift_hint), under the buttons.
+var _shift_hint := Label.new()
 var _buttons := VBoxContainer.new()
 var _invite := VBoxContainer.new()
 var _settings_menu: SettingsMenu
@@ -90,9 +94,13 @@ func _process(delta: float) -> void:
 		_controls.visible = false
 	var playing := InputSetup.is_playing()
 	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
+	var was_paused := _pause.visible
 	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit" and not ending
 	if not _pause.visible and not _buttons.visible:
 		_show_buttons()
+	elif _pause.visible and not was_paused:
+		_update_shift_hint()
+		_recenter_pause()
 	_crosshair.visible = playing and not ending
 	# Solo play pauses with the mouse released; co-op and the editor keep running.
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
@@ -132,7 +140,12 @@ func _build_pause() -> void:
 	_add_button("Settings", _show_settings)
 	if hosting_info(multiplayer) != "":
 		_add_button("Invite", _show_invite)
-	_add_button("Leave shift", func() -> void: Net.leave())
+	_add_button("Leave shift", func() -> void:
+		lab.save_shift()
+		Net.leave())
+	_shift_hint.label_settings = _settings(16, Color(0.7, 0.7, 0.7), 0)
+	_shift_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_buttons.add_child(_shift_hint)
 
 	_invite.add_theme_constant_override("separation", 8)
 	_invite.visible = false
@@ -188,11 +201,17 @@ func _recenter_pause() -> void:
 
 
 func _show_buttons() -> void:
+	_update_shift_hint()
 	_buttons.visible = true
 	_invite.visible = false
 	if _settings_menu:
 		_settings_menu.visible = false
 	_recenter_pause()
+
+
+func _update_shift_hint() -> void:
+	_shift_hint.text = shift_hint(lab)
+	_shift_hint.visible = _shift_hint.text != ""
 
 
 func _show_settings() -> void:
@@ -222,6 +241,16 @@ func _input(event: InputEvent) -> void:
 
 func _update_pause_info() -> void:
 	_pause_info.text = hosting_info(multiplayer)
+
+
+## The pause menu's line about the shift: where the host's clone is held and that leaving saves, a
+## peer's reminder that the host keeps it, or "" outside a story shift.
+static func shift_hint(level: Lab) -> String:
+	if level == null or not level.in_shift():
+		return ""
+	if not level.multiplayer.is_server():
+		return "The host keeps the shift. You can rejoin by address."
+	return "Your clone is held at the %s. Leaving saves the shift." % ShiftSave.room_of(level.level, level.play.checkpoint)
 
 
 ## How friends reach this host ("" when not hosting). The editor's menu shows it too.

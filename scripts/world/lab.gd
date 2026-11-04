@@ -15,6 +15,13 @@ extends Node3D
 ##
 ## Players are named after their peer id under Players, so RPC paths match on every peer, and each
 ## is the multiplayer authority of its own player.
+##
+## Shifts (docs/shift-save.md): in a story shift (Net.session.shift) the host keeps the one shift
+## save (ShiftSave) through save_shift, which LevelPlay calls at checkpoints, seals and the generator,
+## LabHud's Leave shift calls, and closing the window calls. With Net.session.resume the host loads
+## that save as the level opens, before any peer can enter (the one time the world is replaced
+## without WorldSync; peers get it in the late-join snapshot), and spawns at the checkpoint vat.
+## Newcomers to a play level with a checkpoint set land at that vat too.
 
 signal player_spawned(player: Player)
 signal player_despawned(peer_id: int)
@@ -33,6 +40,8 @@ const RESPAWN_DELAY := 3.0
 const DEATH_FADE_ALPHA := 0.55
 const DEATH_FADE_IN := 0.6
 const DEATH_FADE_OUT := 0.8
+## The host's notice when the shift on file can't be resumed (missing, broken or another layout).
+const STALE_SHIFT_NOTE := "The shift on file was recorded against an older site layout. Starting fresh."
 
 @export var world: VoxelWorld
 @export var world_sync: WorldSync
@@ -59,6 +68,16 @@ var _edit_base := PackedByteArray()
 var _props: Props
 ## This peer: clones grown for the local player since play began (the respawn toast counts them).
 var clones := 0
+## Host: seconds of play in this story shift so far (from the save when resumed; counts in play).
+var shift_seconds := 0.0
+## Host: clones the party had grown when the resumed shift was saved; Story starts its deaths here.
+var resumed_deaths := 0
+## Host: this level was resumed from the shift save.
+var resumed := false
+## The HUD's story node (Story sets it), for the death count a save keeps.
+var story: Story
+## This peer, joining: where the host put the new player (_entry_spot), used when play starts here.
+var _entry_at: Array = []
 var _fade: ColorRect
 
 
@@ -83,11 +102,28 @@ func _ready() -> void:
 		return
 	_apply_settings()
 	world.set_data(level.voxels)
+	# Read before play starts, so Story's deaths begin at the saved count when play starts.
+	var save: Dictionary = _load_shift() if Net.session.get("resume", false) and Net.session.mode == "play" else {}
 	_set_mode_locally(Net.session.mode)
+	if not save.is_empty():
+		resumed = _resume_shift(save)
 	world.remesh_all_now()
 	print("level %s loaded in %d ms" % [level.name, Time.get_ticks_msec() - start])
 	peers_in_level = [1]
-	_spawn_player(1, spawn_point(0), spawn_yaw(0))
+	if resumed:
+		_spawn_player(1, respawn_point(), respawn_yaw())
+	else:
+		_spawn_player(1, spawn_point(0), spawn_yaw(0))
+
+
+func _process(delta: float) -> void:
+	if multiplayer.is_server() and in_shift():
+		shift_seconds += delta
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_shift()
 
 
 func local_player() -> Player:
@@ -118,6 +154,65 @@ func notify_peer(peer_id: int, text: String) -> void:
 @rpc("authority", "reliable")
 func _notice(text: String) -> void:
 	notice.emit(text)
+
+
+# --- The shift save (host) ------------------------------------------------------------------------
+
+## Playing a story shift here: Net.session.shift, in play, and not the waiting room.
+func in_shift() -> bool:
+	return bool(Net.session.get("shift", false)) and mode == "play" and level != null and level.name != "waiting_room"
+
+
+## Host: keeps the shift on file (ShiftSave): play's state, the world, the director, the item spots,
+## the clock and the clone count. A no-op on peers, outside a shift and during the finale.
+func save_shift() -> void:
+	if not multiplayer.is_server() or not in_shift() or not play.active or (director and director.finale_active):
+		return
+	var record := play.capture()
+	record.level = level.name
+	record.level_hash = ShiftSave.level_hash(level.name)
+	record.saved_at = int(Time.get_unix_time_from_system())
+	record.elapsed = shift_seconds
+	record.deaths = story.deaths if story else resumed_deaths
+	record.director = director.save_state() if director else {}
+	if items:
+		record.items_taken = items.taken_spots()
+		record.items_loose = items.loose()
+	record.party = Net.players.values().map(func(entry: Dictionary) -> String: return str(entry.name))
+	record.vat_room = ShiftSave.room_of(level, play.checkpoint)
+	var error := ShiftSave.write(record, world.get_data())
+	if error != OK:
+		notify("Fung AI could not keep your clone on file (%s)." % error_string(error), false)
+
+
+## Host: the shift save for this level, or {} (with the fallback notice) if it's missing, broken or
+## recorded against another layout. Sets the clock and the clone count from it.
+func _load_shift() -> Dictionary:
+	var save := ShiftSave.load()
+	if save.is_empty() or not save.get("layout_ok", false) or str(save.get("level", "")) != level.name:
+		notify(STALE_SHIFT_NOTE)
+		return {}
+	shift_seconds = float(save.get("elapsed", 0.0))
+	resumed_deaths = int(save.get("deaths", 0))
+	return save
+
+
+## Host, as the level opens (play started, no peer in yet): the saved world, then play's state, the
+## director's spawners and the item spots. False (and a fresh start) if the world was refused.
+func _resume_shift(save: Dictionary) -> bool:
+	if not play.replace_world(save.voxels):
+		shift_seconds = 0.0
+		resumed_deaths = 0
+		if story:
+			story.deaths = 0
+		notify(STALE_SHIFT_NOTE)
+		return false
+	play.restore(save)
+	if director:
+		director.restore(save.get("director", {}))
+	if items and (save.has("items_taken") or save.has("items_loose")):
+		items.restore(save.get("items_taken", []), save.get("items_loose", []))
+	return true
 
 
 # --- Modes and saving ----------------------------------------------------------------------------
@@ -184,8 +279,10 @@ func _set_mode_locally(new_mode: String) -> void:
 		me.set_editing(mode == "edit")
 		if mode == "play":
 			var index := _player_index(multiplayer.get_unique_id())
-			me.teleport(spawn_point(index))
-			me.rotation.y = spawn_yaw(index)
+			# A joiner starts where the host put it (the checkpoint vat, if the party has one).
+			me.teleport(_entry_at[0] if not _entry_at.is_empty() else spawn_point(index))
+			me.rotation.y = _entry_at[1] if not _entry_at.is_empty() else spawn_yaw(index)
+			_entry_at = []
 			me.revive()
 	mode_changed.emit(mode)
 
@@ -449,16 +546,28 @@ func _request_entry() -> void:
 	world_sync.send_snapshot(newcomer)
 	var index := _player_index(newcomer)
 	var feet := spawn_point(index)
+	var yaw := spawn_yaw(index)
+	# In play with a checkpoint, a newcomer lands with the party at its vat, not at the start.
+	if mode == "play" and not _checkpoint_vat().is_empty():
+		feet = respawn_point()
+		yaw = respawn_yaw()
 	# The newcomer learns about everyone already here, then everyone learns about the newcomer.
 	for peer_id: int in players:
 		var player: Player = players[peer_id]
 		_remote_spawn.rpc_id(newcomer, peer_id, player.global_position, player.rotation.y)
-	_remote_spawn.rpc_id(newcomer, newcomer, feet, spawn_yaw(index))
+	_remote_spawn.rpc_id(newcomer, newcomer, feet, yaw)
 	for peer_id in peers_in_level:
 		if peer_id != 1:
-			_remote_spawn.rpc_id(peer_id, newcomer, feet, spawn_yaw(index))
-	_spawn_player(newcomer, feet, spawn_yaw(index))
+			_remote_spawn.rpc_id(peer_id, newcomer, feet, yaw)
+	_spawn_player(newcomer, feet, yaw)
+	_entry_spot.rpc_id(newcomer, feet, yaw)
 	_entry_sent.rpc_id(newcomer)
+
+
+## The newcomer: where the host put its player, for when play starts here (_set_mode_locally).
+@rpc("authority", "reliable")
+func _entry_spot(feet: Vector3, yaw: float) -> void:
+	_entry_at = [feet, yaw]
 
 
 @rpc("authority", "reliable")

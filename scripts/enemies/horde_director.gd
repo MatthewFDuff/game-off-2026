@@ -170,6 +170,39 @@ func stop() -> void:
 	state = "calm"
 
 
+## Host: what a shift save keeps (docs/shift-save.md; not `state`, which is the state name):
+## {dormant, spawners: {id: {active, spawned, dead_fired}}}. Enemies alive now are not kept; a resume
+## starts the spawners fresh from this.
+func save_state() -> Dictionary:
+	var out := {}
+	for id: String in spawners:
+		var spawner: Dictionary = spawners[id]
+		out[id] = {active = bool(spawner.active), spawned = bool(spawner.spawned), dead_fired = bool(spawner.dead_fired)}
+	return {dormant = dormant, spawners = out}
+
+
+## Host, resuming a shift after start(): dormant and each saved spawner's active / spawned /
+## dead_fired. A boss spawner (one with `on_dead`) whose boss was alive at the save gets spawned
+## cleared, so it can grow its boss again: the enemy wasn't saved, and on_dead must still be able to
+## fire.
+func restore(saved: Dictionary) -> void:
+	if not multiplayer.is_server() or not running:
+		return
+	dormant = bool(saved.get("dormant", dormant))
+	var states: Dictionary = saved.get("spawners", {})
+	for id: String in states:
+		if not spawners.has(id):
+			continue
+		var spawner: Dictionary = spawners[id]
+		var entry: Dictionary = states[id]
+		spawner.active = bool(entry.get("active", spawner.active))
+		spawner.dead_fired = bool(entry.get("dead_fired", false))
+		var boss := str(spawner.object.get("on_dead", "")).strip_edges() != ""
+		spawner.spawned = bool(entry.get("spawned", false)) and not (boss and not spawner.dead_fired)
+		spawner.budget = 0.0
+		spawner.alive = []
+
+
 ## Host (story scripts, triggers): turns a spawner's trickle on or off. Off also sinks its living
 ## enemies (EnemyManager.sink: gone without a death, so no drops and no on_dead) and drops its
 ## queued horde spawns. During the finale the change also stands after it (what the finale

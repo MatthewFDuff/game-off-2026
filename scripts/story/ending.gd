@@ -8,7 +8,8 @@ extends Control
 ## the cubicle rolls them in that format. Setting the statement first means a peer whose fade is
 ## cut short by the host's server closing still has it. It covers the whole viewport (LabHud hides
 ## the HUD under it), and a mode change (the editor's F5 replay) resets it so the next play can
-## end again. In a level-editor session the fade lifts instead of leaving.
+## end again. In a level-editor session the fade lifts instead of leaving. On the host, a story
+## shift's statement clears the shift save (ShiftSave) and Net.session.shift, so it can't be resumed.
 
 const FADE_SECONDS := 2.0
 
@@ -87,6 +88,10 @@ func _show(lines: Array, net: int) -> void:
 	shown = true
 	total = net
 	_lines.assign(lines)
+	# The shift is paid out: the clone on file goes, and nothing saves it again.
+	if multiplayer.is_server() and Net.session.get("shift", false):
+		ShiftSave.clear()
+		Net.session.shift = false
 	Net.pending_statement = lines.duplicate()
 	Net.pending_total = net
 	visible = true

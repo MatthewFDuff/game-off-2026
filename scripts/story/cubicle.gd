@@ -86,6 +86,11 @@ const CLOCK_OUT_KEYS := "Y / Enter: clock out     N / Esc: stay"
 const CLOSE_TAB_TEXT := "You may close the tab."
 const MAINTENANCE_SUB := "authorized personnel and ducks"
 const NO_CLONE := "no clone on file"
+const OLD_LAYOUT := "recorded against an older site layout"
+## The shift on file (docs/shift-save.md): its room, h:mm on shift, the owed total.
+const CLONE_NOTE := "clone held at %s, %s on shift, $%d owed"
+## New game (or begin orientation) with a shift on file: its room and owed total.
+const DISCARD_TEXT := "A shift is in progress. Your clone held at the %s and the $%d recorded against you will be discarded. Fung AI does not refund clones."
 const DESKTOP_ONLY := "needs the desktop build"
 const STATEMENT_NOTICE := "1 new statement"
 
@@ -136,7 +141,7 @@ const BLUE := Color(0.6, 0.75, 1.0)
 const BACKGROUND := Color(0.02, 0.05, 0.03)
 
 enum State { ROOM, FROZEN, READING, CLOCK_OUT, CLOSING, ZOOM, SCREEN, LOG, DYING, DEAD, TRASH, GO_BACK, ACCEPTED }
-enum Page { SPLASH, SIGN_IN, MAIN, SINGLEPLAYER, MULTIPLAYER, HOST, JOIN, SETTINGS, LOG, STATEMENT, MAINTENANCE, NEW_LEVEL, TRANSFER }
+enum Page { SPLASH, SIGN_IN, MAIN, SINGLEPLAYER, MULTIPLAYER, HOST, JOIN, SETTINGS, LOG, STATEMENT, MAINTENANCE, NEW_LEVEL, TRANSFER, DISCARD }
 
 ## Multiplies every pause (tests set it near zero).
 var pause_scale := 1.0
@@ -157,7 +162,8 @@ var player: Player
 var cursor := 0
 ## The status line under the menu (errors, "Created x").
 var status := ""
-## How orientation was begun: "new_game", "host" or "join" (what _start does).
+## How the shift was begun: "new_game", "host" or "join" (after orientation), "continue" or
+## "host_continue" (a resumed shift, no orientation). What _start does.
 var begun_by := ""
 
 var _pause_left := 0.0
@@ -183,6 +189,10 @@ var _dialing := false
 var _joined := false
 var _join_error := ""
 var _host_error := ""
+## ShiftSave.summary() as of the last page opened that shows it ({} for none).
+var _save := {}
+## What DISCARD's confirm goes on to: "new_game" or "host".
+var _discard_for := ""
 ## Statement: "" (none), "waiting", "rolling" or "done"; the rows shown so far ([left, right, color]).
 var _statement := ""
 var _statement_rows: Array[Array] = []
@@ -741,6 +751,8 @@ func back() -> void:
 			open_page(Page.MULTIPLAYER)
 		Page.NEW_LEVEL:
 			open_page(Page.MAINTENANCE)
+		Page.DISCARD:
+			open_page(Page.HOST if _discard_for == "host" else Page.SINGLEPLAYER)
 		Page.TRANSFER:
 			pass
 
@@ -755,6 +767,8 @@ func open_page(to: Page) -> void:
 		_refresh_levels()
 	elif to == Page.HOST:
 		_open_host()
+	if to in [Page.SINGLEPLAYER, Page.HOST, Page.DISCARD]:
+		_save = ShiftSave.summary() if ShiftSave.exists() else {}
 	_render()
 	var items := _selectable()
 	while cursor < items.size() - 1 and items[cursor].get("dim", false):
@@ -852,15 +866,78 @@ func _sign_out() -> void:
 	open_page(Page.SPLASH)
 
 
+## New game: orientation, after DISCARD when a shift is on file.
 func _new_game() -> void:
+	if not _save.is_empty():
+		_open_discard("new_game")
+		return
 	_begin_orientation("new_game")
+
+
+## The shift on file can be resumed (it exists and the site's layout still matches it).
+func _can_continue() -> bool:
+	return not _save.is_empty() and bool(_save.get("layout_ok", false))
+
+
+## CONTINUE's note: the room, the time on shift (h:mm) and the owed total.
+func _clone_note() -> String:
+	var seconds := int(_save.get("elapsed", 0))
+	@warning_ignore("integer_division")
+	var on_shift := "%d:%02d" % [seconds / 3600, (seconds / 60) % 60]
+	return CLONE_NOTE % [str(_save.get("vat_room", "")), on_shift, int(_save.get("owed", 0))]
+
+
+## CONTINUE (singleplayer): the shift on file resumes solo, no orientation.
+func _continue() -> void:
+	if not _can_continue():
+		return
+	begun_by = "continue"
+	_done = false
+	_finish(true)
+
+
+## CONTINUE SHIFT (host): the waiting-room session is reopened as the resumed laboratory (anyone
+## already connected is dropped and rejoins by address, straight into the level) and entered at once.
+func _host_continue() -> void:
+	if not _can_continue():
+		return
+	var error := Net.open_session(Net.DEFAULT_PORT, STORY_LEVEL, "play", {shift = true, resume = true})
+	if error != OK:
+		_host_error = "Couldn't open a shift on port %d (%s). Is another copy already hosting?" % [Net.DEFAULT_PORT, error_string(error)]
+		Sfx.play("build_denied", -6.0, 0.0)
+		_render()
+		return
+	begun_by = "host_continue"
+	_done = false
+	_finish(true)
+
+
+## The discard warning before a new shift replaces the one on file; for_what: "new_game" or "host".
+func _open_discard(for_what: String) -> void:
+	_discard_for = for_what
+	open_page(Page.DISCARD)
+	cursor = 1 # KEEP IT: the safe line is under the caret.
+	_render()
+
+
+## DISCARD AND CLOCK IN: the shift on file is cleared, then orientation as usual.
+func _discard_and_clock_in() -> void:
+	ShiftSave.clear()
+	_save = {}
+	var by := _discard_for
+	_discard_for = ""
+	if by == "host":
+		open_page(Page.HOST)
+		_host_begin()
+	else:
+		_begin_orientation("new_game")
 
 
 func _open_host() -> void:
 	_host_error = ""
 	if Net.in_session and Net.is_host():
 		return
-	var error := Net.open_session(Net.DEFAULT_PORT, WAITING_LEVEL, "play")
+	var error := Net.open_session(Net.DEFAULT_PORT, WAITING_LEVEL, "play", {shift = true})
 	if error != OK:
 		_host_error = "Couldn't open a shift on port %d (%s). Is another copy already hosting?" % [Net.DEFAULT_PORT, error_string(error)]
 
@@ -868,6 +945,9 @@ func _open_host() -> void:
 func _host_begin() -> void:
 	if _host_error != "" or not Net.in_session:
 		Sfx.play("build_denied", -6.0, 0.0)
+		return
+	if not _save.is_empty():
+		_open_discard("host")
 		return
 	_begin_orientation("host")
 
@@ -912,6 +992,12 @@ func _on_session_started() -> void:
 		return
 	_dialing = false
 	_joined = true
+	if Net.session.get("resume", false):
+		# A resumed shift: no orientation, the transfer note and into the level.
+		begun_by = "join"
+		_done = false
+		_show_transfer()
+		return
 	_render()
 
 
@@ -1019,11 +1105,16 @@ func _begin_orientation(by: String) -> void:
 	begun_by = by
 	_done = false
 	if str(GameSettings.get_value("orientation")) == "skip" or "--skip-intro" in OS.get_cmdline_user_args():
-		page = Page.TRANSFER
-		_transfer_left = TRANSFER_SECONDS * maxf(pause_scale, 0.01)
-		_render()
+		_show_transfer()
 		return
 	_begin_session()
+
+
+## The transfer note for a moment, then the start (orientation skipped, or a resumed shift joined).
+func _show_transfer() -> void:
+	page = Page.TRANSFER
+	_transfer_left = TRANSFER_SECONDS * maxf(pause_scale, 0.01)
+	_render()
 
 
 func _begin_session() -> void:
@@ -1177,8 +1268,10 @@ func _finish(accepted: bool) -> void:
 func _start() -> void:
 	match begun_by:
 		"new_game":
-			Net.start_solo(STORY_LEVEL, "play")
-		"host":
+			Net.start_solo(STORY_LEVEL, "play", {shift = true})
+		"continue":
+			Net.start_solo(STORY_LEVEL, "play", {shift = true, resume = true})
+		"host", "host_continue":
 			Net.enter_level()
 		"join":
 			if not Net.level_open:
@@ -1326,9 +1419,17 @@ func _items() -> Array[Dictionary]:
 			items.append({kind = "item", text = "SETTINGS", action = func() -> void: open_page(Page.SETTINGS)})
 			items.append({kind = "item", text = "SIGN OUT", action = _sign_out})
 		Page.SINGLEPLAYER:
+			if _can_continue():
+				items.append({kind = "item", text = "CONTINUE", action = _continue, detail = _clone_note()})
+			else:
+				items.append({kind = "item", text = "CONTINUE", dim = true, note = NO_CLONE if _save.is_empty() else OLD_LAYOUT})
 			items.append({kind = "item", text = "NEW GAME", action = _new_game})
-			items.append({kind = "item", text = "CONTINUE", dim = true, note = NO_CLONE})
 			items.append({kind = "item", text = "BACK", action = back})
+		Page.DISCARD:
+			items.append({kind = "text", text = DISCARD_TEXT % [str(_save.get("vat_room", "")), int(_save.get("owed", 0))], color = AMBER})
+			items.append({kind = "gap"})
+			items.append({kind = "item", text = "DISCARD AND CLOCK IN", action = _discard_and_clock_in})
+			items.append({kind = "item", text = "KEEP IT", action = back})
 		Page.MULTIPLAYER:
 			items.append({kind = "item", text = "HOST A SHIFT", action = func() -> void: open_page(Page.HOST)})
 			items.append({kind = "item", text = "JOIN A SHIFT", action = _open_join})
@@ -1339,12 +1440,18 @@ func _items() -> Array[Dictionary]:
 			else:
 				for line in LabHud.hosting_info(multiplayer).split("\n"):
 					items.append({kind = "text", text = line, color = GREEN if line.begins_with("Hosting") else DIM})
-				items.append({kind = "gap"})
+				# CONTINUE SHIFT's two lines take the gaps' room, so the footer stays on the screen.
+				var resumable := _can_continue()
+				if not resumable:
+					items.append({kind = "gap"})
 				items.append({kind = "text", text = "Staff on shift:"})
 				for peer_id: int in Net.players:
 					var entry: Dictionary = Net.players[peer_id]
 					items.append({kind = "text", text = "  %s  %s" % [entry.name, "· host (you)" if peer_id == multiplayer.get_unique_id() else "· in orientation"], color = BRIGHT})
-				items.append({kind = "gap"})
+				if resumable:
+					items.append({kind = "item", text = "CONTINUE SHIFT", action = _host_continue, detail = _clone_note()})
+				else:
+					items.append({kind = "gap"})
 				items.append({kind = "item", text = "BEGIN ORIENTATION", action = _host_begin})
 			items.append({kind = "item", text = "CLOSE THE SHIFT" if _host_error == "" else "BACK", action = back})
 		Page.JOIN:
@@ -1448,6 +1555,7 @@ func _page_title() -> String:
 		Page.MAINTENANCE: return "FUNG AI  |  SITE MAINTENANCE"
 		Page.NEW_LEVEL: return "FUNG AI  |  NEW LEVEL"
 		Page.TRANSFER: return "FUNG AI  |  PEOPLE OPERATIONS"
+		Page.DISCARD: return "FUNG AI  |  SHIFT ON FILE"
 		Page.LOG: return SESSION_STARTED
 	return CONSOLE_TITLE
 
@@ -1546,8 +1654,19 @@ func _render() -> void:
 					var label := _console_label(item.text, DIM if dim else (BRIGHT if is_chosen else GREEN))
 					line.add_child(label)
 					if dim and str(item.get("note", "")) != "":
-						line.add_child(_console_label("(%s)" % item.note, DIM))
+						var note := _console_label(" (%s)" % item.note, DIM)
+						note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+						note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+						line.add_child(note)
 				_body.add_child(line)
+				if str(item.get("detail", "")) != "":
+					# A lit line's note, under it and indented past the caret.
+					var detail := _console_label(item.detail, DIM)
+					detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+					var indent := MarginContainer.new()
+					indent.add_theme_constant_override("margin_left", FONT_SIZE + 2)
+					indent.add_child(detail)
+					_body.add_child(indent)
 
 
 func _console_label(text: String, color: Color) -> Label:

@@ -8,6 +8,9 @@ extends Node3D
 ## Picking up: the host checks every living player each physics tick; the first within
 ## PICKUP_RADIUS gets it. The host removes it on every peer and sends the item to that player's own
 ## peer, which adds it to its Inventory (each peer runs its own player, as with damage).
+##
+## Shift saves: the host remembers which item spots were picked (taken_spots) and what lies loose
+## (loose); restore puts both back on a resume.
 
 ## Host: a player (peer id) picked up an item.
 signal picked(item: String, peer_id: int)
@@ -33,6 +36,10 @@ var pickups := {}
 
 var _next_id := 1
 var _rng := RandomNumberGenerator.new()
+## Host: pickup id -> the item spot marker it came from (for the shift save's items_taken).
+var _spot_of := {}
+## Host: item spot marker ids whose pickup has been taken this play.
+var _taken_spots: Array[String] = []
 
 
 func _ready() -> void:
@@ -61,7 +68,9 @@ func start() -> void:
 	clear()
 	for object: Dictionary in lab.level.objects.values():
 		if object.kind == "marker" and object.type == "item" and String(object.get("item", "")) != "":
-			spawn(object.item, lab.view.to_world(object.position) + Vector3.UP * HOVER)
+			var pickup := spawn(object.item, lab.view.to_world(object.position) + Vector3.UP * HOVER)
+			if pickup:
+				_spot_of[pickup.id] = object.id
 
 
 func stop() -> void:
@@ -74,6 +83,40 @@ func clear() -> void:
 	for pickup: Pickup in pickups.values():
 		pickup.queue_free()
 	pickups.clear()
+	_spot_of.clear()
+	_taken_spots.clear()
+
+
+## Host: item spot marker ids whose pickups are gone (the shift save's items_taken).
+func taken_spots() -> Array:
+	return Array(_taken_spots)
+
+
+## Host: pickups lying about that came from no item spot (container contents, enemy drops), as
+## [item, [x, y, z]], so a resumed shift still has the spore shooter a case dropped.
+func loose() -> Array:
+	var out: Array = []
+	for id: int in pickups:
+		if not _spot_of.has(id):
+			var at: Vector3 = pickups[id].global_position
+			out.append([pickups[id].item, [at.x, at.y, at.z]])
+	return out
+
+
+## Host, resuming a shift before any peer is here: the taken spots' pickups go (quietly) and the
+## loose ones come back.
+func restore(taken: Array, loose_items: Array) -> void:
+	if not multiplayer.is_server() or not active:
+		return
+	for id: int in _spot_of.keys():
+		if str(_spot_of[id]) in taken and pickups.has(id):
+			pickups[id].queue_free()
+			pickups.erase(id)
+			_spot_of.erase(id)
+	_taken_spots.assign(taken.map(func(spot) -> String: return str(spot)))
+	for entry in loose_items:
+		if entry is Array and entry.size() == 2 and entry[1] is Array and entry[1].size() == 3:
+			spawn(str(entry[0]), Vector3(float(entry[1][0]), float(entry[1][1]), float(entry[1][2])))
 
 
 ## Host: puts an item in the world at a position (the model's middle). Returns it, or null when not
@@ -164,6 +207,9 @@ func _take(id: int, peer_id: int) -> void:
 	if pickup == null:
 		return
 	var item := pickup.item
+	if _spot_of.has(id):
+		_taken_spots.append(str(_spot_of[id]))
+		_spot_of.erase(id)
 	_remove(id)
 	for peer in _peers():
 		_taken.rpc_id(peer, id)

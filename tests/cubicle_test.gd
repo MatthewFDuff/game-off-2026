@@ -15,6 +15,7 @@ extends SceneTree
 ## Game types are left untyped (see editor_test.gd).
 
 const SCRATCH := "user://cubicle_test_levels/"
+const SAVE_SCRATCH := "user://cubicle_test_shift/"
 const Builder := preload("res://scripts/tools/build_cubicle.gd")
 const SCENE := "res://scenes/cubicle.tscn"
 const KEPT := ["name", "orientation", "shifts_worked", "balance_owed"]
@@ -36,6 +37,8 @@ func _run() -> void:
 	settings.set_value("orientation", "play")
 
 	LevelData.save_dir_override = SCRATCH
+	ShiftSave.dir_override = SAVE_SCRATCH
+	ShiftSave.clear()
 	var built: Dictionary = Builder.build(root)
 	var objects: Dictionary = built.level.objects
 	var ids_ok := true
@@ -113,11 +116,12 @@ func _run() -> void:
 	cubicle.handle_key(_key(KEY_ESCAPE))
 	_check("Esc from SETTINGS goes back to MAIN", cubicle.page == cubicle.Page.MAIN)
 	cubicle.handle_key(_key(KEY_SHIFT))
-	_check("SINGLEPLAYER", cubicle.page == cubicle.Page.SINGLEPLAYER)
-	cubicle.handle_key(_key(KEY_DOWN))
+	_check("SINGLEPLAYER, the caret past the dim CONTINUE on NEW GAME", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle._current_item().text == "NEW GAME")
+	cubicle.handle_key(_key(KEY_UP))
+	_check("CONTINUE comes first", cubicle._current_item().text == "CONTINUE")
 	cubicle.handle_key(_key(KEY_ENTER))
 	_check("CONTINUE is dimmed: no clone on file", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle.status == cubicle.NO_CLONE)
-	cubicle.handle_key(_key(KEY_UP))
+	cubicle.handle_key(_key(KEY_DOWN))
 	var result := []
 	cubicle.finished.connect(func(accepted: bool) -> void: result.append(accepted))
 	cubicle.handle_key(_key(KEY_ENTER))
@@ -228,10 +232,102 @@ func _run() -> void:
 	_check("then SHIFT signs in", fourth.page == fourth.Page.MAIN)
 	fourth.free()
 
+	# A shift on file (docs/shift-save.md): CONTINUE lit, DISCARD, the layout note, CONTINUE SHIFT,
+	# and a joiner of a resumed shift skipping orientation.
+	ShiftSave.write(_record(), PackedByteArray([0, 0, 0, 0]))
+	var fifth = _new_cubicle()
+	await _frames(2)
+	var started := []
+	fifth.finished.connect(func(accepted: bool) -> void: started.append([accepted, fifth.begun_by]))
+	fifth.use_monitor()
+	await _wait_until(func() -> bool: return fifth.state == fifth.State.SCREEN, 2.0)
+	fifth.press_shift()
+	fifth.open_page(fifth.Page.SINGLEPLAYER)
+	var item: Dictionary = fifth._current_item()
+	_check("a save on file: CONTINUE is first and lit", item.text == "CONTINUE" and not item.get("dim", false) and ShiftSave.summary().get("layout_ok", false), str(item))
+	_check("with its note", item.get("detail", "") == "clone held at Compute stair lobby, 1:02 on shift, $11200 owed", str(item.get("detail", "")))
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("Enter on CONTINUE resumes, no orientation", started == [[true, "continue"]] and fifth.page != fifth.Page.LOG, str(started))
+	fifth._done = false
+	fifth.handle_key(_key(KEY_DOWN))
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("NEW GAME with a save opens DISCARD", fifth.page == fifth.Page.DISCARD and fifth._current_item().text == "KEEP IT")
+	var warning := ""
+	for line in fifth._items():
+		if line.kind == "text":
+			warning += line.text
+	_check("DISCARD names the room and the owed", warning.contains("held at the Compute stair lobby") and warning.contains("$11200") and warning.contains("does not refund clones"), warning)
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("KEEP IT returns, the save kept", fifth.page == fifth.Page.SINGLEPLAYER and ShiftSave.exists())
+	fifth.handle_key(_key(KEY_DOWN))
+	fifth.handle_key(_key(KEY_ENTER))
+	fifth.handle_key(_key(KEY_ESCAPE))
+	_check("Esc on DISCARD backs out", fifth.page == fifth.Page.SINGLEPLAYER and ShiftSave.exists())
+	fifth.handle_key(_key(KEY_DOWN))
+	fifth.handle_key(_key(KEY_ENTER))
+	fifth.handle_key(_key(KEY_UP))
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("DISCARD AND CLOCK IN clears the save and reaches orientation", not ShiftSave.exists() and fifth.page == fifth.Page.LOG and fifth.state == fifth.State.LOG and fifth.begun_by == "new_game")
+	fifth.handle_key(_key(KEY_ESCAPE))
+	_check("no save: CONTINUE is dim", fifth.page == fifth.Page.SINGLEPLAYER and fifth._items()[0].get("dim", false) and fifth._items()[0].note == fifth.NO_CLONE, str(fifth._items()[0]))
+	var stale := _record()
+	stale.level_hash = "recorded before the renovation"
+	ShiftSave.write(stale, PackedByteArray([0, 0, 0, 0]))
+	fifth.open_page(fifth.Page.SINGLEPLAYER)
+	fifth.handle_key(_key(KEY_UP))
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("a wrong level_hash: CONTINUE dim with the layout note", fifth._current_item().get("dim", false) and fifth.status == fifth.OLD_LAYOUT, fifth.status)
+
+	ShiftSave.write(_record(), PackedByteArray([0, 0, 0, 0]))
+	fifth.open_page(fifth.Page.HOST)
+	var host_lines := []
+	for line in fifth._selectable():
+		host_lines.append(line.text)
+	_check("HOST opens a shift session", net.in_session and net.session.get("shift", false) and not net.session.get("resume", false) and net.session.level == "waiting_room", str(net.session))
+	_check("HOST shows CONTINUE SHIFT above BEGIN ORIENTATION", host_lines.slice(0, 2) == ["CONTINUE SHIFT", "BEGIN ORIENTATION"], str(host_lines))
+	fifth.cursor = 1
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("BEGIN ORIENTATION with a save goes through DISCARD", fifth.page == fifth.Page.DISCARD and fifth._discard_for == "host" and net.in_session)
+	fifth.handle_key(_key(KEY_ESCAPE))
+	_check("and Esc returns to HOST, the session still open", fifth.page == fifth.Page.HOST and net.in_session)
+	started.clear()
+	fifth.cursor = 0
+	fifth.handle_key(_key(KEY_ENTER))
+	_check("CONTINUE SHIFT reopens the session resumed in the laboratory", started == [[true, "host_continue"]] and net.in_session and net.session.get("resume", false) and net.session.get("shift", false) and net.session.level == "laboratory", "%s %s" % [started, net.session])
+	net.close_session()
+	fifth.free()
+
+	# A joiner accepted into a resumed shift: the transfer note, no orientation.
+	var sixth = _new_cubicle()
+	await _frames(2)
+	var joined := []
+	sixth.finished.connect(func(accepted: bool) -> void: joined.append([accepted, sixth.begun_by]))
+	sixth.use_monitor()
+	await _wait_until(func() -> bool: return sixth.state == sixth.State.SCREEN, 2.0)
+	sixth.press_shift()
+	sixth.open_page(sixth.Page.JOIN)
+	sixth._dialing = true
+	net.session = {level = "laboratory", mode = "play", staged = true, level_open = true, shift = true, resume = true}
+	sixth._on_session_started()
+	_check("joining a resumed shift shows the transfer note", sixth.page == sixth.Page.TRANSFER and sixth.state == sixth.State.SCREEN)
+	var went := await _wait_until(func() -> bool: return not joined.is_empty(), 2.0)
+	_check("and starts without orientation", went and joined == [[true, "join"]], str(joined))
+	net.session = {level = net.DEFAULT_LEVEL, mode = "play"}
+	sixth.free()
+	ShiftSave.clear()
+	ShiftSave.dir_override = ""
+
 	for key in KEPT:
 		settings.set_value(key, kept[key])
 	print("cubicle_test: %d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)
+
+
+## A shift on file: an hour and two minutes in, $1200 of damage and two clones grown. level_hash is
+## left out, so ShiftSave.write hashes the laboratory on disk (layout_ok).
+func _record() -> Dictionary:
+	return {level = "laboratory", checkpoint = "vat_compute", vat_room = "Compute stair lobby", elapsed = 3725.0,
+		total_damage = 1200, deaths = 2, party = ["Zack 9"], saved_at = int(Time.get_unix_time_from_system())}
 
 
 func _new_cubicle():

@@ -3,7 +3,8 @@ extends SceneTree
 ##   godot --path . --script res://tests/cubicle_shots.gd -- <output_dir>
 ## The spawn view, the hallway from the opening (across and down it), the reader, the clock-out
 ## prompt, the console's SPLASH, SIGN IN, MAIN, SETTINGS, HOST (a session opened and closed again),
-## MAINTENANCE, the LOG with three lines, the email, the dying vignette, and a statement rolling and
+## MAINTENANCE, JOIN, a shift on file (SINGLEPLAYER with CONTINUE lit, HOST with CONTINUE SHIFT,
+## DISCARD, a stale layout), SINGLEPLAYER with none, the LOG with three lines, the email, the dying vignette, and a statement rolling and
 ## rolled. The name on file is put back at the end.
 
 var _out := ""
@@ -77,6 +78,29 @@ func _run() -> void:
 	cubicle.open_page(cubicle.Page.JOIN)
 	await _shot("console_join")
 
+	# A shift on file (a scratch save): SINGLEPLAYER with CONTINUE lit, HOST with CONTINUE SHIFT, and
+	# NEW GAME's DISCARD.
+	ShiftSave.dir_override = "user://cubicle_shots_shift/"
+	ShiftSave.write({level = "laboratory", checkpoint = "vat_compute", vat_room = "Compute stair lobby", elapsed = 3725.0,
+		total_damage = 31100, deaths = 2, party = ["Matthew"], saved_at = int(Time.get_unix_time_from_system())}, PackedByteArray([0, 0, 0, 0]))
+	cubicle.open_page(cubicle.Page.SINGLEPLAYER)
+	await _shot("console_singleplayer_continue")
+	cubicle.open_page(cubicle.Page.HOST)
+	await _frames(5)
+	await _shot("console_host_continue")
+	net.close_session()
+	cubicle.open_page(cubicle.Page.SINGLEPLAYER)
+	cubicle.move_cursor(1)
+	cubicle.press_enter()
+	await _shot("console_discard")
+	cubicle.back()
+	ShiftSave.write({level = "laboratory", level_hash = "stale", checkpoint = "vat_compute", elapsed = 60.0}, PackedByteArray([0, 0, 0, 0]))
+	cubicle.open_page(cubicle.Page.SINGLEPLAYER)
+	await _shot("console_singleplayer_stale")
+	ShiftSave.clear() # The scratch folder stays, so a real save on file does not light CONTINUE below.
+	cubicle.open_page(cubicle.Page.SINGLEPLAYER)
+	await _shot("console_singleplayer")
+
 	cubicle.open_page(cubicle.Page.SINGLEPLAYER)
 	cubicle.press_enter()
 	await _frames(5)
@@ -119,6 +143,7 @@ func _run() -> void:
 	settings.set_value("balance_owed", kept_balance)
 	settings.set_value("name", kept_name)
 	settings.set_value("orientation", kept_orientation)
+	ShiftSave.dir_override = ""
 	quit(0)
 
 

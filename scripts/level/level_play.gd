@@ -24,6 +24,11 @@ extends Node
 ##
 ## Checkpoint: the clone vat the party reached last (any living player within CHECKPOINT_REACH of
 ## its marker); Lab respawns the dead there. The host decides and tells everyone.
+##
+## Shift saves (docs/shift-save.md): the host asks Lab.save_shift() when the checkpoint changes, after
+## a trigger whose actions lock a door, and as the generator starts (before it changes anything, so
+## a resume restarts the finale at the generator). capture() is what the save holds of this node;
+## restore() puts it back after Lab has replaced the world (replace_world).
 
 ## Host: a trigger fired. peer_id is the player who set it off (for "all", the last one in). Also
 ## fired by terminals and the generator with their `on_use` id.
@@ -263,6 +268,9 @@ func set_door(id: String, open: bool) -> void:
 	var distance := Vector3(target - door.origin).length() * lab.world.voxel_size
 	var duration := maxf(distance / maxf(door.object.door_speed, 0.1), 0.05)
 	door.moving = true
+	# Where it is going, for a shift saved mid-slide (capture).
+	door.target = target
+	door.target_open = open
 	lab.world_sync.stamp_model(door.origin, door.model.size, door.model.voxels, true)
 	_door_motion(id, door.origin, target, duration)
 	for peer_id in lab.world_sync.synced_peers():
@@ -392,6 +400,8 @@ func _use(id: String, peer_id: int) -> void:
 			if state.used or power != "backup":
 				lab.notify_peer(peer_id, "It's running" if state.used or power == "restored" else "Not needed: the power is on")
 				return
+			# Saved before anything changes: a resume puts the party back at the generator, not mid-finale.
+			lab.save_shift()
 			state.used = true
 			_set_state(id, state, "")
 			set_power("restored")
@@ -754,6 +764,7 @@ func set_checkpoint(id: String) -> void:
 	for peer_id in _peers():
 		_checkpoint_changed.rpc_id(peer_id, id)
 	lab.notify("Checkpoint: clone vat ready")
+	lab.save_shift()
 
 
 @rpc("authority", "reliable")
@@ -768,6 +779,7 @@ func _run_actions(id: String, _peer_id: int) -> void:
 	var object: Dictionary = lab.level.objects.get(id, {})
 	if object.get("kind") != "marker" or object.get("type") != "trigger":
 		return
+	var seals := false
 	for part in str(object.get("actions", "")).split(",", false):
 		var item := part.strip_edges()
 		if item == "":
@@ -783,6 +795,7 @@ func _run_actions(id: String, _peer_id: int) -> void:
 			"lock", "unlock":
 				if _doors.has(value):
 					set_door_locked(value, key == "lock")
+					seals = seals or key == "lock"
 				else:
 					push_warning("trigger %s: '%s' isn't a door" % [id, value])
 			"open", "close":
@@ -803,6 +816,118 @@ func _run_actions(id: String, _peer_id: int) -> void:
 					lab.director.wake()
 			_:
 				push_warning("trigger %s: unknown action '%s'" % [id, item])
+	# A seal: the way back is shut, so this is where the shift is kept. Deferred, so the trigger's
+	# other listeners (the director's `activates`) are in the save too.
+	if seals:
+		lab.save_shift.call_deferred()
+
+
+# --- Shift saves (host) ----------------------------------------------------------------------------
+
+## Trigger ids that have fired (one-shot volume triggers), for the shift save.
+func fired() -> Array:
+	return _fired.keys()
+
+
+## Host: what a shift save keeps of play: power, keycards, armed, prop_state, doors (id -> [origin
+## as [x, y, z], open, locked]; a door mid-slide is recorded where it is going and listed in
+## doors_settle, since its voxels are lifted out of the world while it moves), checkpoint, fired and
+## the ledger (damage_by_name, total_damage).
+func capture() -> Dictionary:
+	var doors := {}
+	var settle: Array = []
+	for id: String in _doors:
+		var door: Dictionary = _doors[id]
+		var moving: bool = door.moving and door.has("target")
+		var origin: Vector3i = door.target if moving else door.origin
+		doors[id] = [[origin.x, origin.y, origin.z], door.target_open if moving else door.open, bool(door.object.door_locked)]
+		if moving:
+			settle.append(id)
+	return {
+		power = power,
+		keycards = Array(keycards),
+		armed = armed,
+		prop_state = prop_state.duplicate(true),
+		doors = doors,
+		doors_settle = settle,
+		checkpoint = checkpoint,
+		fired = fired(),
+		damage_by_name = damage_by_name.duplicate(),
+		total_damage = total_damage,
+	}
+
+
+## Host, resuming a shift before any peer is in the level: replaces the world with a saved one
+## without the swap counting as damage or breaking glass (the voxel-change handler is off for it).
+## Returns false if the data was refused.
+func replace_world(voxels: PackedByteArray) -> bool:
+	var counting := lab.world.voxels_changed.is_connected(_on_voxels_changed)
+	if counting:
+		lab.world.voxels_changed.disconnect(_on_voxels_changed)
+	var ok := lab.world.set_data(voxels)
+	if counting:
+		lab.world.voxels_changed.connect(_on_voxels_changed)
+	return ok
+
+
+## Host, resuming a shift (after replace_world and start): power (quietly), keycards, armed, prop
+## states (applied with no sound), doors, the checkpoint, fired triggers and the ledger, then every
+## asset's and glass case's intact voxels are counted again from the world as it now is.
+func restore(record: Dictionary) -> void:
+	if not multiplayer.is_server() or not active:
+		return
+	var state := str(record.get("power", power))
+	if state in POWER_STATES:
+		_apply_power(state, true)
+	keycards.assign(Array(record.get("keycards", [])).map(func(card) -> String: return str(card)))
+	armed = bool(record.get("armed", false))
+	_apply_armed()
+	var props: Dictionary = record.get("prop_state", {})
+	for id: String in props:
+		_apply_state(id, _restored_state(id, props[id]), "")
+	var doors: Dictionary = record.get("doors", {})
+	for id: String in doors:
+		if not _doors.has(id) or not doors[id] is Array or doors[id].size() < 3:
+			continue
+		var at: Array = doors[id][0]
+		_doors[id].origin = Vector3i(int(at[0]), int(at[1]), int(at[2]))
+		_doors[id].open = bool(doors[id][1])
+		_doors[id].object.door_locked = bool(doors[id][2])
+	# Doors saved mid-slide had no voxels in the saved world: stamp them where they stopped.
+	for id in record.get("doors_settle", []):
+		if _doors.has(str(id)):
+			var door: Dictionary = _doors[str(id)]
+			lab.world_sync.stamp_model(door.origin, door.model.size, door.model.voxels)
+	checkpoint = str(record.get("checkpoint", ""))
+	_fired.clear()
+	for id in record.get("fired", []):
+		_fired[str(id)] = true
+	damage_by_name.clear()
+	var ledger: Dictionary = record.get("damage_by_name", {})
+	for what: String in ledger:
+		damage_by_name[what] = int(ledger[what])
+	total_damage = int(record.get("total_damage", 0))
+	_pending_notes.clear()
+	for asset: Dictionary in _assets.values():
+		asset.intact = lab.world.count_matching(asset.origin, asset.size, asset.voxels)
+	for glass: Dictionary in _glass.values():
+		glass.intact = lab.world.count_matching(glass.origin, glass.size, glass.voxels)
+
+
+## A saved prop state with JSON's floats made ints again. An experiment saved mid-reveal (its last
+## step run, not yet used up) goes back one step: the reveal's timer didn't survive the save, so
+## SHIFT runs the last step again.
+func _restored_state(id: String, saved: Dictionary) -> Dictionary:
+	var out := {}
+	for key: String in saved:
+		var value = saved[key]
+		out[key] = int(value) if value is float and value == floorf(value) else value
+	out.used = bool(out.get("used", false))
+	var steps := Lines.parse_steps(str(lab.level.objects.get(id, {}).get("steps", "")))
+	if not steps.is_empty() and not out.used and int(out.get("step", 0)) >= steps.size():
+		out.step = steps.size() - 1
+		out.reveal = 0
+	return out
 
 
 ## Host: a late joiner gets the power, keycards, whether the party is armed, prop states, door

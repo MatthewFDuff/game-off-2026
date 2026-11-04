@@ -5,7 +5,8 @@ extends SceneTree
 ## experiment on SHIFT (steps print, the last one reveals line by line, then the outbreak fires),
 ## the player starts unarmed with the ammo readout hidden and the gun item arms them, keycard doors
 ## make the intercom speak, and the `ending` trigger leaves a statement for the cubicle (its total
-## wages minus damage minus clones) and fades to black instead of rolling a panel over the lab.
+## wages minus damage minus clones), clears the shift save, and fades to black instead of rolling a
+## panel over the lab.
 ##
 ## Game types are left untyped (see editor_test.gd).
 
@@ -115,9 +116,16 @@ func _run() -> void:
 	play.damage_by_name["desk"] = 600
 	play.damage_by_name["glass_case"] = 150
 	story.deaths = 2
+	# As a story shift with a save on file (in a scratch folder): the statement clears it.
+	ShiftSave.dir_override = "user://story_test_shift/"
+	net.session.shift = true
+	_lab.save_shift()
+	_check("a shift save is on file before the ending", ShiftSave.exists())
 	play.triggered.emit("ending", _lab.multiplayer.get_unique_id())
 	await _frames(2)
 	_check("the ending shows", story.ending.shown and story.ending.visible)
+	_check("the ending clears the shift save", not ShiftSave.exists() and not net.session.get("shift", false))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ShiftSave.dir_override))
 	var expected: int = int(Lines.ENDING.wages) - 750 - 2 * int(Lines.ENDING.clone_cost)
 	_check("the total is wages minus damage minus clones", story.ending.total == expected, "%d vs %d" % [story.ending.total, expected])
 	_check("the statement is pending for the cubicle", net.pending_statement == story.ending._lines and not net.pending_statement.is_empty(), str(net.pending_statement))

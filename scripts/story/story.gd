@@ -16,7 +16,8 @@ var lab: Lab
 var intercom: Intercom
 var experiment: Experiment
 var ending: Ending
-## Host: respawns the night took (players seen going from alive to dead).
+## Host: respawns the night took (players seen going from alive to dead). A resumed shift starts
+## from the saved count (Lab.resumed_deaths, set before play starts).
 var deaths := 0
 var _was_dead := {}
 var _rain: GPUParticles3D
@@ -40,6 +41,7 @@ func _ready() -> void:
 	ending = Ending.new()
 	ending.lab = lab
 	add_child(ending)
+	lab.story = self
 	var play := lab.play
 	play.triggered.connect(_on_triggered)
 	play.door_refused.connect(func(_id: String, _peer: int) -> void: intercom.say("gate_locked"))
@@ -48,9 +50,10 @@ func _ready() -> void:
 		lab.items.local_picked.connect(_on_local_picked)
 	play.party_armed.connect(func() -> void: _on_local_picked("spore_shooter"))
 	lab.player_spawned.connect(_on_player_spawned)
+	deaths = lab.resumed_deaths
 	lab.mode_changed.connect(func(_mode: String) -> void:
 		_was_dead.clear()
-		deaths = 0)
+		deaths = lab.resumed_deaths)
 
 
 ## Host: a trigger id fired; the intercom has a line for it, or it's the ending.
