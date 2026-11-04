@@ -1,7 +1,9 @@
 class_name LabHud
 extends CanvasLayer
-## Co-op level HUD: crosshair, who's in the session, and a pause panel (shown whenever the mouse is
-## released) to get back in or leave. Placeholder until the real HUD (payroll and so on) exists.
+## Co-op level HUD: crosshair, who's in the session, and the pause panel, shown whenever the mouse
+## is released ("SHIFT PAUSED": Resume, Settings, Invite for a co-op host, Leave shift). Settings
+## and Invite take the buttons' place in the panel until Esc (or the menu's own back) returns.
+## Solo play pauses under it; co-op keeps running. Placeholder until the real HUD exists.
 
 @export var lab: Lab
 
@@ -9,6 +11,10 @@ var _crosshair := PixelMark.create("cross", Color(1.0, 1.0, 1.0, 0.9))
 var _roster := Label.new()
 var _pause := PanelContainer.new()
 var _pause_info := Label.new()
+var _pause_hint := Label.new()
+var _buttons := VBoxContainer.new()
+var _invite := VBoxContainer.new()
+var _settings_menu: SettingsMenu
 var _waiting := Label.new()
 var _toast := Label.new()
 var _toast_time := 0.0
@@ -85,6 +91,8 @@ func _process(delta: float) -> void:
 	var playing := InputSetup.is_playing()
 	# While editing, the editor's own menu (EditorHud) stands in for the pause menu.
 	_pause.visible = not playing and not _waiting.visible and lab.mode != "edit" and not ending
+	if not _pause.visible and not _buttons.visible:
+		_show_buttons()
 	_crosshair.visible = playing and not ending
 	# Solo play pauses with the mouse released; co-op and the editor keep running.
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
@@ -97,34 +105,119 @@ func _build_pause() -> void:
 	_pause.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_pause.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_pause.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_pause.theme = PixelFont.theme()
+	_pause.theme = _pause_theme()
 	add_child(_pause)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 20)
+		margin.add_theme_constant_override("margin_" + side, 24)
 	_pause.add_child(margin)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 12)
 	margin.add_child(column)
 
 	var title := Label.new()
-	title.text = "Click to play"
-	title.label_settings = _settings(28)
+	title.text = "SHIFT PAUSED"
+	title.label_settings = _settings(32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
-	_pause_info.label_settings = _settings(16, Color(0.8, 0.8, 0.8), 0)
-	_pause_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(_pause_info)
+	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	_pause_hint.text = "Click to resume." if solo else "Click to resume. The shift does not pause for you."
+	_pause_hint.label_settings = _settings(16, Color(0.7, 0.7, 0.7), 0)
+	_pause_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_pause_hint)
 
-	var resume := Button.new()
-	resume.text = "Resume (click)"
-	resume.pressed.connect(func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
-	column.add_child(resume)
-	var leave := Button.new()
-	leave.text = "End session" if multiplayer.is_server() and Net.players.size() > 1 else "Leave to menu"
-	leave.pressed.connect(func() -> void: Net.leave())
-	column.add_child(leave)
+	_buttons.add_theme_constant_override("separation", 8)
+	column.add_child(_buttons)
+	_add_button("Resume", func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_add_button("Settings", _show_settings)
+	if hosting_info(multiplayer) != "":
+		_add_button("Invite", _show_invite)
+	_add_button("Leave shift", func() -> void: Net.leave())
+
+	_invite.add_theme_constant_override("separation", 8)
+	_invite.visible = false
+	column.add_child(_invite)
+	_pause_info.label_settings = _settings(16, Color(0.85, 0.85, 0.85), 0)
+	_pause_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_invite.add_child(_pause_info)
+	var back := Button.new()
+	back.text = "Back"
+	back.pressed.connect(_show_buttons)
+	_invite.add_child(back)
+
+	_settings_menu = SettingsMenu.create(2, Color(0.9, 0.9, 0.9))
+	_settings_menu.visible = false
+	_settings_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_settings_menu.closed.connect(_show_buttons)
+	column.add_child(_settings_menu)
 	_update_pause_info()
+
+
+func _add_button(text: String, action: Callable) -> void:
+	var button := Button.new()
+	button.text = text
+	button.pressed.connect(action)
+	_buttons.add_child(button)
+
+
+## The pause panel's look: a flat near-black box with a hard border, square buttons.
+static func _pause_theme() -> Theme:
+	var theme := PixelFont.theme().duplicate() as Theme
+	var panel := StyleBoxFlat.new()
+	panel.bg_color = Color(0.04, 0.05, 0.04, 0.94)
+	panel.border_color = Color(0.55, 0.6, 0.55)
+	panel.set_border_width_all(2)
+	panel.anti_aliasing = false
+	theme.set_stylebox("panel", "PanelContainer", panel)
+	for state: String in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var box := StyleBoxFlat.new()
+		box.bg_color = {normal = Color(0.12, 0.13, 0.12), hover = Color(0.2, 0.22, 0.2), pressed = Color(0.95, 0.68, 0.16, 0.35), focus = Color(0, 0, 0, 0), disabled = Color(0.08, 0.08, 0.08)}[state]
+		box.border_color = Color(0.95, 0.68, 0.16) if state == "focus" else Color(0.35, 0.38, 0.35)
+		box.set_border_width_all(2 if state == "focus" else 1)
+		box.draw_center = state != "focus"
+		box.anti_aliasing = false
+		box.set_content_margin_all(8)
+		theme.set_stylebox(state, "Button", box)
+	return theme
+
+
+## Shrinks the panel to its contents and centers it again (they change with the page shown).
+func _recenter_pause() -> void:
+	_pause.reset_size()
+	_pause.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+
+
+func _show_buttons() -> void:
+	_buttons.visible = true
+	_invite.visible = false
+	if _settings_menu:
+		_settings_menu.visible = false
+	_recenter_pause()
+
+
+func _show_settings() -> void:
+	_buttons.visible = false
+	_settings_menu.visible = true
+	get_viewport().gui_release_focus()
+	_recenter_pause()
+
+
+func _show_invite() -> void:
+	_update_pause_info()
+	_buttons.visible = false
+	_invite.visible = true
+	_recenter_pause()
+
+
+func _input(event: InputEvent) -> void:
+	if not _pause.visible or _buttons.visible:
+		return
+	if _settings_menu.visible:
+		if _settings_menu.handle_key(event):
+			get_viewport().set_input_as_handled()
+	elif _invite.visible and event.is_action_pressed("ui_cancel"):
+		_show_buttons()
+		get_viewport().set_input_as_handled()
 
 
 func _update_pause_info() -> void:

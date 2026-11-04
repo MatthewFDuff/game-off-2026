@@ -4,8 +4,8 @@ extends SceneTree
 ## The intercom subtitles a tour trigger once (and not twice), the training terminal runs its
 ## experiment on SHIFT (steps print, the last one reveals line by line, then the outbreak fires),
 ## the player starts unarmed with the ammo readout hidden and the gun item arms them, keycard doors
-## make the intercom speak, and the `ending` trigger rolls a statement whose total is wages minus
-## damage minus clones.
+## make the intercom speak, and the `ending` trigger leaves a statement for the cubicle (its total
+## wages minus damage minus clones) and fades to black instead of rolling a panel over the lab.
 ##
 ## Game types are left untyped (see editor_test.gd).
 
@@ -108,7 +108,10 @@ func _run() -> void:
 	await _frames(2)
 	_check("an opened gate says thank you", "gate_open" in intercom._queue or intercom.showing == "gate_open", str(intercom._queue))
 
-	# The ending: a statement from the night's accounts.
+	# The ending: a statement from the night's accounts, left for the cubicle, then a fade to black.
+	var net = root.get_node("Net")
+	net.pending_statement = []
+	story.ending.leave_after_fade = false
 	play.damage_by_name["desk"] = 600
 	play.damage_by_name["glass_case"] = 150
 	story.deaths = 2
@@ -117,11 +120,19 @@ func _run() -> void:
 	_check("the ending shows", story.ending.shown and story.ending.visible)
 	var expected: int = int(Lines.ENDING.wages) - 750 - 2 * int(Lines.ENDING.clone_cost)
 	_check("the total is wages minus damage minus clones", story.ending.total == expected, "%d vs %d" % [story.ending.total, expected])
-	_check("the statement lists the assets", story.ending._lines.any(func(l: String) -> bool: return l.contains("desk") and l.contains("600")), str(story.ending._lines))
-	_check("the total line is owed", story.ending._lines.back().begins_with("TOTAL OWED"), story.ending._lines.back())
-	var rolled := await _wait_until(func() -> bool: return story.ending._button.visible, 12.0)
-	_check("the statement rolls out to the button", rolled)
-	_check("the statement fits the viewport", story.ending._panel.size.y <= story.ending.get_viewport_rect().size.y)
+	_check("the statement is pending for the cubicle", net.pending_statement == story.ending._lines and not net.pending_statement.is_empty(), str(net.pending_statement))
+	_check("the pending total is the total", net.pending_total == expected, "%d vs %d" % [net.pending_total, expected])
+	_check("the statement lists the assets", net.pending_statement.any(func(l: String) -> bool: return l.contains("desk") and l.contains("600")), str(net.pending_statement))
+	_check("the lines are left|right", net.pending_statement.all(func(l: String) -> bool: return l.split("|").size() == 2), str(net.pending_statement))
+	_check("the total line is owed", str(net.pending_statement.back()).begins_with("TOTAL OWED"), str(net.pending_statement.back()))
+	_check("no panel rolls over the lab", story.ending.get_child_count() == 1)
+	_check("the fade starts clear", story.ending._black.color.a < 0.5, str(story.ending._black.color))
+	var faded := await _wait_until(func() -> bool: return story.ending._black.color.a >= 1.0, story.ending.FADE_SECONDS + 3.0)
+	_check("the screen fades to black", faded, str(story.ending._black.color))
+	_check("the fade covers the viewport", story.ending._black.get_global_rect().size == story.ending.get_viewport_rect().size, str(story.ending._black.get_global_rect()))
+	_check("still in the lab with leaving off", current_scene == _lab)
+	net.pending_statement = []
+	net.pending_total = 0
 
 	print("story_test: %d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)

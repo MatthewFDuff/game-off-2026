@@ -660,6 +660,32 @@ func shroom_pot(origin: Vector3i) -> void:
 	box(Vector3i(1, 5, 1), Vector3i(2, 6, 2), M.SHROOM_STEM)
 
 
+## Office plant (placeholder): a plastic pot, a stem and a blob of leaves.
+func fake_plant(origin: Vector3i) -> void:
+	_begin(origin, 4, 4, NORTH)
+	box(Vector3i(0, 0, 0), Vector3i(4, 3, 4), M.PLASTIC)
+	box(Vector3i(1, 2, 1), Vector3i(3, 3, 3), M.SUBSTRATE)
+	box(Vector3i(1, 3, 1), Vector3i(3, 5, 3), M.PLANK) # Stem.
+	box(Vector3i(0, 5, 0), Vector3i(4, 7, 4), M.LIQUID_GREEN) # Leaves.
+	box(Vector3i(1, 7, 1), Vector3i(3, 8, 3), M.LIQUID_GREEN)
+
+
+## Rubber duck (placeholder): yellow body, head one voxel up at the front, a one-voxel bill.
+func rubber_duck(origin: Vector3i) -> void:
+	_begin(origin, 3, 4, NORTH)
+	box(Vector3i(0, 0, 1), Vector3i(3, 2, 4), M.WARNING)
+	box(Vector3i(1, 2, 1), Vector3i(2, 3, 2), M.WARNING) # Head, at the front.
+	box(Vector3i(1, 1, 0), Vector3i(2, 2, 1), M.CLAY) # Bill.
+	box(Vector3i(0, 2, 3), Vector3i(3, 3, 4), M.WARNING) # Tail.
+
+
+## Sleeping bag (placeholder): a cloth roll with a lighter notch where it is open at the head end.
+func sleeping_bag(origin: Vector3i) -> void:
+	_begin(origin, 7, 18, NORTH)
+	box(Vector3i(0, 0, 0), Vector3i(7, 2, 18), M.CLOTH)
+	box(Vector3i(2, 1, 17), Vector3i(5, 2, 18), M.PLASTIC) # Open head end.
+
+
 # --- Parts placed in the current prop's frame ---------------------------------------------------
 
 ## The walls of a glass box over [from, to) in the prop's frame: steel corner posts, a glass rim at

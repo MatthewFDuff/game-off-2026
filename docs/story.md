@@ -34,7 +34,8 @@ READ IT. - mgmt". They can look around a little; clicking the monitor zooms the 
 screen shows, in pixel text, the LLM OPERATOR CONSOLE: "Press SHIFT to begin session", then a
 thought log where each line is preceded by an animated `thinking...` and ends with a blinking
 `[SHIFT]`. Decided 2026-11-03 (replaces the first 2D console). Developer skip: F9 during the
-intro, the `--skip-intro` launch flag, or the menu's "Skip the intro" checkbox.
+intro, the `--skip-intro` launch flag, or Settings > Orientation: Skip on the cubicle's computer.
+Since 2026-11-03 the cubicle is also the game's menu: `docs/cubicle-menu.md`.
 
 Thought log, one line per press (the model that ends up in the mushrooms; it should be funny):
 
@@ -67,7 +68,7 @@ Decline: the email closes, the log continues with lines 5 to 8, then loops line 
 vignette tightening and a heartbeat (Sfx) rising over about 25 s. Death: black. A short scene
 (voxel, or a single image for the jam): a robot drags a heavy trash bag out of a cubicle row,
 a "PRESS SHIFT" screen blinking behind it. Text: `Would you like to go back and accept?`
-[ Yes ] (back to the email) [ No ] (menu).
+[ Yes ] (back to the email) [ No ] (back to the computer's menu).
 
 Accept: `Transfer accepted. Report to Site 3 tonight. A car has been sent.` Fade; rain sounds;
 the yard.
@@ -126,9 +127,15 @@ shows for a few seconds; the lobby vent wakes as they leave.
 The elevator rises (a fade). The payroll statement, one line at a time with a cash-register
 tick: wages for one shift, then every broken asset by name and price, every clone, every forced
 door, the total owed. Then: `From: Guy Fung. Thanks for your service. Your next shift starts
-tomorrow at 22:00. Please bring your own coffee.` [ Menu ]
+tomorrow at 22:00. Please bring your own coffee.` Then you are back in your cubicle, as if nothing changed; the
+statement waits on the computer's screen.
 
 ## Status (2026-11-03)
+
+Later the same day the intro scene and the menu were merged into the cubicle scene
+(`scenes/cubicle.tscn`, `scripts/story/cubicle.gd`, plan in `docs/cubicle-menu.md`): the game opens
+in the cubicle, the computer is the menu, the thought log is its New game, and the payroll
+statement rolls on it after a shift. References below to `intro.gd` and the menu are historical.
 
 Built, all of section 3: the intro scene (`scenes/intro.tscn`, `scripts/story/intro.gd`), the
 waiting room (`levels/waiting_room`, `scripts/story/waiting_room.gd`, built by

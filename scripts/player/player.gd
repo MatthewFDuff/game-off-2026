@@ -132,6 +132,8 @@ const REMOTE_DELAY := 0.1
 
 ## False on the copies of other peers' players.
 var is_local := true
+## The exported mouse_sensitivity, before GameSettings' multiplier.
+var _base_sensitivity := 0.0025
 ## Carrying the spore shooter (levels with `start_unarmed` begin without it; the case drops it).
 ## Replicated with the movement state so every peer hides or shows the gun.
 var has_weapon := true
@@ -167,6 +169,8 @@ func _ready() -> void:
 	_shake_noise.frequency = 0.9
 	_shake_noise.seed = randi()
 	is_local = is_multiplayer_authority()
+	if is_local:
+		_follow_settings()
 	if not is_local:
 		camera.current = false
 		set_process_input(false)
@@ -176,6 +180,24 @@ func _ready() -> void:
 		var watch := get_node_or_null("/root/VoxWatch")
 		if watch:
 			watch.changed.connect(_on_vox_changed)
+
+
+## The local player's look speed (a multiple of the exported one) and field of view come from
+## GameSettings, and follow it. Looked up by path: without the autoload the exported values stay.
+func _follow_settings() -> void:
+	var settings := get_node_or_null("/root/GameSettings")
+	if settings == null:
+		return
+	_base_sensitivity = mouse_sensitivity
+	settings.changed.connect(_on_setting_changed)
+	_on_setting_changed("")
+
+
+func _on_setting_changed(_key: String) -> void:
+	var settings := get_node_or_null("/root/GameSettings")
+	if settings:
+		mouse_sensitivity = _base_sensitivity * float(settings.get_value("mouse_sensitivity"))
+		camera.fov = float(settings.get_value("fov"))
 
 
 ## Name and color shown over remote players.

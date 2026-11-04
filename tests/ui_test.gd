@@ -7,7 +7,7 @@ extends SceneTree
 ## a door refusal plays the generic line (or the door's hint), the ending's fade covers the viewport
 ## with the HUD hidden under it, a mode change resets the intercom and the ending, and F doesn't fly
 ## without --dev. Run windowed with `-- --shots=<dir>` to also save screenshots of the prompt at the
-## training terminal, the reader with the subtitle above it, and the ending statement.
+## training terminal, the reader with the subtitle above it, and the ending's fade.
 ##
 ## Game types are left untyped (see editor_test.gd).
 
@@ -151,6 +151,7 @@ func _run() -> void:
 	# The ending: the fade covers the viewport and the HUD hides under it.
 	intercom.reset()
 	_lab.notify("Checkpoint")
+	story.ending.leave_after_fade = false
 	play.triggered.emit("ending", _lab.multiplayer.get_unique_id())
 	await _frames(3)
 	var ending = story.ending
@@ -164,8 +165,8 @@ func _run() -> void:
 	_check("the prompt hides", not prompt.is_visible_in_tree())
 	_check("the pause panel hides", not hud._pause.visible)
 	if _shots != "":
-		await _wait_until(func() -> bool: return ending._button.visible, 15.0)
-		await _shot("ending_statement")
+		await _wait_until(func() -> bool: return ending._black.color.a >= 1.0, 15.0)
+		await _shot("ending_fade")
 
 	# A mode change (the editor's F5) resets the intercom and the ending.
 	intercom.say("say_yard")

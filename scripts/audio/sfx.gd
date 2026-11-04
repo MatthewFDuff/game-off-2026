@@ -3,7 +3,8 @@ extends Node
 ## Every sound in the game, synthesized once at startup into AudioStreamWAVs (no audio assets), and
 ## played through small pools of reused players. Registered as the `SfxBank` autoload; gameplay code
 ## calls the static API (`Sfx.play`, `Sfx.play_at`, `Sfx.set_ambience`), which quietly does nothing
-## when the autoload isn't there.
+## when the autoload isn't there. GameSettings sets the player's mix (set_mix): an effects offset
+## on play / play_at, and a music offset on the stings ("sting_*") and the ambience.
 
 const RATE := 22050
 ## Low-frequency material (ambience, servo grind, power hum) is rendered at half rate to save startup time.
@@ -19,6 +20,9 @@ const BLOCK := 16
 enum Shape { SINE, TRIANGLE, SAW, SQUARE }
 
 static var _instance: Sfx
+## The player's mix, in dB added to every sound (GameSettings' Effects and Music).
+static var _effects_db := 0.0
+static var _music_db := 0.0
 
 var _streams := {}
 var _noise := PackedFloat32Array()
@@ -32,6 +36,8 @@ var _flat_started: Array[int] = []
 var _ambience: Array[AudioStreamPlayer] = []
 var _ambience_index := 0
 var _ambience_name := ""
+## The ambience's volume as asked for, before the music offset.
+var _ambience_db := SILENT_DB
 var _ambience_tween: Tween
 ## Headless runs (tests) synthesize and route everything but start no playback: there's nothing to
 ## hear, and playbacks still finishing when a test quits are reported as leaks.
@@ -62,6 +68,20 @@ static func set_ambience(sound: String, volume_db := -18.0, fade := 1.5) -> void
 static func stop_ambience(fade := 1.0) -> void:
 	if is_instance_valid(_instance):
 		_instance._set_ambience("", SILENT_DB, fade)
+
+
+## The player's mix (GameSettings): effects_db is added to every sound but the stings, music_db to
+## the stings and the ambience (which retargets at once).
+static func set_mix(effects_db: float, music_db: float) -> void:
+	_effects_db = effects_db
+	_music_db = music_db
+	if is_instance_valid(_instance):
+		_instance._remix_ambience()
+
+
+## The mix offset for a sound: stings are music, everything else is an effect.
+static func _offset(sound: String) -> float:
+	return _music_db if sound.begins_with("sting_") else _effects_db
 
 
 static func has_sound(sound: String) -> bool:
@@ -121,7 +141,7 @@ func _play(sound: String, volume_db: float, pitch_jitter: float, pitch: float) -
 	var index := _pick(_flat, _flat_started)
 	var player := _flat[index]
 	player.stream = stream
-	player.volume_db = volume_db
+	player.volume_db = volume_db + _offset(sound)
 	player.pitch_scale = maxf(0.05, pitch * (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)))
 	if not _muted:
 		player.play()
@@ -135,7 +155,7 @@ func _play_at(sound: String, position: Vector3, volume_db: float, pitch_jitter: 
 	var player := _positional[index]
 	player.stream = stream
 	player.global_position = position
-	player.volume_db = volume_db
+	player.volume_db = volume_db + _offset(sound)
 	player.pitch_scale = maxf(0.05, pitch * (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)))
 	if not _muted:
 		player.play()
@@ -159,6 +179,9 @@ func _set_ambience(sound: String, volume_db: float, fade: float) -> void:
 		return
 	var running := _ambience_tween != null and _ambience_tween.is_running()
 	var current := _ambience[_ambience_index]
+	if not sound.is_empty():
+		_ambience_db = volume_db
+		volume_db = maxf(volume_db + _music_db, SILENT_DB * 2.0)
 	if sound == _ambience_name:
 		if sound.is_empty():
 			return
@@ -195,6 +218,16 @@ func _set_ambience(sound: String, volume_db: float, fade: float) -> void:
 			_ambience_tween = create_tween().set_parallel()
 		_ambience_tween.tween_property(current, "volume_db", SILENT_DB, maxf(fade, 0.01))
 		_ambience_tween.chain().tween_callback(current.stop)
+
+
+## The music setting changed: the ambience playing now moves to its new volume (a crossfade still
+## running keeps its own target; the next set_ambience gets the new one).
+func _remix_ambience() -> void:
+	if _ambience.is_empty() or _ambience_name.is_empty():
+		return
+	if _ambience_tween != null and _ambience_tween.is_running():
+		return
+	_ambience[_ambience_index].volume_db = maxf(_ambience_db + _music_db, SILENT_DB * 2.0)
 
 
 #region Synthesis

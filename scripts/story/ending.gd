@@ -1,27 +1,25 @@
 class_name Ending
 extends Control
-## The payroll statement: fade to black, then the night's accounts one line at a time with a cash
-## register tick (wages, every broken asset by name, clones grown, the total owed in red), Guy
-## Fung's note, and a button back to the menu. The host builds the lines (begin) and sends them to
-## every peer; each peer plays the screen. It covers the whole viewport (LabHud hides the HUD under
-## it), and a mode change (the editor's F5 replay) resets it so the next play can end again.
+## The end of the shift: the host works out the payroll statement from the night's accounts (begin:
+## wages, every broken asset by name, clones grown, the total owed) and sends it to every peer;
+## each peer leaves it in Net.pending_statement / pending_total at once, fades to black over
+## FADE_SECONDS and leaves the session, landing in its own cubicle, which rolls the statement on
+## the computer (docs/cubicle-menu.md, section 5). The lines are "left|right" ("Shift wages|+$40");
+## the cubicle rolls them in that format. Setting the statement first means a peer whose fade is
+## cut short by the host's server closing still has it. It covers the whole viewport (LabHud hides
+## the HUD under it), and a mode change (the editor's F5 replay) resets it so the next play can
+## end again. In a level-editor session the fade lifts instead of leaving.
 
 const FADE_SECONDS := 2.0
-const LINE_GAP := 0.45
-const MAX_WIDTH := 640.0
 
 var lab: Lab
 var shown := false
 var total := 0
+## Whether the fade ends by leaving the session (tests turn it off to stay in the lab).
+var leave_after_fade := true
 var _lines: Array[String] = []
 var _black := ColorRect.new()
-var _panel := PanelContainer.new()
-var _column := VBoxContainer.new()
-var _scroll := ScrollContainer.new()
-var _button := Button.new()
 var _tween: Tween
-## Bumped by reset, so a statement still rolling stops adding lines.
-var _run := 0
 
 
 func _ready() -> void:
@@ -35,33 +33,13 @@ func _ready() -> void:
 	_black.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_black.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_black)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.04, 0.05, 0.04, 0.97)
-	style.border_color = Color(0.55, 1.0, 0.8, 0.8)
-	style.set_border_width_all(2)
-	style.set_content_margin_all(20)
-	_panel.add_theme_stylebox_override("panel", style)
-	_panel.visible = false
-	add_child(_panel)
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 12)
-	_panel.add_child(outer)
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	outer.add_child(_scroll)
-	_column.add_theme_constant_override("separation", 4)
-	_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll.add_child(_column)
-	_button.text = "Back to menu"
-	_button.visible = false
-	_button.pressed.connect(func() -> void: Net.leave())
-	outer.add_child(_button)
 	if lab:
 		lab.mode_changed.connect(func(_mode: String) -> void: reset())
 
 
-## Clears the statement (a mode change: the editor's replay ends the night afresh).
+## Clears the ending (a mode change: the editor's replay ends the night afresh). A statement already
+## handed to Net stays there.
 func reset() -> void:
-	_run += 1
 	if _tween:
 		_tween.kill()
 	shown = false
@@ -69,10 +47,6 @@ func reset() -> void:
 	_lines.clear()
 	visible = false
 	_black.color = Color(0, 0, 0, 0)
-	_panel.visible = false
-	_button.visible = false
-	for row in _column.get_children():
-		row.queue_free()
 
 
 ## Host: works the statement out and shows it everywhere. clones is how many respawns the night took.
@@ -113,77 +87,24 @@ func _show(lines: Array, net: int) -> void:
 	shown = true
 	total = net
 	_lines.assign(lines)
+	Net.pending_statement = lines.duplicate()
+	Net.pending_total = net
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_tween = create_tween()
 	_tween.tween_property(_black, "color", Color(0, 0, 0, 1), FADE_SECONDS)
-	_tween.tween_callback(_roll)
+	_tween.tween_callback(_leave)
 
 
-func _roll() -> void:
-	var run := _run
-	_panel.visible = true
-	_fit()
-	_add(str(Lines.ENDING.title), "", Color(0.55, 1.0, 0.8), 18)
-	await get_tree().create_timer(LINE_GAP).timeout
-	var lines: Array[String] = _lines.duplicate()
-	for line in lines:
-		if run != _run:
-			return
-		var parts := line.split("|")
-		var is_total := line.begins_with("TOTAL") or line.begins_with("NET PAY")
-		var color := Color(1.0, 0.35, 0.3) if line.begins_with("TOTAL") else (Color(0.6, 1.0, 0.6) if line.begins_with("NET PAY") else Color(0.85, 0.95, 0.9))
-		_add(parts[0], parts[1] if parts.size() > 1 else "", color, 18 if is_total else 15)
-		Sfx.play("register_tick", -8.0, 0.02)
-		await get_tree().create_timer(LINE_GAP).timeout
-	await get_tree().create_timer(LINE_GAP).timeout
-	if run != _run:
+func _leave() -> void:
+	if not leave_after_fade:
 		return
-	_add(str(Lines.ENDING.note), "", Color(0.85, 0.85, 0.75), 15)
-	_button.visible = true
-	_fit()
-
-
-func _add(left: String, right: String, color: Color, size: int) -> void:
-	var row := HBoxContainer.new()
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var label := Label.new()
-	label.text = left
-	label.label_settings = LabHud._settings(size, color, 0)
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# A wrapped label only measures its height once it knows its width, so a full-width line (the
-	# title, the note) gets the column's width up front; _fit would otherwise size the panel for a
-	# one-word-per-line note and leave a gap above the button.
-	if right == "":
-		label.custom_minimum_size.x = _column_width()
-	row.add_child(label)
-	if right != "":
-		var amount := Label.new()
-		amount.text = right
-		amount.label_settings = LabHud._settings(size, color, 0)
-		amount.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(amount)
-	_column.add_child(row)
-	_fit()
-	_scroll.scroll_vertical = 100000
-
-
-## The statement column's width: the panel's width less its margins.
-func _column_width() -> float:
-	return minf(MAX_WIDTH, get_viewport_rect().size.x - 40.0) - 48.0
-
-
-## Centered, never wider or taller than the viewport.
-func _fit() -> void:
-	var viewport := get_viewport_rect().size
-	var width := minf(MAX_WIDTH, viewport.x - 40.0)
-	_column.custom_minimum_size.x = _column_width()
-	_scroll.custom_minimum_size = Vector2(width - 40.0, minf(_column.get_combined_minimum_size().y + 4.0, viewport.y * 0.7))
-	_panel.size = _panel.get_combined_minimum_size()
-	_panel.position = (viewport - _panel.size) * 0.5
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if visible and _button.visible and event.is_action_pressed("ui_cancel"):
-		Net.leave()
+	# A test play inside the level editor (the editor's play mode) stays in the editor session: the
+	# black lifts and the statement is dropped.
+	if str(Net.session.get("mode", "play")) == "edit":
+		Net.pending_statement = []
+		Net.pending_total = 0
+		reset()
+		return
+	# Deferred: the scene change frees this node, which mustn't happen inside its own tween step.
+	Net.leave.call_deferred()
