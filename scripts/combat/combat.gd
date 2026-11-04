@@ -76,7 +76,8 @@ const SIGHT_STEPS := 6
 const MUFFLED_DB := -14.0
 ## Beyond this many meters muffle_db skips the check (Sfx's voices fade out by 45 m anyway).
 const MUFFLE_RANGE := 40.0
-const _GLASS := 19 # VoxelMaterials.GLASS (not named, so this compiles before the autoloads).
+## VoxelMaterials.GLASS, GLASS_TEMPERED and GLASS_CRACKED (not named, so this compiles before the autoloads).
+const _GLASS := [19, 46, 47]
 
 
 ## Whether nothing solid lies between two points: a voxel raycast (enemies and players don't
@@ -106,7 +107,7 @@ static func can_see(world: VoxelWorld, from: Vector3, to: Vector3) -> bool:
 		# The end point itself resting in a surface (feet on a floor) isn't something in between.
 		if at >= distance - step:
 			return true
-		if int(hit.material) != _GLASS:
+		if not int(hit.material) in _GLASS:
 			return false
 		start = at + step
 	return false

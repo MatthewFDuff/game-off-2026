@@ -73,6 +73,10 @@ var clouds := {}
 ## Host: floor spans the flow field reached at its last refresh (0: the field is empty, e.g. no
 ## living player stands on a floor).
 var flow_reached := 0
+## Host: lure points (LevelPlay: a radio playing, a squeaked duck): key -> {at: Vector3, radius,
+## until: msec it ends, -1 = until cleared}. Enemies within its radius that can't see a player go to
+## it (Enemy._think).
+var lures := {}
 
 var _next_id := 1
 var _next_cloud := 1
@@ -119,6 +123,7 @@ func clear() -> void:
 	for cloud: Cloud in clouds.values():
 		cloud.queue_free()
 	clouds.clear()
+	lures.clear()
 
 
 func get_enemy(id: int) -> Enemy:
@@ -569,6 +574,42 @@ func nearest_enemy(enemy: Enemy, max_range := 20.0) -> Enemy:
 		if distance < best_distance:
 			best_distance = distance
 			best = other
+	return best
+
+
+## Host: a lure at a world point for enemies within radius meters, for seconds (below zero: until
+## clear_lure). A second one under the same key replaces it.
+func set_lure(key: String, at: Vector3, radius: float, seconds := -1.0) -> void:
+	lures[key] = {at = at, radius = radius, until = Time.get_ticks_msec() + int(seconds * 1000.0) if seconds >= 0.0 else -1}
+
+
+func clear_lure(key: String) -> void:
+	lures.erase(key)
+
+
+## Host: whether any lure is live (expired ones go).
+func has_lures() -> bool:
+	if lures.is_empty():
+		return false
+	var now := Time.get_ticks_msec()
+	for key: String in lures.keys():
+		if int(lures[key].until) >= 0 and now > int(lures[key].until):
+			lures.erase(key)
+	return not lures.is_empty()
+
+
+## Host: the nearest live lure point whose radius reaches at, or null.
+func lure_for(at: Vector3) -> Variant:
+	var best: Variant = null
+	var best_distance := INF
+	var now := Time.get_ticks_msec()
+	for lure: Dictionary in lures.values():
+		if int(lure.until) >= 0 and now > int(lure.until):
+			continue
+		var distance := (lure.at as Vector3).distance_to(at)
+		if distance <= float(lure.radius) and distance < best_distance:
+			best_distance = distance
+			best = lure.at
 	return best
 
 

@@ -64,6 +64,8 @@ const AXE_POSES := [
 	[1.0, Vector3(-0.26, -0.30, -0.42), Vector3(0.15, 0.2, -0.3)],
 ]
 const FLASK_COOLDOWN := 0.8
+## Fire rate multiplier while the player is caffeinated (the coffee machine's buff, Player.STATUS_DPS).
+const CAFFEINE_RATE := 1.4
 
 @export var world_sync: WorldSync
 @export var enemies: EnemyManager
@@ -256,7 +258,7 @@ func fire(direction := Vector3.ZERO) -> bool:
 	if inventory and not inventory.use_ammo(type.name):
 		select("basic")
 		return false
-	_cooldown = 1.0 / type.rate
+	_cooldown = 1.0 / type.rate / (CAFFEINE_RATE if player.statuses.has("caffeinated") else 1.0)
 	var camera := player.camera
 	var origin := camera.global_position
 	var aim := direction.normalized() if direction != Vector3.ZERO else -camera.global_basis.z

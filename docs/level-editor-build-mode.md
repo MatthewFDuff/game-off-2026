@@ -136,13 +136,83 @@ Left over:
 - Moving a wall keeps it on its own storey.
 - Doors in walls use the v2 box openings (above).
 
+### Rock levels: build on what you aim at (Nov 3 2026)
+
+Floor, Wall and Ceiling now work in rock levels too (fill "rock", e.g. `levels/laboratory`), for
+splitting a carved room with walls and adding mezzanines. Rock levels have no storeys: everything
+is built on the surface aimed at. Page Up / Down still move the cutaway there.
+`tests/build_rock_test.gd` covers it.
+
+- **Data model.** Empty levels are unchanged, and so is their saved data.
+  - A wall in a rock level has `storey` -1, `base` (the voxel y of the floor top it stands on) and
+    always its own `height`. `base` is a new field rather than `a.y`, because the wall code writes
+    `Vector3i(x, 0, z)` in many places. `LevelBuild.wall_base` replaces `floor_y(storey)` everywhere
+    a wall's bottom is needed.
+  - Floors and ceilings are kept per plane, not per storey: `storey` -1 and `y` (a floor's top, a
+    ceiling's bottom), with ids `floor_y<y>` / `ceiling_y<y>`. The slab is 3 voxels (the default
+    storeys' `slab`) under a floor's plane or over a ceiling's. `LevelEdits.add_slab_shape` takes the
+    plane as a fourth argument. With storey -1 the host checks the plane is in the world and makes
+    no `storeys` object.
+  - Walls "with" a wall (snapping, joined ends, merging, Shift erase, click-fills) are the ones on
+    the same base: `LevelBuild.walls_on(objects, -1, base)` / `walls_with`.
+- **C++ (`structure_at`).** Before, a room's inside beat everything built, so a built wall in a
+  carved room would never show. Now, when the base is solid (rock levels only):
+  - a built piece fills a room's inside, and recolors its lining like a lining would;
+  - it never touches cells outside every room, so the rock stays as it is;
+  - a wall opening only cuts inside a room, so it can't dig into the rock behind a wall.
+
+  Empty levels (air base) keep the old order exactly. Both the debug and the release libraries were
+  rebuilt. The web `.wasm` in `bin/` is stale until it's rebuilt.
+- **Rail:** Select, Room, Box, Brush, Replace, Opening, Prop, Marker, Floor, Wall, Ceiling. The
+  first eight keep their keys (1 to 8); Floor is 9, Wall 0 and Ceiling `-` (new: `editor_tool_slot_11`).
+- **Aiming.** The floor under the cursor is the aimed voxel's top, or the floor under the air in front
+  of a wall face. The cutaway's cross section and empty space give no aim.
+- **Wall tool:**
+  - The base is that floor's top where the drag starts, fixed for the drag.
+  - The height reaches the first solid over the aim, not counting built walls (so a start on a wall
+    end works). It's at most `ROCK_WALL_MAX` (8 m), and 3 m if nothing is found within that.
+  - The wheel and typing still set it, and the inspector's "Up to the ceiling" can be turned off for
+    a fixed height.
+  - Ctrl's rectangle puts its floor at the base and its ceiling on top of the walls.
+- **Floor tool:**
+  - The plane follows the floor top under the cursor. Drawn there, it repaints the top 3 voxels of
+    the floor.
+  - **Ctrl+wheel** (any time) or the **wheel while dragging** holds the plane a grid step up or down:
+    a mezzanine. The wheel alone still zooms while only aiming; that's the change from the brief.
+  - A held plane stays put until Esc, a right click or a tool change. A label at the aim and the
+    readout say how high it is ("1.0 m up (held)").
+  - Click-fills use the walls standing on the plane.
+- **Ceiling tool:**
+  - The plane is the underside of the first solid over the floor aimed at, so by default it repaints
+    the ceiling's lining. Ctrl+wheel lowers it for a dropped ceiling.
+  - Click-fills and Auto use the walls on the floor under the plane. Auto works on the last aimed
+    floor and plane, since the button takes the mouse off the world.
+- **Select, handles, inspector, openings, Shift erase, Move** all work on rock level walls.
+  - The handles sit on the wall's top and aim on its base plane.
+  - Moving a wall puts it on the floor under the cursor.
+  - The inspector shows "Stands at (m)" (the base) and the height in place of the storey.
+  - The Opening tool and doors find rock level walls the same way.
+- **Undo, sync, save:** everything still goes through `LevelEdits` (`put_objects`, `_do_slab`), so
+  it's one undoable host edit like in empty levels. `LevelSchema.fill_defaults` turns a loaded
+  `base` / `y` back into ints.
+
+Rock level leftovers:
+- A wall taller than its room (typed, or one with nothing over it within 8 m) runs on into any room
+  above it, since rooms' insides are filled wherever a wall reaches.
+- Walls on different floors (a mezzanine's and the room's) don't snap to or join each other.
+- There's no hover preview of a fill here either, and Auto ceiling needs an aim at the floor first.
+- Building on top of a prop isn't possible: props aren't voxels while editing, so the aim goes
+  through them to the floor.
+- `build_net_test` covers only empty levels.
+
 Two changes from the plan below:
 - Floors and ceilings are an ordered list of add / erase polygons per storey and kind (objects
   `floor_<n>` / `ceiling_<n>`), not a stored mask. The C++ rasterizes them.
 - Storeys are a level object (`storeys`), so changing a height is an ordinary undoable edit.
 
 Decided (Nov 3 2026):
-- Empty levels only. Rock levels keep the Room tool.
+- Empty levels only. Rock levels keep the Room tool. (Later the same day: rock levels get the build
+  tools too, building on what you aim at; see above.)
 - Storeys like the Sims.
 - Walls straight or at 45°.
 - Floors and walls are drawn by press, drag, release.

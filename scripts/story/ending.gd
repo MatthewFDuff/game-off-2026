@@ -1,7 +1,8 @@
 class_name Ending
 extends Control
 ## The end of the shift: the host works out the payroll statement from the night's accounts (begin:
-## wages, every broken asset by name, clones grown, the total owed) and sends it to every peer;
+## wages, every broken asset by name, purchases by name (vending machines, coffee), clones grown,
+## doors forced, the total owed) and sends it to every peer;
 ## each peer leaves it in Net.pending_statement / pending_total at once, fades to black over
 ## FADE_SECONDS and leaves the session, landing in its own cubicle, which rolls the statement on
 ## the computer (docs/cubicle-menu.md, section 5). The lines are "left|right" ("Shift wages|+$40");
@@ -69,10 +70,20 @@ func begin(clones: int) -> void:
 			var dollars := int(play.damage_by_name[asset_name])
 			owed += dollars
 			lines.append("   %s|-$%d" % [asset_name.replace("_", " "), dollars])
+	var bought: Array = play.purchases.keys()
+	bought.sort()
+	if not bought.is_empty():
+		lines.append("Purchases:|")
+		for what: String in bought:
+			var dollars := int(play.purchases[what])
+			owed += dollars
+			lines.append("   %s|-$%d" % [what.replace("_", " "), dollars])
 	var clone_cost := clones * int(Lines.ENDING.clone_cost)
 	owed += clone_cost
 	lines.append("Clones grown: %d x $%d|-$%d" % [clones, int(Lines.ENDING.clone_cost), clone_cost])
-	lines.append("Doors forced|-$0")
+	var forced := play.forced_doors.size()
+	owed += forced * LevelPlay.FORCED_DOOR_FEE
+	lines.append("Doors forced: %d x $%d|-$%d" % [forced, LevelPlay.FORCED_DOOR_FEE, forced * LevelPlay.FORCED_DOOR_FEE])
 	var net := wages - owed
 	lines.append("TOTAL OWED TO FUNG AI|-$%d" % (-net) if net < 0 else "NET PAY|+$%d" % net)
 	for peer_id in Net.players:

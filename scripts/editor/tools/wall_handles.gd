@@ -82,7 +82,7 @@ func handle_position(of: Dictionary, handle: Handle) -> Vector3:
 	var st := LevelBuild.storeys(objects)
 	var e := LevelBuild.ends(of)
 	var p := Vector2(e[0]) if handle == Handle.END_A else (Vector2(e[1]) if handle == Handle.END_B else (Vector2(e[0]) + Vector2(e[1])) * 0.5)
-	var y := LevelBuild.floor_y(st, int(of.storey)) + LevelBuild.wall_height(of, st)
+	var y := LevelBuild.wall_base(of, st) + LevelBuild.wall_height(of, st)
 	return world.global_position + Vector3(p.x, y, p.y) * world.voxel_size
 
 
@@ -136,7 +136,8 @@ func press(pointer: Vector2, origin: Vector3, direction: Vector3) -> bool:
 		var e := LevelBuild.ends(wall)
 		var st := LevelBuild.storeys(objects)
 		_aimer.storey = int(wall.storey)
-		_aimer.plane_y = LevelBuild.floor_y(st, int(wall.storey))
+		_aimer.plane_y = LevelBuild.wall_base(wall, st)
+		_aimer.base = _aimer.plane_y
 		_aimer.dragging = true
 		_aimer.rect_mode = false
 		_aimer.erase = false
@@ -176,7 +177,7 @@ func nudge(steps: int) -> void:
 ## The aim on the wall's floor plane (voxel x, z); INF when it misses.
 func _aim(origin: Vector3, direction: Vector3) -> Vector2:
 	var st := LevelBuild.storeys(objects)
-	var y := world.global_position.y + LevelBuild.floor_y(st, int(wall.storey)) * world.voxel_size
+	var y := world.global_position.y + LevelBuild.wall_base(wall, st) * world.voxel_size
 	if absf(direction.y) < 1e-4:
 		return Vector2.INF
 	var t := (y - origin.y) / direction.y
@@ -238,7 +239,7 @@ static func reshape(objects: Dictionary, wall: Dictionary, a: Vector2i, b: Vecto
 		moves[old_ends[1]] = b
 	var walls := [[wall, changed]]
 	if follow_joined and not moves.is_empty():
-		for other in LevelBuild.walls_on(objects, int(wall.storey)):
+		for other in LevelBuild.walls_with(objects, wall):
 			if other.id == wall.id:
 				continue
 			var other_ends := LevelBuild.ends(other)
@@ -323,12 +324,12 @@ static func split(objects: Dictionary, wall: Dictionary, grid: int) -> Array:
 	return puts
 
 
-## Merges a wall with a joined wall in line with it and built the same (storey, material, inner,
-## thickness, height): {ok, reason, puts}. The merged wall keeps this one's id and direction.
+## Merges a wall with a joined wall in line with it and built the same (storey or base, material,
+## inner, thickness, height): {ok, reason, puts}. The merged wall keeps this one's id and direction.
 static func merge(objects: Dictionary, wall: Dictionary) -> Dictionary:
 	var e := LevelBuild.ends(wall)
 	var u := LevelBuild.wall_unit(wall)
-	for other in LevelBuild.walls_on(objects, int(wall.storey)):
+	for other in LevelBuild.walls_with(objects, wall):
 		if other.id == wall.id:
 			continue
 		var same := true

@@ -55,6 +55,8 @@ const STALE_SHIFT_NOTE := "The shift on file was recorded against an older site 
 @export var director: HordeDirector
 @export var items: ItemManager
 @export var fire: Fire
+@export var glass: Glass
+@export var mycelium: Mycelium
 
 var level: LevelData
 var mode := "play"
@@ -256,10 +258,14 @@ func _set_mode_locally(new_mode: String) -> void:
 		if new_mode == "play":
 			if mode == "edit" or _edit_base.is_empty():
 				_edit_base = world.get_data()
+			if mycelium:
+				mycelium.plan_level() # Links see the walls, not the props.
 			_props = Props.new(world, 0)
 			for object: Dictionary in level.objects.values():
 				if object.kind == "prop":
 					_props.place(object.name, object.origin, object.facing)
+			if mycelium:
+				mycelium.stamp_level() # Into air only, after the props.
 		elif not _edit_base.is_empty() and mode == "play":
 			world.set_data(_edit_base)
 			_edit_base = PackedByteArray()

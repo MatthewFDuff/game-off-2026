@@ -1,10 +1,14 @@
 class_name BuildTools
 extends RefCounted
-## Build mode's Floor and Ceiling tools (EditorTool, empty levels): aiming at the storey's floor or
-## ceiling plane, snapping to what's there, dragging a rectangle, and filling what walls close in.
-## Press, drag, release paints a rectangle (Shift erases); a click without a drag fills the space
-## the storey's walls close in around it (Shift+click erases it). Everything goes through
+## Build mode's Floor and Ceiling tools (EditorTool): aiming at the storey's floor or ceiling plane,
+## snapping to what's there, dragging a rectangle, and filling what walls close in. Press, drag,
+## release paints a rectangle (Shift erases); a click without a drag fills the space the storey's
+## walls close in around it (Shift+click erases it). Everything goes through
 ## LevelEdits.add_slab_shape.
+##
+## Rock levels have no storeys (storey -1): EditorTool sets the plane from the surface aimed at (or
+## a plane held with the wheel), and the walls snapped to and filled in are the ones standing on
+## base.
 
 ## Snap priority within reach of the aim (voxels): wall ends and shape corners, then wall lines and
 ## shape edges, then the grid.
@@ -17,10 +21,15 @@ var world: VoxelWorld
 var view: LevelView
 var edits: LevelEdits
 
-## Which slab the tool paints ("floor" or "ceiling"), on which storey, at which plane (voxel y).
+## Which slab the tool paints ("floor" or "ceiling"), on which storey, at which plane (voxel y);
+## storey -1 in rock levels, where base is the floor top whose walls it snaps to and fills in.
 var kind := "floor"
 var storey := 0
 var plane_y := 0
+var base := 0
+## Rock levels: a plane (voxel y) held with the wheel instead of following the surface aimed at, -1
+## when none. A mezzanine floor or a dropped ceiling is drawn on one.
+var held := -1
 ## This frame's aim: the raw point on the plane (voxel x, z), whether there is one, and where it
 ## snaps to with what ("corner", "on wall", "edge", "grid").
 var has_aim := false
@@ -44,8 +53,13 @@ func update_aim(from: Vector3, direction: Vector3, objects: Dictionary, grid: in
 	if t <= 0.0:
 		return
 	var point := (from + direction * t - world.global_position) / world.voxel_size
+	aim_at(Vector2(point.x, point.z), objects, grid)
+
+
+## Aims at a point (voxel x, z) on the plane, snapping with grid (voxels).
+func aim_at(point: Vector2, objects: Dictionary, grid: int) -> void:
 	var size: Vector3i = world.get_size_in_voxels()
-	aim = Vector2(clampf(point.x, 0.0, size.x), clampf(point.z, 0.0, size.z))
+	aim = Vector2(clampf(point.x, 0.0, size.x), clampf(point.y, 0.0, size.z))
 	has_aim = true
 	var snap := snap_point(aim, objects, grid)
 	snapped = snap.point
@@ -56,13 +70,17 @@ func update_aim(from: Vector3, direction: Vector3, objects: Dictionary, grid: in
 func snap_point(p: Vector2, objects: Dictionary, grid: int) -> Dictionary:
 	var corners: Array[Vector2i] = []
 	var lines: Array = [] # [a, b] (Vector2i) segments
-	for wall in LevelBuild.walls_on(objects, storey):
+	for wall in LevelBuild.walls_on(objects, storey, base):
 		var a := Vector2i(wall.a.x, wall.a.z)
 		var b := Vector2i(wall.b.x, wall.b.z)
 		corners.append_array([a, b])
 		lines.append([a, b, "on wall"])
-	for slab_kind in ["floor", "ceiling"]:
-		var slab: Dictionary = objects.get(LevelBuild.slab_id(slab_kind, storey), {})
+	# The storey's floor and ceiling; in rock, the floor walls stand on and the slab being drawn.
+	var slab_ids := [LevelBuild.slab_id("floor", storey), LevelBuild.slab_id("ceiling", storey)]
+	if storey < 0:
+		slab_ids = [LevelBuild.slab_id("floor", storey, base), LevelBuild.slab_id(kind, storey, plane_y)]
+	for id: String in slab_ids:
+		var slab: Dictionary = objects.get(id, {})
 		for s: Array in slab.get("shapes", []):
 			var count := int(s[2])
 			if count < 3:
@@ -126,6 +144,7 @@ func press(shift: bool) -> void:
 
 func cancel() -> void:
 	dragging = false
+	held = -1
 
 
 ## The rectangle being dragged, [lo, hi) in x and z (Vector2i).
@@ -143,29 +162,30 @@ func release(objects: Dictionary, material: int) -> String:
 	dragging = false
 	var r := rect()
 	if r.size.x > 0 and r.size.y > 0:
-		edits.add_slab_shape(kind, storey, LevelBuild.rect_shape(Vector3i(r.position.x, 0, r.position.y), Vector3i(r.end.x, 0, r.end.y), material, not erase))
+		edits.add_slab_shape(kind, storey, LevelBuild.rect_shape(Vector3i(r.position.x, 0, r.position.y), Vector3i(r.end.x, 0, r.end.y), material, not erase), plane_y)
 		return ""
 	if r.size.x > 0 or r.size.y > 0:
 		return "Drag out an area (it's a line)"
 	return fill(objects, _pressed_column, material, not erase)
 
 
-## Fills (or erases) what the storey's walls close in around a column. The toast to show.
+## Fills (or erases) what the storey's walls (in rock, the walls on base) close in around a column.
+## The toast to show.
 func fill(objects: Dictionary, column: Vector2i, material: int, add := true) -> String:
-	var found := LevelBuild.enclosure(objects, storey, column)
+	var found := LevelBuild.enclosure(objects, storey, column, base)
 	if not found.ok:
 		return found.reason
-	edits.add_slab_shape(kind, storey, LevelBuild.runs_shape(found.runs, material, add))
+	edits.add_slab_shape(kind, storey, LevelBuild.runs_shape(found.runs, material, add), plane_y)
 	return "%s %s" % [kind.capitalize(), "filled" if add else "erased"]
 
 
-## Ceiling tool's Auto: one ceiling over every space the storey's walls close in that has floor
-## under it. The toast to show.
+## Ceiling tool's Auto: one ceiling over every space the storey's walls (in rock, the walls on base,
+## at plane_y) close in that has floor under it. The toast to show.
 func auto_ceiling(objects: Dictionary, material: int) -> String:
-	var floor_top := LevelBuild.floor_y(LevelBuild.storeys(objects), storey)
+	var floor_top := base if storey < 0 else LevelBuild.floor_y(LevelBuild.storeys(objects), storey)
 	var runs: Array = []
 	var rooms := 0
-	for region: Array in LevelBuild.enclosures(objects, storey):
+	for region: Array in LevelBuild.enclosures(objects, storey, base):
 		var floored := false
 		for run: Array in region:
 			for x in range(run[1], run[2]):
@@ -178,6 +198,6 @@ func auto_ceiling(objects: Dictionary, material: int) -> String:
 			runs.append_array(region)
 			rooms += 1
 	if runs.is_empty():
-		return "No closed-in rooms with a floor on this storey"
-	edits.add_slab_shape("ceiling", storey, LevelBuild.runs_shape(runs, material))
+		return "No closed-in rooms with a floor on this storey" if storey >= 0 else "No rooms closed in by walls on this floor"
+	edits.add_slab_shape("ceiling", storey, LevelBuild.runs_shape(runs, material), plane_y)
 	return "Ceiling over %d room%s" % [rooms, "" if rooms == 1 else "s"]

@@ -993,7 +993,12 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 			return cell;
 		}
 	}
+	// In rock levels (base solid) build pieces stand in carved rooms: they fill a room's inside and
+	// recolor its lining, but never touch the rock around it, and a wall opening only cuts inside a
+	// room (so it can't dig into the rock behind a wall).
+	const bool in_rock = base != 0;
 	int built = -1;
+	bool wall_cut = false;
 	for (const BuildShape *shape_ptr : build) {
 		const BuildShape &shape = *shape_ptr;
 		if (!shape_may_hold(shape, x, y, z)) {
@@ -1001,9 +1006,12 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 		}
 		if (shape.type == BUILD_WALL_OPENING) {
 			if (wall_opening_has(shape.data, x, y, z)) {
-				cell.role = ROLE_OPENING;
-				cell.material = 0;
-				return cell;
+				if (!in_rock) {
+					cell.role = ROLE_OPENING;
+					cell.material = 0;
+					return cell;
+				}
+				wall_cut = true;
 			}
 			continue;
 		}
@@ -1014,17 +1022,30 @@ StructureCell structure_at(const PackedInt32Array &rooms, const PackedInt32Array
 	}
 	const int32_t *r = rooms.ptr();
 	int lining = -1;
+	bool interior = false;
 	for (int64_t i = 0; i + ROOM_STRIDE <= rooms.size(); i += ROOM_STRIDE) {
 		if (inside(r + i, x, y, z, 0)) {
-			cell.role = ROLE_INTERIOR;
-			cell.material = 0;
-			return cell;
+			interior = true;
+			break;
 		}
 		if (inside(r + i, x, y, z, r[i + 9])) {
 			lining = int(i);
 		}
 	}
-	if (built > 0) {
+	if (interior) {
+		if (wall_cut) {
+			cell.role = ROLE_OPENING;
+			cell.material = 0;
+		} else if (built > 0 && in_rock) {
+			cell.role = ROLE_LINING;
+			cell.material = uint8_t(built);
+		} else {
+			cell.role = ROLE_INTERIOR;
+			cell.material = 0;
+		}
+		return cell;
+	}
+	if (built > 0 && (!in_rock || lining >= 0)) {
 		// Built floors, walls and ceilings are like linings: they only replace untouched voxels.
 		cell.role = ROLE_LINING;
 		cell.material = uint8_t(built);

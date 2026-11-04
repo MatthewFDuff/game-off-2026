@@ -5,16 +5,19 @@ extends Node
 ## reach it through ItemManager, which the host runs.
 ##
 ## Item names (the item marker's string, and pickups): `medkit`, `ammo_<type>` (AmmoType.ORDER),
-## `flask_<fire|poison|rage|freeze>`, `keycard_<color>`, `spore_shooter` (arms the player;
-## LevelPlay.arm_party arms the rest of the party).
+## `flask_<fire|poison|rage|freeze|foam>`, `keycard_<color>`, `spore_shooter` (arms the player;
+## LevelPlay.arm_party arms the rest of the party), `snack` (a vending machine's: SNACK_HEAL health)
+## and `paper_<printer id>` (a printed page: LevelPlay shows its text; nothing is carried).
 
 ## Any count changed (ammo, flasks, keycards).
 signal changed
 
-const FLASKS := ["fire", "poison", "rage", "freeze"]
+const FLASKS := ["fire", "poison", "rage", "freeze", "foam"]
 const MAX_FLASKS := 5
 ## Health a medkit gives back.
 const MEDKIT_HEAL := 50.0
+## Health a snack gives back.
+const SNACK_HEAL := 15.0
 
 ## ammo type name -> rounds (basic is never stored: it's infinite)
 var ammo := {}
@@ -62,6 +65,14 @@ func add(item_name: String, amount := -1) -> bool:
 			player.health = minf(player.max_health, player.health + (MEDKIT_HEAL if amount < 0 else float(amount)))
 		changed.emit()
 		return true
+	if item_name == "snack":
+		var player := get_parent() as Player
+		if player:
+			player.health = minf(player.max_health, player.health + (SNACK_HEAL if amount < 0 else float(amount)))
+		changed.emit()
+		return true
+	if item_name.begins_with("paper_"):
+		return true # Read, not carried (LevelPlay shows it).
 	if item_name.begins_with("ammo_"):
 		var type := AmmoType.by_name(item_name.trim_prefix("ammo_"))
 		if type == null:

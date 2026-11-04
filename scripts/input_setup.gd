@@ -36,9 +36,10 @@ const EDITOR_KEYS := {
 	editor_tool_opening = ["6"],
 	editor_tool_prop = ["7"],
 	editor_tool_marker = ["8"],
-	# The 9th and 10th place on the tool rail (build levels have more tools).
+	# The 9th, 10th and 11th place on the tool rail (build levels have more tools).
 	editor_tool_slot_9 = ["9"],
 	editor_tool_slot_10 = ["0"],
+	editor_tool_slot_11 = ["Minus"],
 	editor_rotate = ["R"],
 	editor_grid = ["G"],
 	editor_free_cursor = ["N"],
@@ -67,6 +68,7 @@ const EDITOR_KEYS := {
 	editor_cut_down = ["PageDown"],
 	editor_cut_mode = ["C"],
 	editor_walls_down = ["H"],
+	editor_edit_hidden = ["L"],
 	editor_fly = ["F"],
 	editor_brush_smaller = ["BracketLeft"],
 	editor_brush_bigger = ["BracketRight"],
@@ -202,7 +204,7 @@ static func describe(action: String) -> String:
 	for spec: String in EDITOR_KEYS.get(action, []):
 		names.append(spec.replace("BracketLeft", "[").replace("BracketRight", "]").replace("Escape", "Esc")
 				.replace("PageUp", "PgUp").replace("PageDown", "PgDn").replace("Kp Period", "Num .").replace("Kp Add", "Num +")
-				.replace("Kp Subtract", "Num -").replace("Kp ", "Num "))
+				.replace("Kp Subtract", "Num -").replace("Kp ", "Num ").replace("Minus", "-"))
 	return " / ".join(names)
 
 

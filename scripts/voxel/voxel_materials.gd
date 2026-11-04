@@ -61,6 +61,17 @@ const LARGE_TILE := 41
 const CONCRETE_PANEL := 42
 const DIAMOND_PLATE := 43
 const HAZARD_STRIPES := 44
+# Glass that shatters as a pane (Glass). Ids 46 to 49 are claimed by glass (prop-build-plan B).
+const GLASS_TEMPERED := 46
+const GLASS_CRACKED := 47
+const GLASS_SHARDS := 48
+# Mycelium networks (Mycelium). Ids 50 to 59 are claimed by mycelium (prop-build-plan C).
+const MYCELIUM := 50
+const MYCELIUM_GLOW := 51
+const ROOT := 52
+const MYCELIUM_DEAD := 53
+# Interactables (prop-build-plan E). Id 60 is claimed by them.
+const RED_PAINT := 60
 
 const PATTERN_DIR := "res://assets/patterns/"
 ## Largest pattern per side (the shader's pattern layers are this big).
@@ -69,6 +80,9 @@ const PATTERN_MAX := 32
 ## Emission groups: lamps on facility power go dark at night; emergency lights only glow then.
 const POWERED := 1
 const EMERGENCY_ONLY := 2
+## Mycelium veins: emission swings in a slow travelling wave, harder with the shader's pulse_amount
+## (Mycelium.pulse). Palette row 2, blue.
+const PULSING := 3
 
 ## Hardness 255 can never be carved. Shrooms dig through hardness 2 and below.
 ##
@@ -128,6 +142,20 @@ const DEFS := {
 	CONCRETE_PANEL: {name = "Concrete panel", color = Color(0.56, 0.57, 0.55), hardness = 5, pattern = "concrete_panel"},
 	DIAMOND_PLATE: {name = "Diamond plate", color = Color(0.55, 0.57, 0.60), hardness = 6, pattern = "diamond_plate"},
 	HAZARD_STRIPES: {name = "Hazard stripes", color = Color(0.55, 0.45, 0.10), hardness = 5, pattern = "hazard_stripes"},
+
+	# Glass (Glass): tempered takes three hits, cracking on the first; shards are what a pane leaves.
+	GLASS_TEMPERED: {name = "Tempered glass", color = Color(0.62, 0.80, 0.92), hardness = 2},
+	GLASS_CRACKED: {name = "Cracked glass", color = Color(0.70, 0.82, 0.90), hardness = 2, pattern = "glass_cracked"},
+	GLASS_SHARDS: {name = "Glass shards", color = Color(0.80, 0.90, 0.93), hardness = 1},
+
+	# Mycelium (Mycelium): burns like the shrooms; dead mycelium is what wither leaves.
+	MYCELIUM: {name = "Mycelium", color = Color(0.72, 0.74, 0.66), hardness = 1, burn = 1.5, catch = 1.2},
+	MYCELIUM_GLOW: {name = "Mycelium vein", color = Color(0.40, 0.95, 0.85), hardness = 1, emission = 0.9, group = PULSING, burn = 1.5, catch = 1.2},
+	ROOT: {name = "Root", color = Color(0.22, 0.17, 0.14), hardness = 1, burn = 3.0, catch = 0.8, ash = 0.4},
+	MYCELIUM_DEAD: {name = "Dead mycelium", color = Color(0.46, 0.46, 0.44), hardness = 1, burn = 1.0, catch = 1.5},
+
+	# Interactables: plain red paint that doesn't glow (fire extinguishers, alarm pulls; EMERGENCY glows).
+	RED_PAINT: {name = "Red paint", color = Color(0.72, 0.10, 0.08), hardness = 3},
 }
 
 
@@ -180,7 +208,7 @@ static func load_pattern(pattern: String) -> Image:
 
 ## 256x3 lookup texture for the terrain shader. Row 0: rgb albedo, alpha emission strength.
 ## Row 1: r = on facility power, g = emergency light, b = pattern layer + 1 (0 = none) / 255.
-## Row 2: pattern width and height / 255.
+## Row 2: pattern width and height / 255, b = 1 for PULSING.
 static func build_palette() -> ImageTexture:
 	var image := Image.create(256, 3, false, Image.FORMAT_RGBA8)
 	image.fill(Color(1, 0, 1, 0))
@@ -191,10 +219,12 @@ static func build_palette() -> ImageTexture:
 		image.set_pixel(id, 0, Color(c.r, c.g, c.b, def.get("emission", 0.0)))
 		var group: int = def.get("group", 0)
 		var layer := 0
+		# Row 2 blue: PULSING (the fill would leave it at 1 for everything).
+		image.set_pixel(id, 2, Color8(0, 0, 255 if group == PULSING else 0, 255))
 		var pattern := load_pattern(def.pattern) if def.has("pattern") else null
 		if pattern:
 			layer = patterns.find(id) + 1
-			image.set_pixel(id, 2, Color8(pattern.get_width(), pattern.get_height(), 0, 255))
+			image.set_pixel(id, 2, Color8(pattern.get_width(), pattern.get_height(), 255 if group == PULSING else 0, 255))
 		image.set_pixel(id, 1, Color(1.0 if group == POWERED else 0.0, 1.0 if group == EMERGENCY_ONLY else 0.0, layer / 255.0, 1.0))
 	image.set_pixel(255, 0, DEFS[BEDROCK].color)
 	image.set_pixel(255, 1, Color(0, 0, 0, 1))

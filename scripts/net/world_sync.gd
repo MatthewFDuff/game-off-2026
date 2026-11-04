@@ -25,6 +25,9 @@ const SET_PART := 300
 
 @export var world: VoxelWorld
 
+## Every peer: the radius (meters) of the carve a `carved` signal is about, for listeners that care
+## how big the hit was (Glass: a blast shatters tempered glass at once).
+var last_carve_radius := 0.0
 ## Host: peers that have the world and receive edits.
 var _synced: Array[int] = []
 ## Blobs being received: tag -> {raw_size, parts, received, bytes}
@@ -62,6 +65,7 @@ func _request_carve(center: Vector3, radius: float, max_hardness: int, normal: V
 func _apply_carve(center: Vector3, radius: float, max_hardness: int, normal: Vector3) -> void:
 	var removed: Dictionary = world.carve_sphere(center, radius, max_hardness)
 	if not removed.is_empty():
+		last_carve_radius = radius
 		carved.emit(center, normal, removed)
 
 
@@ -140,6 +144,14 @@ static func op_bounds(op: Dictionary) -> Array[Vector3i]:
 			return [op.from, op.to]
 
 
+## op_bounds, kept under the op's "below" layer when it has one.
+static func op_bounds_below(op: Dictionary) -> Array[Vector3i]:
+	var bounds := op_bounds(op)
+	if op.has("below"):
+		bounds[1].y = mini(bounds[1].y, int(op.below))
+	return bounds
+
+
 ## Editor operations, all deterministic so every peer ends up the same:
 ##   box      {from, to, material}                 fill the box (material 0 carves)
 ##   room     {from, to, floor, wall, ceiling, thickness, solid_only}
@@ -147,6 +159,8 @@ static func op_bounds(op: Dictionary) -> Array[Vector3i]:
 ##            into neighbouring rooms stay open (rock levels); otherwise the shell is built (empty levels)
 ##   sphere   {center: Vector3, radius, material}  voxel units
 ##   replace  {from, to, material, source}         swap source for material inside the box
+##   box, sphere and replace may also have below: layers from it up are left as they were (the
+##   editor's cutaway hides them)
 ##   structure {from, to, before_rooms, after_rooms, before_openings, after_openings, base, base_set,
 ##            before_build, after_build}
 ##            a room / opening change over [from, to): VoxelWorld.apply_structure (LevelEdits
@@ -158,6 +172,9 @@ func _apply_op(op: Dictionary) -> void:
 
 ## Applies an operation straight to a world (no syncing): level setup, and _apply_op on each peer.
 static func run_op(world: VoxelWorld, op: Dictionary) -> void:
+	if op.has("below"):
+		_run_below(world, op)
+		return
 	match op.type:
 		"box":
 			world.fill_box(op.from, op.to, op.material, false)
@@ -184,6 +201,27 @@ static func run_op(world: VoxelWorld, op: Dictionary) -> void:
 		"structure":
 			world.apply_structure(op.from, op.to, op.before_rooms, op.after_rooms, op.before_openings, op.after_openings, op.base, op.base_set,
 					op.get("before_build", PackedInt32Array()), op.get("after_build", PackedInt32Array()))
+
+
+## run_op with the layers from op.below up kept as they were.
+static func _run_below(world: VoxelWorld, op: Dictionary) -> void:
+	var bounds := op_bounds(op)
+	var size: Vector3i = world.get_size_in_voxels()
+	var keep_from := Vector3i(bounds[0].x, maxi(bounds[0].y, int(op.below)), bounds[0].z).clamp(Vector3i.ZERO, size)
+	var keep_to: Vector3i = bounds[1].clamp(Vector3i.ZERO, size)
+	var plain := op.duplicate()
+	plain.erase("below")
+	if op.type in ["box", "replace"]:
+		plain.to = Vector3i(op.to.x, mini(op.to.y, int(op.below)), op.to.z)
+		if plain.to.y > plain.from.y:
+			run_op(world, plain)
+		return
+	if keep_from.y >= keep_to.y or keep_from.x >= keep_to.x or keep_from.z >= keep_to.z:
+		run_op(world, plain)
+		return
+	var kept := world.get_box(keep_from, keep_to)
+	run_op(world, plain)
+	world.set_box(keep_from, keep_to, kept)
 
 
 ## Applies a box of voxels here in one go, and sends it to the others in slices so no RPC gets near

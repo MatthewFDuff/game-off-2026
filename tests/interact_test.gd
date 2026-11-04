@@ -11,6 +11,14 @@ extends SceneTree
 ## power and starts the finale, lights follow the power, start_power, and that an old prop without
 ## the new fields loads with defaults.
 ##
+## Then the interactables (prop-build-plan E, _interactables): a switch fires its trigger every
+## time and `lights=` cuts a room's lights, a vending machine bills the payroll and drops a snack
+## (and shooting its glass drops one more, billed as damage), the water cooler's buff, the eyewash,
+## the defibrillator, a fire extinguisher picked up as a foam flask and one shot into foam (slowing
+## an enemy, clearing a spore cloud), a gas cylinder that skids when shot and explodes the second
+## time, flipping a table, a printer's page, a radio's and a duck's lures, a hanging crate cut down
+## onto an enemy, sprinklers, and a forced door on the payroll.
+##
 ## Game types are left unnamed (see editor_test.gd).
 
 const SCRATCH := "user://interact_test_levels/"
@@ -21,6 +29,8 @@ const FLOOR := 8
 const ROOM := [Vector3i(8, FLOOR, 8), Vector3i(184, 40, 120)]
 const NORTH := 0
 const SOUTH := 2
+## The interactables' row (origin z).
+const ROW := 30
 
 var _failures := 0
 var _lab
@@ -186,6 +196,8 @@ func _run() -> void:
 	var powered := await _wait_until(func() -> bool: return play.is_door_open("door_pow"), 3.0)
 	_check("powered door opens on restored power", powered)
 
+	await _interactables(fired)
+
 	# start_power: a level can begin on backup; replaying resets the props.
 	_lab.level.settings.start_power = "backup"
 	_lab.request_mode("edit")
@@ -233,6 +245,25 @@ func _make_level() -> void:
 	add.call("bench", "ammo_bench", Vector3i(150, FLOOR, 113), NORTH, {charges = 1, station_ammo_type = "homing"})
 	_check("new props get their default use", level.objects.cab.use == "container" and level.objects.gen.use == "generator"
 			and level.objects.medkit.use == "station_medkit" and level.objects.glass1.use == "glass_case")
+	# The interactables' row (fronts facing south, z = ROW).
+	add.call("sw", "switch_lever", Vector3i(12, FLOOR, ROW), SOUTH, {on_use = "lights_trig"})
+	add.call("vend", "vending_machine_glass", Vector3i(22, FLOOR, ROW), SOUTH)
+	add.call("cooler", "water_cooler", Vector3i(40, FLOOR, ROW), SOUTH)
+	add.call("eye", "eyewash_station", Vector3i(52, FLOOR, ROW), SOUTH)
+	add.call("defib", "defib_cabinet", Vector3i(66, FLOOR, ROW), SOUTH)
+	add.call("ext", "fire_extinguisher", Vector3i(80, FLOOR, ROW), SOUTH)
+	add.call("ext2", "fire_extinguisher", Vector3i(90, FLOOR, ROW), SOUTH)
+	add.call("gas", "gas_cylinder", Vector3i(130, FLOOR, 80), SOUTH) # In the open: it skids and blows up.
+	add.call("flip", "table", Vector3i(114, FLOOR, ROW), SOUTH)
+	add.call("printer", "printer_station", Vector3i(134, FLOOR, ROW), SOUTH)
+	add.call("radio", "radio", Vector3i(156, FLOOR, ROW), SOUTH)
+	add.call("duck", "rubber_duck", Vector3i(170, FLOOR, ROW), SOUTH)
+	add.call("crate", "crate_hanging", Vector3i(20, ROOM[1].y - 21, 70), SOUTH)
+	_check("the interactables get their uses and field defaults", level.objects.sw.use == "switch" and level.objects.vend.use == "vendor"
+			and level.objects.vend.price == 3 and level.objects.vend.contents == "snack" and level.objects.cooler.use == "vendor"
+			and level.objects.cooler.buff == "speed" and level.objects.ext.use == "extinguisher" and level.objects.flip.use == "flip"
+			and level.objects.printer.use == "printer" and level.objects.duck.use == "squeak" and level.objects.defib.use == "defib",
+			"%s %s %s" % [level.objects.sw.use, level.objects.vend, level.objects.cooler.use])
 
 	var spawn := LevelSchema.new_marker("spawn", Vector3(96.0, FLOOR, 64.0), 0.0)
 	spawn.id = "spawn_1"
@@ -241,7 +272,20 @@ func _make_level() -> void:
 	var emergency := LevelSchema.new_marker("light", Vector3(130.0, 36.0, 64.0))
 	emergency.id = "light_emg"
 	emergency.power = "emergency"
-	for object in [spawn, facility, emergency]:
+	# A volume up by the ceiling (nobody walks into it) around the facility light: `lights=` and
+	# `sprinkle=` work on it; and the triggers the switch and the test fire.
+	var zone := LevelSchema.new_marker("trigger", Vector3(60.0, 30.0, 64.0))
+	zone.id = "zone"
+	zone.size = Vector3i(40, 10, 40)
+	var lights_trig := LevelSchema.new_marker("trigger", Vector3(150.0, 34.0, 20.0))
+	lights_trig.id = "lights_trig"
+	lights_trig.size = Vector3i(2, 2, 2)
+	lights_trig.actions = "lights=zone:off"
+	var sprinkle_trig := LevelSchema.new_marker("trigger", Vector3(154.0, 34.0, 20.0))
+	sprinkle_trig.id = "sprinkle_trig"
+	sprinkle_trig.size = Vector3i(2, 2, 2)
+	sprinkle_trig.actions = "sprinkle=zone"
+	for object in [spawn, facility, emergency, zone, lights_trig, sprinkle_trig]:
 		level.objects[object.id] = object
 	# A prop saved before the phase 5 fields existed (no use, contents, door_key, ...).
 	level.objects["old_fridge"] = {kind = "prop", name = "fridge", origin = Vector3i(180, FLOOR, 60), facing = 3, value = 900,
@@ -254,6 +298,197 @@ func _make_level() -> void:
 			and old.get("door_power") == false and old.get("charges") == 3 and old.get("finale_seconds") == 120.0, str(old))
 	_check("int prop fields load as ints", loaded and loaded.objects.medkit.charges is int)
 	_check("text survives the round trip", loaded and loaded.objects.note.text == "Remember the coffee.")
+
+
+## The interactables (prop-build-plan E), on restored power. fired collects the triggers.
+func _interactables(fired: Array) -> void:
+	var play = _lab.play
+	var enemies = _lab.enemies
+
+	# Switch: fires its trigger every time; its `lights=` action cuts the zone's lights.
+	await _aim_at("sw")
+	_check("switch prompt", _prompt_text() == "[E] Pull", _prompt_text())
+	_me.interacted.emit()
+	await _frames(3)
+	_check("switch fires its trigger", fired.count("lights_trig") == 1, str(fired))
+	_check("lights= cuts the room's lights", _energy("light_fac") == 0.0 and play.rules.light_mode("light_fac") == "off",
+			"%.2f" % _energy("light_fac"))
+	_me.interacted.emit()
+	await _frames(3)
+	_check("switch fires every time", fired.count("lights_trig") == 2, str(fired))
+	play.rules.run_action("test", "lights", "zone:on")
+	await _frames(3)
+	_check("lights=...:on brings them back", _energy("light_fac") > 0.0)
+
+	# Vendor: bills the payroll and drops a snack; the glass shot out drops another, billed as damage.
+	await _aim_at("vend")
+	_check("vendor prompt", _prompt_text() == "[E] Buy a snack ($3, billed to payroll)", _prompt_text())
+	_me.interacted.emit()
+	await _frames(3)
+	_check("vending machine charges the payroll", int(play.purchases.get("vending_machine_glass", 0)) == 3, str(play.purchases))
+	_check("and drops a snack", _count_items("snack") == 1, str(_count_items("snack")))
+	_me.teleport(_lab.view.to_world(Vector3(96.0, FLOOR, 100.0)))
+	var vend: AABB = play.box_of("vend")
+	_lab.world_sync.carve_sphere(Vector3(vend.get_center().x, vend.position.y + 1.2, vend.end.z - 0.05), 0.12, 1, Vector3.BACK)
+	await _frames(6)
+	_check("shooting its glass drops another snack", _count_items("snack") == 2, str(_count_items("snack")))
+	_check("billed as damage", int(play.damage_by_name.get("vending_machine_glass_snack", 0)) == 3, str(play.damage_by_name))
+	_me.health = 50.0
+	var snacks: Array = _lab.items.pickups.values().filter(func(p) -> bool: return p.item == "snack")
+	if not snacks.is_empty():
+		_me.teleport(snacks[0].global_position - Vector3.UP * 0.35)
+		await _wait_until(func() -> bool: return _count_items("snack") < snacks.size(), 2.0)
+	_check("a snack heals a little", _me.health >= 50.0 + 15.0 - 0.01, "%.1f" % _me.health)
+	_me.health = _me.max_health
+
+	# Water cooler: the speed buff.
+	await _aim_at("cooler")
+	_me.interacted.emit()
+	await _frames(3)
+	_check("water cooler gives the speed buff", _me.statuses.has("hasted"), str(_me.statuses))
+
+	# Eyewash: clears poisoned and burning.
+	_me.apply_status("poisoned", 10.0)
+	_me.apply_status("burning", 10.0)
+	await _aim_at("eye")
+	_me.interacted.emit()
+	await _frames(3)
+	_check("eyewash clears poisoned and burning", not _me.statuses.has("poisoned") and not _me.statuses.has("burning"), str(_me.statuses))
+	_me.health = _me.max_health
+
+	# Defibrillator: no one down near, so it heals the user.
+	await _aim_at("defib")
+	_check("defib prompt", _prompt_text() == "[E] Defibrillator (2 left)", _prompt_text())
+	_me.take_damage(30.0, _me.global_position)
+	_me.velocity = Vector3.ZERO
+	_me.interacted.emit()
+	await _frames(3)
+	_check("defib with nobody down heals the user", _me.health == _me.max_health and play.state_of("defib").charges == 1,
+			"%.1f, %s" % [_me.health, play.state_of("defib")])
+
+	# Fire extinguisher: E takes it as a foam flask.
+	await _aim_at("ext")
+	_check("extinguisher prompt", _prompt_text() == "[E] Take the extinguisher", _prompt_text())
+	var ext_box: AABB = play.box_of("ext")
+	_me.interacted.emit()
+	var took := await _wait_until(func() -> bool: return _me.inventory.flask_count("foam") == 1, 3.0)
+	_check("E picks the extinguisher up as a foam flask", took and _count_in(ext_box, M.RED_PAINT) == 0,
+			"%d foam, %d red left" % [_me.inventory.flask_count("foam"), _count_in(ext_box, M.RED_PAINT)])
+
+	# The other one, shot: a foam cloud that slows an enemy and clears a spore cloud.
+	_me.teleport(_lab.view.to_world(Vector3(96.0, FLOOR, 100.0)))
+	await _frames(3)
+	var ext2: AABB = play.box_of("ext2")
+	var spore = _lab.enemies.request_cloud("spore", ext2.get_center() + Vector3.RIGHT * 1.5, 2.0, 20.0)
+	var enemy = enemies.spawn("basic", Vector3(ext2.get_center().x - 1.0, ext2.position.y, ext2.get_center().z + 0.8))
+	await _frames(3)
+	_lab.world_sync.carve_sphere(Vector3(ext2.get_center().x, ext2.position.y + 0.3, ext2.end.z - 0.05), 0.12, 4, Vector3.BACK)
+	await _wait_seconds(0.6)
+	var foam: Array = enemies.clouds.values().filter(func(c) -> bool: return c.type == "foam")
+	_check("a shot extinguisher bursts into foam", foam.size() == 1 and _count_in(ext2, M.RED_PAINT) == 0,
+			"%d foam clouds, %d red left" % [foam.size(), _count_in(ext2, M.RED_PAINT)])
+	_check("foam clears the spore cloud", spore == null or not enemies.clouds.values().has(spore))
+	_check("foam slows the enemy", enemy != null and is_instance_valid(enemy) and enemy.has_status("slowed"),
+			"" if enemy == null or not is_instance_valid(enemy) else str(enemy.statuses))
+	if enemy and is_instance_valid(enemy):
+		enemies.despawn(enemy.id)
+
+	# Gas cylinder: shot, it skids away; shot again, it explodes.
+	var gas_rec: Dictionary = play.rules._reactive.get("gas", {})
+	var gas_from: Vector3i = gas_rec.get("origin", Vector3i.ZERO)
+	var gas_box: AABB = _prop_box("gas")
+	_lab.world_sync.carve_sphere(Vector3(gas_box.get_center().x, gas_box.position.y + 0.6, gas_box.end.z - 0.05), 0.12, 4, Vector3.BACK)
+	await _wait_seconds(1.0)
+	gas_rec = play.rules._reactive.get("gas", {})
+	_check("a shot gas cylinder vents and skids", gas_rec.get("vented", false) and gas_rec.get("origin") != gas_from and not gas_rec.get("moving", true),
+			str(gas_rec.get("origin")) + " from " + str(gas_from))
+	if gas_rec.has("origin"):
+		var at: Vector3 = _lab.view.to_world(Vector3(gas_rec.origin) + Vector3(gas_rec.size) * 0.5)
+		_lab.world_sync.carve_sphere(at, 0.3, 4, Vector3.UP)
+		await _frames(3)
+	_check("shot again, it explodes", not play.rules._reactive.has("gas") and play.state_of("gas").used)
+
+	# Flip: the table swaps for its flipped twin.
+	await _aim_at("flip")
+	_check("flip prompt", _prompt_text() == "[E] Flip it for cover", _prompt_text())
+	_me.interacted.emit()
+	await _frames(3)
+	var twin := Props.orient(Props.load_prop("table_flipped"), SOUTH)
+	var standing: int = _lab.world.count_matching(_lab.level.objects.flip.origin, twin.size, twin.voxels)
+	var twin_total := Array(twin.voxels).filter(func(v) -> bool: return v != 0).size()
+	_check("E flips the table for cover", standing == twin_total and play.state_of("flip").used, "%d / %d" % [standing, twin_total])
+	_check("flipping isn't billed", not play.damage_by_name.has("table"), str(play.damage_by_name))
+
+	# Printer: prints its text as a page; picking it up reads it.
+	await _aim_at("printer")
+	_me.interacted.emit()
+	await _frames(3)
+	var page = _pickups(["paper_printer"]).get("paper_printer")
+	_check("the printer prints a page", page != null and play.state_of("printer").used)
+	if page:
+		_me.teleport(page.global_position - Vector3.UP * 0.35)
+		var read := await _wait_until(func() -> bool: return play.reading == "printer", 2.0)
+		_check("picking the page up reads it", read and play.reading_text("printer").begins_with("MEMO"), play.reading)
+		play.close_reading()
+
+	# Radio: a lure while it plays; duck: a lure for a few seconds.
+	await _aim_at("radio")
+	_me.interacted.emit()
+	await _frames(3)
+	var radio_at: Vector3 = play.box_of("radio").get_center()
+	_check("a playing radio lures enemies", play.state_of("radio").get("on", false) and enemies.lure_for(radio_at + Vector3(10, 0, 0)) != null)
+	var walker = enemies.spawn("basic", Vector3(radio_at.x - 6.0, _lab.view.to_world(Vector3(0, FLOOR, 0)).y, radio_at.z + 4.0))
+	_me.editing = true # Not a target: the enemy has no player to see.
+	var before: float = walker.global_position.distance_to(radio_at)
+	await _wait_seconds(1.0)
+	var after: float = walker.global_position.distance_to(radio_at)
+	_check("an enemy that sees nobody goes to the radio", after < before - 1.0, "%.1f -> %.1f" % [before, after])
+	_me.editing = false
+	enemies.despawn(walker.id)
+	await _aim_at("radio")
+	_me.interacted.emit()
+	await _frames(3)
+	_check("turned off, it stops luring", enemies.lure_for(radio_at) == null)
+	await _aim_at("duck")
+	_me.interacted.emit()
+	await _frames(3)
+	_check("a squeaked duck lures for a moment", enemies.lure_for(play.box_of("duck").get_center()) != null)
+
+	# Hanging crate: shoot its chain and it crushes the enemy under it.
+	_me.teleport(_lab.view.to_world(Vector3(96.0, FLOOR, 100.0)))
+	var crate: AABB = _prop_box("crate")
+	var victim = enemies.spawn("basic", Vector3(crate.get_center().x, _lab.view.to_world(Vector3(0, FLOOR, 0)).y, crate.get_center().z))
+	await _frames(3)
+	_lab.world_sync.carve_sphere(Vector3(crate.get_center().x, crate.end.y - 0.6, crate.get_center().z), 0.25, 4, Vector3.DOWN)
+	await _frames(3)
+	_check("a cut-down crate crushes the enemy under it", not is_instance_valid(victim) or not victim.alive,
+			"" if not is_instance_valid(victim) else "%.1f hp, %d wood left in %s" % [victim.health, _count_in(crate, M.WOOD), crate])
+
+	# Sprinklers: clouds in the zone go, its lights flicker, then stop.
+	var gas_cloud = _lab.enemies.request_cloud("poison", _lab.view.to_world(Vector3(60.0, 34.0, 64.0)), 1.0, 20.0)
+	play.triggered.emit("sprinkle_trig", 1)
+	await _frames(4)
+	_check("sprinklers clear the clouds in the room", gas_cloud == null or not enemies.clouds.values().has(gas_cloud))
+	_check("and flicker its lights", play.rules.light_mode("light_fac") == "flicker")
+	await _wait_seconds(play.rules.SPRINKLE_SECONDS + 0.8)
+	_check("then stop", play.rules.light_mode("light_fac") == "" and play.rules._sprinkling.is_empty())
+
+	# A door broken through is on the payroll.
+	var door: AABB = play.box_of("door_pow")
+	_lab.world_sync.carve_sphere(door.get_center(), 0.6, 4, Vector3.BACK)
+	await _frames(2)
+	_check("a forced door goes on the payroll", "door_pow" in play.forced_doors and play.capture().forced_doors == ["door_pow"], str(play.forced_doors))
+	_check("the shift save keeps the purchases", play.capture().purchases.get("vending_machine_glass", 0) == 3)
+
+
+## A prop's box in world space (props with no use have no LevelPlay box).
+func _prop_box(id: String) -> AABB:
+	var box: AABB = LevelSchema.prop_box(_lab.level.objects[id])
+	return AABB(_lab.view.to_world(box.position), box.size * _lab.world.voxel_size)
+
+
+func _count_items(item: String) -> int:
+	return _lab.items.pickups.values().filter(func(p) -> bool: return p.item == item).size()
 
 
 ## Stands 1.6 m in front of a prop or door (on the room floor) and looks at the middle of its box.

@@ -13,11 +13,12 @@ const ITEM_DIR := "res://assets/vox/items/"
 const WEAPONS := ["shroom_shooter", "axe"]
 ## Every pickup with a placeholder (the item marker names these).
 const ITEMS := ["medkit", "ammo_shotgun", "ammo_flame", "ammo_explosive", "ammo_ricochet", "ammo_homing",
-		"ammo_poison", "flask_fire", "flask_poison", "flask_rage", "flask_freeze", "keycard_red", "keycard_blue",
-		"keycard_green", "keycard_black", "spore_shooter"]
+		"ammo_poison", "flask_fire", "flask_poison", "flask_rage", "flask_freeze", "flask_foam", "keycard_red", "keycard_blue",
+		"keycard_green", "keycard_black", "spore_shooter", "snack", "paper"]
 const ITEM_COLORS := {
 	medkit = Color(1.0, 0.25, 0.25), flask_fire = Color(1.0, 0.5, 0.15), flask_poison = Color(0.45, 1.0, 0.3),
-	flask_rage = Color(1.0, 0.2, 0.3), flask_freeze = Color(0.55, 0.85, 1.0), keycard_red = Color(1.0, 0.2, 0.2),
+	flask_rage = Color(1.0, 0.2, 0.3), flask_freeze = Color(0.55, 0.85, 1.0), flask_foam = Color(0.93, 0.95, 0.97),
+	keycard_red = Color(1.0, 0.2, 0.2),
 	keycard_blue = Color(0.25, 0.5, 1.0), keycard_green = Color(0.3, 1.0, 0.4), keycard_black = Color(0.12, 0.12, 0.14),
 }
 
@@ -37,6 +38,8 @@ static func weapon(weapon_name: String) -> Dictionary:
 
 
 static func item(item_name: String) -> Dictionary:
+	if item_name.begins_with("paper_"):
+		item_name = "paper" # A printed page (LevelPlay): every one looks the same.
 	return _load(ITEM_DIR + item_name + ".vox", item_name)
 
 
@@ -155,6 +158,10 @@ static func generate(model_name: String) -> Dictionary:
 		return _flask()
 	if model_name.begins_with("keycard_"):
 		return _keycard()
+	if model_name == "snack":
+		return _snack()
+	if model_name == "paper":
+		return _paper()
 	push_warning("no placeholder model for '%s'" % model_name)
 	return _ammo_box(model_name)
 
@@ -287,6 +294,24 @@ static func _keycard() -> Dictionary:
 	_box(model, Vector3i(0, 0, 0), Vector3i(6, 4, 1), M.PLASTIC)
 	_box(model, Vector3i(0, 2, 0), Vector3i(6, 3, 1), M.GLOW)
 	_box(model, Vector3i(4, 0, 0), Vector3i(5, 1, 1), M.SCREEN)
+	return model
+
+
+## A vending machine snack: a bar in a bright wrapper with crimped ends.
+static func _snack() -> Dictionary:
+	var model := _empty(Vector3i(6, 2, 3))
+	_box(model, Vector3i(1, 0, 0), Vector3i(5, 2, 3), M.WARNING)
+	_box(model, Vector3i(0, 0, 1), Vector3i(6, 1, 2), M.PLASTIC)
+	_box(model, Vector3i(2, 1, 1), Vector3i(4, 2, 2), M.GLOW)
+	return model
+
+
+## A printed page: a white sheet with rows of black type.
+static func _paper() -> Dictionary:
+	var model := _empty(Vector3i(5, 1, 7))
+	_box(model, Vector3i(0, 0, 0), Vector3i(5, 1, 7), M.PLASTIC)
+	for z in range(1, 6, 2):
+		_box(model, Vector3i(1, 0, z), Vector3i(4, 1, z + 1), M.RUBBER)
 	return model
 
 

@@ -80,6 +80,12 @@ func build() -> void:
 	_floor_m2()
 	_floor_m3()
 	_floor_dig()
+	_dress_g()
+	_dress_0()
+	_dress_m1()
+	_dress_m2()
+	_dress_m3()
+	_dress_dig()
 
 
 # --- Helpers ------------------------------------------------------------------------------------
@@ -149,6 +155,13 @@ func wall_prop(room_id: String, name: String, side: String, f: float, up := 12, 
 	props.append({room = room_id, name = name, fx = f, fz = f, facing = P.NORTH, fields = fields, wall = side, up = up})
 
 
+## A prop hanging from room's ceiling (mount "ceiling": ducts, pipes, fixtures), its top flush under
+## the ceiling, at fractions (fx, fz) of the free space; slid along the ceiling to the nearest spot
+## clear of the doorways and the props already placed.
+func ceiling_prop(room_id: String, name: String, fx: float, fz: float, facing := P.NORTH, fields := {}) -> void:
+	props.append({room = room_id, name = name, fx = fx, fz = fz, facing = facing, fields = fields, wall = "", ceiling = true})
+
+
 func marker(type: String, room_id: String, fx: float, fz: float, fields := {}, yaw := 0.0, up := 0) -> Dictionary:
 	var m := {type = type, room = room_id, fx = fx, fz = fz, fields = fields, yaw = yaw, up = up}
 	markers.append(m)
@@ -176,6 +189,28 @@ func spawner(id: String, room_id: String, fx: float, fz: float, kinds: String, r
 	if o.has("up"):
 		fields.up = o.up
 	marker("horde", room_id, fx, fz, fields)
+
+
+## A mycelium node (Mycelium) on room's floor at fractions (fx, fz), or with side on a wall ("n",
+## "e", "s", "w": fx along n / s, fz along e / w) up voxels above the floor, or on the ceiling
+## ("ceiling"). fields: radius, reach, links, sag, glow, spread (LevelSchema), id.
+## The node sits in the last voxel of air against the wall or ceiling (on the far sides too, so links
+## between nodes on one wall run through air along it, not inside the wall).
+func mycelium(room_id: String, fx: float, fz: float, fields := {}, up := 0, side := "") -> Dictionary:
+	var r: Dictionary = rooms.get(room_id, {})
+	var extent: Vector3i = r.to - r.from if not r.is_empty() else Vector3i(CELL, H, CELL)
+	match side:
+		"n":
+			fz = 0.0
+		"s":
+			fz = 1.0 - 1.0 / extent.z
+		"w":
+			fx = 0.0
+		"e":
+			fx = 1.0 - 1.0 / extent.x
+		"ceiling":
+			up = extent.y - 1
+	return marker("mycelium", room_id, fx, fz, fields, 0.0, up)
 
 
 func item(room_id: String, fx: float, fz: float, item_name: String, up := 0) -> void:
@@ -279,7 +314,8 @@ func _floor_g() -> void:
 	prop("yard", "plank_stack", 0.8, 0.9)
 	prop("gatehouse", "desk_empty", 0.5, 0.2, P.SOUTH, {id = "desk_gatehouse"})
 	prop("gatehouse", "chair", 0.5, 0.05, P.SOUTH)
-	prop("gatehouse", "terminal", 0.5, 0.5, P.SOUTH, {on = "desk_gatehouse", text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
+	prop("gatehouse", "terminal", 0.0, 0.5, P.SOUTH, {on = "desk_gatehouse", text = "FUNG AI  |  SITE 3  |  NIGHT SHIFT SIGN-IN\n\nDuty: monitor the migration. Do not enter the grow rooms. Do not touch the specimens.\n\nSigned in: you.", id = "term_g_signin", on_use = "say_signin"})
+	prop("gatehouse", "rubber_duck", 1.0, 0.5, P.SOUTH, {on = "desk_gatehouse", id = "duck_gatehouse"})
 	prop("gatehouse", "locker", 0.9, 0.3, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.42, P.WEST)
 	prop("gatehouse", "locker", 0.9, 0.54, P.WEST)
@@ -352,13 +388,14 @@ func _floor_0() -> void:
 	wall_prop("lobby", "corkboard_tall", "w", 0.5, 12, {use = "note", text = "HANG IN THERE.\n\n(The cat is also a Fung AI asset. $40.)"})
 	wall_prop("lobby", "vent_grate", "n", 0.85, 22)
 	prop("security", "desk", 0.5, 0.15, P.SOUTH)
-	prop("security", "chair", 0.5, 0.0, P.SOUTH)
+	prop("security", "executive_chair", 0.5, 0.0, P.SOUTH)
 	prop("security", "terminal", 0.05, 0.6, P.EAST, {text = "CAMERA FEEDS\nGrow 0: no change detected.\nGrow hall 1: no change detected.\nGrow hall 2: no change detected.\nIncubation: no change detected.\nServer hall: no change de--\n\n[feed lost]"})
 	prop("security", "locker", 0.95, 0.5, P.WEST)
 	prop("security", "locker", 0.95, 0.65, P.WEST)
 	item("security", 0.5, 0.35, "keycard_blue")
-	prop("lift_lobby", "crate_6", 0.9, 0.9)
-	prop("lift_lobby", "crate_5", 0.8, 0.9)
+	# The north-east corner: every other wall has a door (the fire door to the bathrooms is south).
+	prop("lift_lobby", "crate_6", 1.0, 0.0)
+	prop("lift_lobby", "crate_5", 0.87, 0.0)
 	wall_prop("lift_lobby", "corkboard_small", "n", 0.5, 14, {use = "note", text = "CARGO LIFT: blue clearance. Max 800 kg. Out of order since Tuesday (sorry).\n\nBlue cards are kept in the Security office, through the north door."})
 	for i in 4:
 		prop("open_office", "desk", 0.1 + 0.25 * i, 0.2, P.SOUTH)
@@ -611,9 +648,7 @@ func _floor_m2() -> void:
 	vat("vat_m2_lobby", "stair_lobby_m2", 0.4, 0.4, 0.0)
 	prop("network_closet", "cabinet", 0.5, 0.05, P.SOUTH, {contents = "ammo_ricochet"})
 	wall_prop("network_closet", "vent_grate", "e", 0.5, 20)
-	for row in 4:
-		for i in 5:
-			prop("server_hall", "shelf_storage_a" if (row + i) % 2 == 0 else "shelf_storage_b", 0.05 + 0.19 * i, 0.12 + 0.26 * row, P.SOUTH if row % 2 == 0 else P.NORTH)
+	# The racks are in _dress_m2.
 	wall_prop("server_hall", "vent_grate", "n", 0.15, 22)
 	wall_prop("server_hall", "vent_grate", "s", 0.9, 22)
 	prop("server_hall", "terminal", 0.98, 0.5, P.WEST, {text = "ARRAY B STATUS\nResident weights: 100%\nSubstrate temp: 31 C (rising)\nPulse sync: ALL RACKS\n\n> hello?\n> hello\n> who is this\n> you pressed the button. thank you."})
@@ -640,9 +675,9 @@ func _floor_m2() -> void:
 	prop("inference_lab", "lab_table_gear", 0.15, 0.85, P.NORTH)
 	prop("inference_lab", "vial_cabinet", 0.85, 0.98, P.NORTH)
 	wall_prop("inference_lab", "whiteboard", "s", 0.5, 14, {use = "note", text = "Q: what happens to the model if the substrate is already thinking?\nA: (nobody wrote an answer)"})
-	prop("electrical", "cabinet", 0.1, 0.05, P.SOUTH)
-	prop("electrical", "cabinet", 0.25, 0.05, P.SOUTH)
-	prop("electrical", "cabinet", 0.4, 0.05, P.SOUTH)
+	prop("electrical", "electrical_cabinet", 0.1, 0.05, P.SOUTH)
+	prop("electrical", "electrical_cabinet", 0.25, 0.05, P.SOUTH)
+	prop("electrical", "electrical_cabinet", 0.4, 0.05, P.SOUTH)
 	prop("electrical", "terminal", 0.8, 0.5, P.WEST, {needs_power = true, text = "MAIN BREAKER: facility power restored."})
 	wall_prop("electrical", "corkboard_small", "s", 0.5, 14, {use = "note", text = "On backup: the breaker panel is dead. Facility power comes back from the GENERATOR on level -4 (the dig). Take the containment stairs."})
 	prop("ops", "desk", 0.5, 0.15, P.SOUTH)
@@ -660,14 +695,14 @@ func _floor_m2() -> void:
 		prop("bullpen", "desk", 0.08 + 0.3 * i, 0.15, P.SOUTH)
 		prop("bullpen", "chair", 0.08 + 0.3 * i, 0.02, P.SOUTH)
 	prop("bullpen", "couch", 0.1, 0.85, P.NORTH)
-	prop("bullpen", "drawer_desk", 0.5, 0.85, P.NORTH, {contents = "medkit"})
+	prop("bullpen", "drawer_desk", 0.5, 0.85, P.NORTH, {contents = "medkit", id = "drawer_bullpen"})
 	wall_prop("bullpen", "whiteboard", "n", 0.5, 14, {use = "note", text = "ON CALL: nobody. Fung says the model will handle it."})
 	wall_prop("bullpen", "medkit_station", "e", 0.5, 0, {charges = 3})
 	wall_prop("bullpen", "vent_grate", "s", 0.9, 22)
 	vat("vat_m2", "bullpen", 0.75, 0.6, 180.0)
 	wall_prop("bullpen", "corkboard_small", "s", 0.6, 14, {use = "note", text = "DECON AIRLOCK: red clearance.\n\nRed cards: the Ops room, off the east end of the server hall."})
 	prop("break_room_2", "fridge", 0.1, 0.1, P.SOUTH, {contents = "medkit"})
-	prop("break_room_2", "vending_machine", 0.3, 0.1, P.SOUTH)
+	prop("break_room_2", "vending_machine", 0.3, 0.1, P.SOUTH, {price = 3, contents = "snack"})
 	prop("break_room_2", "table_small", 0.6, 0.6, P.NORTH)
 	prop("break_room_2", "stool", 0.5, 0.75)
 	prop("break_room_2", "stool", 0.75, 0.75)
@@ -959,9 +994,568 @@ func _floor_dig() -> void:
 	trigger("t_m3_cage_foot", "cage_shaft", "close=d_m3_cage,lock=d_m3_cage," + off_floors(["m3"]), {who = "all", fx = 0.8, fz = 0.53, w = 24, d = 30})
 	trigger("t_m4_drift", "drift", "on=s_m4_drift_1,on=s_m4_drift_2", {fx = 0.5, fz = 0.5, w = 40, d = 26})
 	trigger("t_m4_cavern", "cavern", "on=s_m4_cav_4,on=s_m4_cav_5", {fx = 0.5, fz = 0.5, w = 80, d = 150})
-	trigger("t_m4_mother_dead", "cavern", "off=s_m4_cav_4,off=s_m4_cav_5", {nowhere = true})
+	trigger("t_m4_mother_dead", "cavern", "off=s_m4_cav_4,off=s_m4_cav_5,wither", {nowhere = true})
 	trigger("t_m4_generator", "generator_hall", "", {nowhere = true})
 	trigger("finale_survived", "generator_hall", "unlock=d_m4_exit,open=d_m4_exit", {nowhere = true, fx = 0.1, fz = 0.1})
 	trigger("ending", "elevator", "", {who = "all"})
 	speaker("cavern", 0.5, 0.5)
 	speaker("generator_hall", 0.5, 0.5)
+
+
+# --- Dressing pass 2 (docs/prop-build-plan.md F) -----------------------------------------------------
+#
+# Ceilings (ducts in route rooms, pipes in the plant and grow rooms, cable trays in compute, tile
+# grids in admin), room sets, corridor signage, story dressing by floor and the mycelium. The
+# camouflage rule: every on_ceiling spawner hangs under a cluster of duct_insulated with a
+# service_hatch beside it, and as many clusters again hang where nothing spawns, so a lagged duct
+# means "maybe" and a plain ceiling means safe. Ceiling runs keep to the walls (2 voxels in), clear
+# of the light fixtures on the rooms' center lines; ceilings over the stairs, the cage shaft and
+# the lift shaft stay bare. Mycelium nodes keep 15 voxels or more off every doorway and their reach
+# is under the gap, so no link runs through a door.
+# Nodes on facing walls of a corridor sit at different heights, out of each other's reach, so no
+# link spans the way through. Extinguisher cabinets (which hold a flask_foam) hang a voxel off the
+# floor, where tests/laboratory_test.gd's walk reaches them.
+
+## Overgrown twins (story_pack.gd TWINS) that a third of containment's furniture turns into.
+const OVERGROWN := ["desk", "chair", "locker", "terminal", "shelf_storage_a", "table", "couch"]
+## Poster scheme by floor, lighter at the top (story_pack.gd SCHEMES), and their lines.
+const POSTERS := {
+	g = ["a", "FUNG AI\nBecause you are replaceable."],
+	f0 = ["b", "SMILE.\nYour clone is watching."],
+	m1 = ["c", "GROW WITH US.\nThe substrate is a team player. Masks on: spores are billable."],
+	m2 = ["d", "THE MODEL IS LISTENING.\nSo is accounting."],
+	m3 = ["e", "CONTAINMENT IS A STATE OF MIND.\nYou are 70% water. The substrate is 70% you."],
+	dig = ["f", "IT KNOWS YOUR NAME."],
+}
+
+var _sizes := {}
+
+
+func _size_of(prop_name: String, facing: int) -> Vector3i:
+	var key := "%s:%d" % [prop_name, facing % 2]
+	if not _sizes.has(key):
+		_sizes[key] = Vector3i(LevelSchema.prop_box({kind = "prop", name = prop_name, origin = Vector3i.ZERO, facing = facing}).size)
+	return _sizes[key]
+
+
+func _extent(room_id: String) -> Vector3i:
+	var r: Dictionary = rooms[room_id]
+	return r.to - r.from
+
+
+static func _share(offset: float, free: int) -> float:
+	return 0.0 if free <= 0 else clampf(offset / free, 0.0, 1.0)
+
+
+## A floor prop with its west / north corner at voxel offsets (ox, oz) from the room's.
+func prop_at(room_id: String, prop_name: String, ox: int, oz: int, facing := P.NORTH, fields := {}) -> void:
+	var free := _extent(room_id) - _size_of(prop_name, facing)
+	prop(room_id, prop_name, _share(ox, free.x), _share(oz, free.z), facing, fields)
+
+
+## A ceiling prop with its west / north corner at voxel offsets (ox, oz) from the room's.
+func ceiling_at(room_id: String, prop_name: String, ox: int, oz: int, facing := P.NORTH, fields := {}) -> void:
+	var free := _extent(room_id) - _size_of(prop_name, facing)
+	ceiling_prop(room_id, prop_name, _share(ox, free.x), _share(oz, free.z), facing, fields)
+
+
+## A wall prop on side, `along` voxels from that wall's west / north end, up voxels off the floor.
+func wall_at(room_id: String, prop_name: String, side: String, along: int, up := 12, fields := {}) -> void:
+	var size := _size_of(prop_name, {n = P.SOUTH, s = P.NORTH, e = P.WEST, w = P.EAST}[side])
+	var ext := _extent(room_id)
+	wall_prop(room_id, prop_name, side, _share(along, (ext.x - size.x) if side in ["n", "s"] else (ext.z - size.z)), up, fields)
+
+
+## A wall prop centered on an absolute coordinate along its wall (over a door: up 23 clears it).
+func wall_over(room_id: String, prop_name: String, side: String, center: int, up := 23, fields := {}) -> void:
+	var r: Dictionary = rooms[room_id]
+	var size := _size_of(prop_name, P.NORTH)
+	wall_at(room_id, prop_name, side, center - (r.from.x if side in ["n", "s"] else r.from.z) - size.x / 2, up, fields)
+
+
+## A run of 10-voxel ceiling modules (ceiling_pack.gd): along "x" (facing north: a riser's at the
+## west end, an end grille's at the east) or "z" (facing east: riser north, grille south), `across`
+## voxels in from the north (x runs) or west (z runs) wall, from `start` voxels along. "" skips one.
+func ceiling_run(room_id: String, axis: String, across: int, start: int, pieces: Array) -> void:
+	for i in pieces.size():
+		if pieces[i] == "":
+			continue
+		var along := start + 10 * i
+		if axis == "x":
+			ceiling_at(room_id, pieces[i], along, across, P.NORTH)
+		else:
+			ceiling_at(room_id, pieces[i], across, along, P.EAST)
+
+
+## count modules of a run: `first`, the middle ones `middle` (or swap[i]), `last`.
+func _pieces(count: int, first: String, middle: String, last: String, swap := {}) -> Array:
+	var out := []
+	for i in count:
+		out.append(swap.get(i, first if i == 0 else (last if i == count - 1 else middle)))
+	return out
+
+
+## A duct run: a riser out of the ceiling, straights (swap: module index -> another piece, such as
+## duct_drip, duct_tee or duct_insulated), an end grille.
+func duct_run(room_id: String, axis: String, across: int, start: int, count: int, swap := {}) -> void:
+	ceiling_run(room_id, axis, across, start, _pieces(count, "duct_riser", "duct_straight", "duct_end_grille", swap))
+
+
+func pipe_run(room_id: String, axis: String, across: int, start: int, count: int, valves := []) -> void:
+	var swap := {}
+	for i: int in valves:
+		swap[i] = "pipe_valve"
+	ceiling_run(room_id, axis, across, start, _pieces(count, "pipe_bundle_straight", "pipe_bundle_straight", "pipe_bundle_straight", swap))
+
+
+func tray_run(room_id: String, axis: String, across: int, start: int, count: int, sags := []) -> void:
+	var swap := {}
+	for i: int in sags:
+		swap[i] = "cable_tray_sag"
+	ceiling_run(room_id, axis, across, start, _pieces(count, "cable_tray_straight", "cable_tray_straight", "cable_tray_straight", swap))
+
+
+## A suspended ceiling: 20-voxel tile pieces over cols x rows cells from (ox, oz), leaving out the
+## `holes` (Vector2i cells, where the troffers go: LabBuilder hangs them after the props) and
+## swapping in missing and hanging tiles.
+func tile_grid(room_id: String, ox: int, oz: int, cols: int, rows: int, holes := [], missing := [], hanging := []) -> void:
+	for row in rows:
+		for col in cols:
+			var cell := Vector2i(col, row)
+			if cell in holes:
+				continue
+			var piece := "ceiling_tile_missing" if cell in missing else ("ceiling_tile_hanging" if cell in hanging else "ceiling_tile_grid")
+			ceiling_at(room_id, piece, ox + 20 * col, oz + 20 * row)
+
+
+## Mycelium nodes evenly along a wall from f0 to f1 (fractions along it), at heights cycling
+## through ups.
+func vein(room_id: String, side: String, f0: float, f1: float, count: int, ups: Array, fields: Dictionary) -> void:
+	for i in count:
+		var f := lerpf(f0, f1, float(i) / maxf(count - 1, 1))
+		mycelium(room_id, f, f, fields, int(ups[i % ups.size()]), side)
+
+
+## Mycelium nodes on a room's ceiling at fractions [fx, fz] (hanging tendrils with sag).
+func tendrils(room_id: String, spots: Array, fields: Dictionary) -> void:
+	for s: Array in spots:
+		mycelium(room_id, s[0], s[1], fields, 0, "ceiling")
+
+
+func poster(room_id: String, side: String, along: int, floor_key: String, up := 10) -> void:
+	wall_at(room_id, "poster_fung_" + POSTERS[floor_key][0], side, along, up, {use = "note", text = POSTERS[floor_key][1]})
+
+
+## A third of containment's furniture (every third of the twinned kinds, in layout order) turns
+## into its overgrown twin.
+func _overgrow(room_ids: Array) -> int:
+	var seen := 0
+	var swapped := 0
+	for p: Dictionary in props:
+		if p.room not in room_ids or p.name not in OVERGROWN or p.get("ceiling", false):
+			continue
+		seen += 1
+		if seen % 3 == 1:
+			p.name = p.name + "_overgrown"
+			swapped += 1
+	return swapped
+
+
+static func _many(prop_name: String, count: int) -> Array:
+	var out := []
+	for i in count:
+		out.append(prop_name)
+	return out
+
+
+## A ceiling spawner's camouflage (or a decoy's): two parallel runs of duct_insulated, `count`
+## modules each along x from ox, at oz and oz + gap (gap 0: one run), with a service hatch between
+## them at hatch_x (none when hatch_x < 0).
+func lagging(room_id: String, ox: int, oz: int, count: int, gap: int, hatch_x := -1) -> void:
+	ceiling_run(room_id, "x", oz, ox, _many("duct_insulated", count))
+	if gap > 0:
+		ceiling_run(room_id, "x", oz + gap, ox, _many("duct_insulated", count))
+	if hatch_x >= 0:
+		ceiling_at(room_id, "service_hatch", hatch_x, oz + 11)
+
+
+func _dress_g() -> void:
+	# The gatehouse: a guard desk at the back, a turnstile bank and a metal detector south of the
+	# walk from the yard to the blast door, the panel by the yard, a badge reader by the blast door.
+	duct_run("gatehouse", "z", 46, 4, 10)
+	ceiling_at("gatehouse", "security_camera", 2, 100, P.EAST)
+	prop_at("gatehouse", "guard_desk", 19, 103, P.NORTH, {id = "guard_desk_g"})
+	prop_at("gatehouse", "executive_chair", 27, 116, P.NORTH)
+	prop_at("gatehouse", "turnstile", 14, 88, P.WEST)
+	prop_at("gatehouse", "turnstile", 14, 99, P.WEST)
+	prop_at("gatehouse", "metal_detector_gate", 25, 88, P.WEST)
+	prop_at("gatehouse", "gatehouse_panel", 0, 2, P.EAST)
+	wall_at("gatehouse", "badge_reader", "e", 42, 12)
+	wall_at("gatehouse", "extinguisher_cabinet", "w", 100, 1)
+	poster("gatehouse", "e", 60, "g")
+	# The yard: a barrier arm across the lorry lane, bollards by the gatehouse door, the mascot.
+	prop_at("yard", "barrier_arm", 80, 82, P.NORTH)
+	prop_at("yard", "bollard", 108, 30)
+	prop_at("yard", "bollard", 108, 92)
+	prop_at("yard", "mascot_standee", 100, 104, P.WEST, {use = "note", text = "FUNGI THE FUNG AI MUSHROOM says: WELCOME TO SITE 3!\n(Fungi is a Fung AI asset. Hugging Fungi is $15.)"})
+	prop_at("yard", "dumpster", 2, 60, P.EAST)
+
+
+func _dress_0() -> void:
+	# The alarm pull: a fire door from the bathrooms to the cargo lift lobby releases (a shortcut
+	# back from the break room to the lift); after the outbreak it also calls a horde.
+	door("bathrooms", "lift_lobby", "door_single", {id = "d_0_fire", locked = true})
+	wall_at("lobby", "alarm_pull", "s", 20, 12, {id = "alarm_lobby", on_use = "t_0_alarm"})
+	trigger("t_0_alarm", "lobby", "unlock=d_0_fire,open=d_0_fire", {nowhere = true, fx = 0.1, fz = 0.9})
+	wall_at("lift_lobby", "corkboard_small", "s", 2, 14, {use = "note", text = "FIRE DOOR (to the bathrooms): opens on the fire alarm only. The alarm is in the lobby. Pulling it is billed."})
+	# Lobby: the payroll ticker over the reception desk, a duct with a branch, signs and posters.
+	wall_at("lobby", "payroll_ticker", "n", 49, 18, {id = "payroll_ticker"})
+	duct_run("lobby", "x", 2, 4, 11, {5: "duct_tee"})
+	ceiling_run("lobby", "z", 54, 12, ["duct_straight", "duct_straight", "duct_straight", "duct_end_grille"])
+	ceiling_at("lobby", "security_camera", 117, 2, P.SOUTH)
+	wall_at("lobby", "extinguisher_cabinet", "s", 30, 1)
+	wall_over("lobby", "exit_sign", "w", 170)
+	wall_at("lobby", "room_plate_101", "w", 48, 14)
+	poster("lobby", "n", 14, "f0")
+	poster("lobby", "s", 100, "f0")
+	prop_at("lobby", "wet_floor_sign", 31, 100)
+	# Admin's suspended ceilings: 20-voxel tiles with the middle cell left for the troffer.
+	for id: String in ["stair_lobby_0", "lift_lobby", "security", "manager"]:
+		tile_grid(id, 0, 0, 3, 3, [Vector2i(1, 1)], [Vector2i(2, 0)] if id != "manager" else [], [Vector2i(0, 2)] if id == "security" else [])
+	wall_at("stair_lobby_0", "evac_map", "n", 20, 12)
+	# Security: the executive suite Fung keeps for himself.
+	prop_at("security", "trophy_shelf", 40, 0, P.SOUTH, {use = "note", text = "EMPLOYEE OF THE MONTH: Guy Fung (x 31)"})
+	prop_at("security", "drinks_cabinet", 4, 0, P.SOUTH)
+	prop_at("security", "globe", 2, 44)
+	prop_at("manager", "potted_tree", 2, 2)
+	prop_at("manager", "safe", 50, 2, P.SOUTH)
+	# The open-plan office.
+	duct_run("open_office", "z", 112, 4, 9)
+	prop_at("open_office", "printer_station", 60, 115, P.NORTH)
+	prop_at("open_office", "filing_cabinet_4", 2, 100, P.EAST)
+	prop_at("open_office", "filing_cabinet_4", 2, 106, P.EAST)
+	prop_at("open_office", "coat_rack", 2, 115)
+	prop_at("open_office", "potted_tree", 115, 2)
+	prop_at("open_office", "cubicle_partition_straight", 20, 44, P.NORTH)
+	prop_at("open_office", "cubicle_partition_straight", 60, 44, P.NORTH)
+	wall_at("open_office", "org_chart", "n", 85, 12, {text = "FUNG AI ORG CHART\nGuy Fung, CEO\n  Guy Fung, CFO\n    Guy Fung, Head of People\n      You (night shift)"})
+	wall_at("open_office", "employee_board", "e", 40, 12, {text = "EMPLOYEE OF THE MONTH\nJanuary: Clone #4\nFebruary: Clone #9\nMarch: Clone #9 (posthumous)"})
+	wall_at("open_office", "mission_statement", "e", 80, 14, {text = "OUR MISSION: to make the model think, so that you don't have to."})
+	# The break room: the cafeteria counter, the priced vending machines, a cot, the operator wall by
+	# the first vat.
+	duct_run("break_room", "x", 2, 4, 8)
+	prop_at("break_room", "counter_serving", 92, 2, P.SOUTH, {id = "counter_break"})
+	prop("break_room", "tray_stack", 0.1, 0.5, P.SOUTH, {on = "counter_break"})
+	prop_at("break_room", "vending_machine", 117, 20, P.WEST, {price = 4, contents = "snack"})
+	prop_at("break_room", "vending_machine_glass", 117, 31, P.WEST, {price = 5, contents = "snack"})
+	prop_at("break_room", "cot", 8, 44)
+	wall_at("break_room", "operator_photo_wall", "s", 6, 4, {id = "operator_wall", text = "NIGHT SHIFT OPERATORS, SITE 3\n\nThirty-one photos. Thirty-one of them are you. The newest one is still blank, with a name tag: yours."})
+	poster("break_room", "s", 108, "f0")
+	duct_run("training", "x", 2, 4, 8)
+	poster("training", "w", 40, "f0")
+	pipe_run("grow_0", "x", 2, 4, 11, [5])
+	# Bathrooms: three stalls along the west wall, urinals, a sink and a dryer, an extractor fan.
+	for i in 3:
+		prop_at("bathrooms", "toilet_stall", 0, 14 + 10 * i, P.EAST)
+	wall_at("bathrooms", "urinal", "s", 3, 4)
+	wall_at("bathrooms", "urinal", "s", 9, 4)
+	wall_at("bathrooms", "sink_mirror", "w", 47, 8)
+	wall_at("bathrooms", "hand_dryer", "s", 51, 10)
+	ceiling_at("bathrooms", "extractor_fan", 46, 46)
+	prop_at("cubby", "mop_bucket", 20, 30)
+
+
+func _dress_m1() -> void:
+	duct_run("dock", "z", 2, 4, 11, {6: "duct_drip"})
+	# A crate on a chain over the dock: shoot the chain on the horde from the substrate store.
+	ceiling_at("dock", "crate_hanging", 44, 50, P.NORTH, {id = "crate_hanging_dock"})
+	wall_at("dock", "extinguisher_cabinet", "e", 90, 1)
+	poster("dock", "e", 105, "m1")
+	duct_run("substrate_store", "x", 2, 30, 8)
+	ceiling_at("substrate_store", "vent_diffuser", 86, 44)
+	pipe_run("grow_hall_1", "z", 2, 20, 14, [6])
+	ceiling_at("grow_hall_1", "vent_diffuser", 58, 90)
+	lagging("grow_hall_1", 70, 100, 3, 0) # A decoy: lagging with nothing behind it.
+	duct_run("wet_lab", "x", 2, 4, 9)
+	prop_at("wet_lab", "gas_cylinder", 4, 122)
+	prop_at("wet_lab", "gas_cylinder", 9, 122)
+	prop_at("wet_lab", "gas_cylinder_oxygen", 14, 122)
+	wall_at("wet_lab", "eyewash_station", "s", 24, 8)
+	poster("wet_lab", "e", 20, "m1")
+	duct_run("incubation", "x", 2, 4, 9, {4: "duct_insulated", 5: "duct_insulated"})
+	duct_run("clean_room", "x", 2, 4, 5)
+	for i in 2:
+		prop_at("bathroom_m1", "toilet_stall", 50, 4 + 10 * i, P.WEST)
+	wall_at("bathroom_m1", "sink_mirror", "n", 25, 8)
+	wall_at("bathroom_m1", "urinal", "n", 40, 4)
+	ceiling_at("bathroom_m1", "extractor_fan", 6, 46)
+	pipe_run("grow_hall_2", "x", 2, 4, 11, [5])
+	# Past the outbreak: the mycology office barricaded and turned over.
+	prop_at("mycology", "barricade_door", 40, 0, P.SOUTH)
+	prop_at("mycology", "overturned_table", 40, 44)
+	wall_at("mycology", "scratched_note", "w", 48, 12, {text = "it tapped back in my voice\nit tapped back in my voice\nit tapped back in my"})
+	duct_run("clone_bay_m1", "z", 48, 4, 5)
+	prop_at("clone_bay_m1", "clone_vat_occupied", 4, 34, P.NORTH, {use = "note", text = "CLONE #30. Grown 02:14. Not yet billed."})
+	wall_over("clone_bay_m1", "exit_sign", "w", rooms.stair_m1_m2.top_center)
+	# Mycelium, light: two small clusters hanging round ceiling vents, a film in grow hall 2.
+	var small := {radius = 2.5, reach = 18, links = 2, sag = 0.5, glow = 0.35}
+	tendrils("substrate_store", [[0.72, 0.8], [0.66, 0.72], [0.79, 0.7]], small)
+	tendrils("grow_hall_1", [[0.44, 0.5], [0.52, 0.45], [0.55, 0.54]], small)
+	mycelium("grow_hall_2", 0.37, 0.5, {radius = 2.0, links = 0, glow = 0.4, spread = 26})
+	mycelium("grow_hall_2", 0.45, 0.93, {radius = 2.0, links = 0, glow = 0.4, spread = 20})
+
+
+func _dress_m2() -> void:
+	duct_run("stair_lobby_m2", "x", 2, 4, 5)
+	wall_at("stair_lobby_m2", "extinguisher_cabinet", "n", 2, 1)
+	wall_at("stair_lobby_m2", "evac_map", "s", 2, 12)
+	wall_over("stair_lobby_m2", "exit_sign", "w", rooms.stair_m1_m2.bottom_center)
+	wall_at("network_closet", "patch_panel", "w", 10, 12)
+	prop_at("network_closet", "ups_cabinet", 30, 2)
+	# The server hall: four rows of racks in hot and cold aisles, CRAC units, lifted floor tiles,
+	# cable trays down the north side, a duct (lagged in the middle, a decoy) down the south.
+	var kinds := ["server_rack_open", "server_rack_open", "server_rack_closed", "server_rack_open", "server_rack_dead", "server_rack_closed"]
+	var n := 0
+	for row in 4:
+		for group in (4 if row < 3 else 2):
+			for k in 3:
+				prop_at("server_hall", kinds[n % kinds.size()], 20 + 55 * group + 10 * k, 14 + 26 * row, P.SOUTH if row % 2 == 0 else P.NORTH)
+				n += 1
+	prop_at("server_hall", "crac_unit", 235, 40, P.WEST)
+	prop_at("server_hall", "crac_unit", 2, 70, P.EAST)
+	prop_at("server_hall", "cable_cage", 60, 115, P.NORTH)
+	prop_at("server_hall", "tape_library", 160, 115, P.NORTH)
+	prop_at("server_hall", "ups_cabinet", 237, 70, P.WEST)
+	prop_at("server_hall", "floor_tile_lifted", 60, 26)
+	prop_at("server_hall", "floor_tile_lifted", 150, 54)
+	prop_at("server_hall", "floor_tile", 100, 28)
+	prop_at("server_hall", "floor_tile", 160, 56)
+	wall_at("server_hall", "patch_panel", "n", 100, 12)
+	wall_at("server_hall", "room_plate_204", "e", 62, 14)
+	tray_run("server_hall", "x", 2, 15, 18, [4, 11, 16])
+	duct_run("server_hall", "x", 113, 60, 10, {3: "duct_insulated", 4: "duct_insulated"})
+	poster("server_hall", "w", 70, "m2")
+	# The cooling plant: tanks, pumps, a pipe gallery, the gas cylinders, pipes overhead, and the
+	# ceiling cloud's lagging (s_m2_cool_2) with its hatch.
+	prop_at("cooling_plant", "water_tank_round", 22, 30)
+	prop_at("cooling_plant", "water_tank_round", 89, 30)
+	prop_at("cooling_plant", "pump_housing", 95, 56, P.WEST)
+	prop_at("cooling_plant", "pump_housing", 95, 72, P.WEST)
+	prop_at("cooling_plant", "valve_stand", 40, 60)
+	prop_at("cooling_plant", "compressor", 40, 2, P.SOUTH)
+	for i in 3:
+		prop_at("cooling_plant", "pipe_gallery_segment", 115, 63 + 10 * i, P.EAST)
+	prop_at("cooling_plant", "gas_cylinder", 0, 24)
+	prop_at("cooling_plant", "gas_cylinder", 0, 29)
+	prop_at("cooling_plant", "gas_cylinder_oxygen", 0, 34)
+	pipe_run("cooling_plant", "x", 2, 4, 12, [3, 8])
+	pipe_run("cooling_plant", "x", 113, 4, 12, [6])
+	lagging("cooling_plant", 37, 46, 5, 24, 57)
+	# Inference, electrical, ops, the archive.
+	duct_run("inference_lab", "x", 2, 4, 8)
+	wall_at("electrical", "breaker_panel", "n", 57, 10, {id = "breaker_electrical"})
+	wall_at("electrical", "fuse_box", "n", 70, 12)
+	wall_at("electrical", "junction_box", "s", 30, 14)
+	prop_at("electrical", "transformer", 67, 48, P.NORTH)
+	tray_run("electrical", "x", 2, 4, 10, [5])
+	tray_run("ops", "z", 2, 4, 11, [3, 8])
+	prop_at("ops", "printer_station", 53, 46, P.WEST, {id = "printer_ops", text = "PRINT JOB 1 of 1 (Ops)\n\nINCIDENT REPORT, 02:14\nCause: model migration.\nInjuries: all.\nCost centre: night shift.\n\n(The toner was billed to you.)"})
+	prop_at("ops", "overturned_desk", 18, 100, P.NORTH)
+	duct_run("archive", "x", 2, 60, 6)
+	prop_at("archive", "tape_library", 110, 2, P.SOUTH)
+	prop_at("archive", "tape_library", 110, 20, P.NORTH)
+	wall_at("archive", "scratched_note", "s", 20, 12, {text = "THE TAPES ARE WARM"})
+	# The bullpen: printers and filing cabinets, a radio on the drawer desk.
+	prop_at("bullpen", "copier", 52, 0, P.SOUTH)
+	prop_at("bullpen", "filing_cabinet_4", 36, 54, P.NORTH)
+	prop_at("bullpen", "filing_cabinet_4", 42, 54, P.NORTH)
+	prop_at("bullpen", "filing_cabinet_2", 48, 54, P.NORTH)
+	prop("bullpen", "radio", 0.8, 0.5, P.NORTH, {on = "drawer_bullpen"})
+	duct_run("bullpen", "x", 2, 4, 6, {2: "duct_insulated", 3: "duct_insulated"})
+	poster("bullpen", "s", 84, "m2", 6)
+	prop_at("break_room_2", "overturned_table", 6, 44)
+	prop_at("break_room_2", "cot", 38, 50)
+	prop_at("break_room_2", "barricade_door", 46, 0, P.SOUTH)
+	# The airlock's decon racks.
+	prop_at("airlock", "hazmat_suit_rack", 8, 55, P.NORTH)
+	prop_at("airlock", "hazmat_locker", 0, 46, P.EAST)
+	prop_at("airlock", "sprayer", 25, 46, P.WEST)
+	wall_at("airlock", "hazmat_sign", "s", 11, 24)
+	duct_run("airlock", "z", 2, 4, 5)
+	# Mycelium, veins: along the server hall's north wall and the east end of its south wall, round
+	# the inference lab's walls; one hanging cluster in the cooling plant.
+	var veins := {radius = 2.5, reach = 30, links = 2, glow = 0.7}
+	vein("server_hall", "n", 0.08, 0.64, 8, [8, 18, 12, 24], veins)
+	# East of the inference lab: nodes on the two faces of one wall would link through it.
+	vein("server_hall", "s", 0.78, 0.95, 3, [10, 20], veins)
+	vein("inference_lab", "n", 0.04, 0.28, 3, [10, 20], veins)
+	vein("inference_lab", "n", 0.72, 0.96, 3, [20, 10], veins)
+	vein("inference_lab", "s", 0.62, 0.92, 3, [12, 22], veins)
+	tendrils("cooling_plant", [[0.88, 0.18], [0.95, 0.25], [0.86, 0.12], [0.94, 0.33]], {radius = 3.0, reach = 16, links = 3, sag = 0.9, glow = 0.55})
+
+
+func _dress_m3() -> void:
+	prop_at("decon", "emergency_shower", 0, 49)
+	prop_at("decon", "boot_wash", 10, 46, P.NORTH)
+	duct_run("decon", "z", 2, 12, 4)
+	wall_over("decon", "exit_sign", "e", rooms.stair_m2_m3.bottom_center)
+	poster("decon", "s", 44, "m3", 12)
+	# The gallery: a duct south of the root wall, tendrils, a barricade, an overturned table.
+	duct_run("gallery", "z", 46, 72, 11)
+	prop_at("gallery", "barricade_door", 0, 140, P.EAST)
+	prop_at("gallery", "overturned_table", 22, 150)
+	wall_at("gallery", "scratched_note", "e", 120, 14, {text = "DON'T GO NORTH\nIT GREW OVER CHAMBER 1"})
+	prop_at("sample_room", "skeleton_suit", 0, 37, P.NORTH, {use = "note", text = "A name badge on the lanyard: SURVEY TEAM, YEAR 1."})
+	prop_at("sample_room", "skeleton_overgrown", 36, 42)
+	prop_at("sample_room", "cocoon", 52, 52)
+	prop_at("tc2", "cocoon", 2, 2)
+	# Dissection: the table, the morgue wall, a body bag, the ceiling cloud's lagging (s_m3_diss_1).
+	prop_at("dissection", "dissection_table", 23, 47, P.NORTH)
+	prop_at("dissection", "morgue_drawers", 0, 28, P.EAST, {use = "note", text = "MORGUE: 12 drawers. 12 labels. 12 times the same name."})
+	prop_at("dissection", "body_bag_floor", 25, 100)
+	ceiling_run("dissection", "z", 8, 35, _many("duct_insulated", 4))
+	ceiling_run("dissection", "z", 42, 35, _many("duct_insulated", 4))
+	ceiling_at("dissection", "service_hatch", 24, 44)
+	poster("dissection", "e", 70, "m3")
+	ceiling_at("vault", "security_camera", 54, 2, P.WEST)
+	# The ward: the cages, cocoons, a desk on its side, handrails, plates by the cells.
+	duct_run("ward", "z", 0, 4, 12)
+	lagging("ward", 0, 140, 3, 0) # A decoy.
+	for i in 3:
+		prop_at("ward", "animal_cage_stack", 54, 30 + 8 * i, P.WEST)
+	prop_at("ward", "animal_cage_small", 54, 56, P.WEST)
+	prop_at("ward", "cocoon", 54, 118)
+	prop_at("ward", "cocoon", 54, 215)
+	prop_at("ward", "overturned_desk", 22, 150, P.NORTH)
+	prop_at("ward", "barricade_door", 57, 230, P.WEST)
+	for i in 6:
+		wall_at("ward", "handrail_straight", "e", 150 + 10 * i, 0)
+	for z: int in [55, 120, 185]:
+		wall_at("ward", "room_plate_b12", "w", z, 14)
+	# Hazmat: suits, a bin, the floor's extinguisher.
+	prop_at("hazmat", "hazmat_suit_rack", 32, 0, P.SOUTH)
+	prop_at("hazmat", "biohazard_bin", 0, 46)
+	wall_at("hazmat", "extinguisher_cabinet", "w", 10, 1)
+	wall_at("hazmat", "hazmat_sign", "w", 44, 14)
+	duct_run("hazmat", "x", 2, 4, 5)
+	prop_at("tc3", "cocoon", 40, 1)
+	prop_at("tc3", "cocoon", 75, 1)
+	duct_run("tc3", "x", 2, 20, 9)
+	lagging("tc3", 40, 48, 3, 0) # A decoy.
+	wall_at("booth", "scratched_note", "n", 6, 14, {text = "400 V. IT SHOCKED BACK. I THINK IT LIKED IT."})
+	wall_at("checkpoint", "evac_map", "w", 4, 12)
+	prop_at("checkpoint", "barricade_door", 0, 30, P.EAST)
+	ceiling_at("checkpoint", "security_camera", 52, 2, P.WEST)
+	wall_over("checkpoint", "exit_sign", "e", 40)
+	duct_run("checkpoint", "x", 2, 4, 5)
+	prop_at("cell_4", "cocoon", 1, 17)
+	prop_at("cell_5", "cocoon", 1, 5)
+	# Mycelium, tendrils: hanging from the gallery's and the dissection lab's ceilings.
+	# Two strands down the gallery, each side of its middle (30 apart: they don't link across).
+	var hanging := {radius = 3.0, reach = 24, links = 2, sag = 1.0, glow = 0.6}
+	tendrils("gallery", [[0.15, 0.526], [0.15, 0.632], [0.15, 0.737], [0.65, 0.605], [0.65, 0.71], [0.65, 0.816]], hanging)
+	tendrils("dissection", [[0.15, 0.68], [0.85, 0.72], [0.18, 0.86], [0.82, 0.9], [0.5, 0.97]], hanging)
+	# A root wall across the gallery north of the chamber 2 door: the optional side passage to
+	# chamber 1's window (and the sample room) has to be burnt or shot through.
+	var root := {radius = 6.5, reach = 12, links = 4, glow = 0.25}
+	for x: int in [5, 15, 25, 35, 45, 55]:
+		for y: int in [5, 16, 27]:
+			if y == 27 and x in [25, 35]:
+				continue # Clear of the emergency fixture over the middle.
+			mycelium("gallery", x / 60.0, 64.0 / 190.0, root, y)
+	# A third of the furniture is overgrown.
+	_overgrow(["decon", "gallery", "tc1", "sample_room", "tc2", "dissection", "vault", "ward", "cell_2", "cell_3", "cell_4", "cell_5",
+			"hazmat", "tc3", "booth", "checkpoint", "cage_shaft"])
+
+
+func _dress_dig() -> void:
+	# The drift: timber frames, a cart and its rails, lanterns, a cocoon.
+	for x: int in [35, 60, 120, 165]:
+		prop_at("drift", "timber_support_frame", x, 1, P.EAST)
+	for i in 4:
+		prop_at("drift", "rail_straight", 125 + 10 * i, 15)
+	prop_at("drift", "mine_cart", 128, 2, P.NORTH)
+	wall_at("drift", "lantern", "n", 50, 16)
+	wall_at("drift", "lantern", "s", 140, 16)
+	prop_at("drift", "cocoon", 178, 2)
+	# The pump room and the core lab.
+	prop_at("pump_room", "pump_housing", 0, 26, P.EAST)
+	prop_at("pump_room", "pump_housing", 0, 40, P.EAST)
+	prop_at("pump_room", "valve_stand", 10, 30)
+	pipe_run("pump_room", "x", 2, 4, 5, [2])
+	poster("pump_room", "w", 4, "dig")
+	duct_run("core_lab", "x", 2, 4, 5)
+	# Walking up to the cavern door: the colony's veins swell (Mycelium.pulse).
+	trigger("t_m4_approach", "core_lab", "pulse=0.8", {fx = 0.12, fz = 0.5, w = 14, d = 40})
+	# The cavern: mine ventilation lagging over the ceiling clouds (s_m4_cav_3), stalactites and
+	# stalagmites off the east ledge, cocoons hanging and standing, lanterns along the ledge.
+	ceiling_run("cavern", "z", 40, 97, _many("duct_insulated", 6))
+	ceiling_run("cavern", "z", 75, 97, _many("duct_insulated", 6))
+	ceiling_at("cavern", "stalactite_large", 20, 40)
+	ceiling_at("cavern", "stalactite_medium", 100, 60)
+	ceiling_at("cavern", "stalactite_small", 15, 200)
+	ceiling_at("cavern", "stalactite_large", 105, 210)
+	prop_at("cavern", "stalagmite_large", 5, 120)
+	prop_at("cavern", "stalagmite_medium", 30, 100)
+	prop_at("cavern", "stalagmite_small", 8, 170)
+	ceiling_at("cavern", "rope_hanging", 100, 150)
+	ceiling_at("cavern", "cocoon", 30, 60)
+	ceiling_at("cavern", "cocoon", 95, 180)
+	prop_at("cavern", "cocoon", 1, 30)
+	prop_at("cavern", "cocoon", 1, 248)
+	for z: int in [70, 120, 170]:
+		wall_at("cavern", "lantern", "e", z, 16)
+	prop_at("survey_tunnel", "cocoon", 115, 17)
+	# The generator hall: a crate on a chain over the north mouth's way in, a pallet under the
+	# gantry by the south mouth, the ceiling clouds' lagging (s_m4_gen_c), cocoons, the exit sign
+	# over the freight elevator.
+	ceiling_at("generator_hall", "crate_hanging", 40, 15, P.NORTH, {id = "crate_hanging_gen"})
+	ceiling_at("generator_hall", "pallet_hanging", 70, 100, P.NORTH, {id = "pallet_hanging_gen"})
+	ceiling_at("generator_hall", "chain_hoist", 82, 102)
+	ceiling_run("generator_hall", "x", 112, 60, _many("gantry_rail", 5))
+	lagging("generator_hall", 37, 46, 5, 24, 57)
+	ceiling_at("generator_hall", "cocoon", 10, 60)
+	ceiling_at("generator_hall", "cocoon", 112, 40)
+	wall_at("generator_hall", "extinguisher_cabinet", "w", 20, 1)
+	wall_over("generator_hall", "exit_sign", "e", 365, 26)
+	# Mycelium, dense and bright: every wall of the cavern (high on the east, so the ledge stays
+	# clear), its ceiling, a ring of root round the mother's dais (open to the east), the drift,
+	# the burrows, the tunnels, the mouths and high on the generator hall's walls.
+	# Rows of nodes about 21 apart, 12 up and down: each links to the next and to the row above.
+	var dense := {radius = 4.0, reach = 26, links = 3, glow = 0.9, spread = 6}
+	vein("cavern", "w", 0.04, 0.96, 12, [10, 22], dense)
+	vein("cavern", "w", 0.04, 0.96, 12, [36, 48], dense)
+	vein("cavern", "n", 0.08, 0.92, 6, [12, 24], dense)
+	vein("cavern", "n", 0.08, 0.92, 6, [38, 50], dense)
+	vein("cavern", "e", 70.0 / 255.0, 190.0 / 255.0, 7, [44, 56], dense)
+	vein("cavern", "s", 0.6, 0.95, 3, [16, 28], dense)
+	# Hanging from the roof in clumps (clear of the lagging over the middle).
+	tendrils("cavern", [[0.2, 0.15], [0.36, 0.17], [0.3, 0.24], [0.75, 0.2], [0.8, 0.28], [0.25, 0.75], [0.4, 0.8], [0.3, 0.86],
+			[0.8, 0.8], [0.65, 0.85]], {radius = 5.0, reach = 26, links = 2, sag = 0.6, glow = 0.9})
+	var ext := _extent("cavern")
+	for i in 8:
+		var angle := TAU * (i + 0.5) / 8.0
+		if cos(angle) > 0.7:
+			continue # The east side stays open: the way up onto the dais.
+		# Up 9: over the dais' lower step, so the links between them run through air round it.
+		mycelium("cavern", 0.5 + 25.0 * cos(angle) / ext.x, 0.5 + 25.0 * sin(angle) / ext.z, {radius = 5.0, reach = 20, links = 2, glow = 0.6, spread = 10}, 9)
+	# The drift's two walls are 25 apart: opposite nodes sit at different heights (26.9 apart), out
+	# of each other's reach, so nothing spans the way through.
+	var drift := {radius = 3.0, reach = 25.5, links = 2, glow = 0.85}
+	vein("drift", "n", 25.0 / 190.0, 70.0 / 190.0, 3, [6, 16], drift)
+	vein("drift", "s", 25.0 / 190.0, 70.0 / 190.0, 3, [16, 6], drift)
+	vein("drift", "n", 125.0 / 190.0, 170.0 / 190.0, 3, [16, 6], drift)
+	vein("drift", "s", 125.0 / 190.0, 170.0 / 190.0, 3, [6, 16], drift)
+	vein("burrow_n", "n", 0.2, 0.8, 3, [5, 14], drift)
+	vein("burrow_s", "s", 0.2, 0.8, 3, [5, 14], drift)
+	vein("survey_tunnel", "s", 0.56, 0.92, 3, [6, 16], drift)
+	vein("gen_tunnel", "n", 22.0 / 60.0, 38.0 / 60.0, 2, [8, 18], drift)
+	vein("gen_tunnel", "s", 22.0 / 60.0, 38.0 / 60.0, 2, [18, 8], drift)
+	vein("mouth_n", "n", 0.2, 0.8, 3, [6, 14], drift)
+	vein("mouth_e", "e", 0.2, 0.8, 3, [6, 14], drift)
+	vein("mouth_s", "s", 0.2, 0.8, 3, [6, 14], drift)
+	var high := {radius = 3.5, reach = 26, links = 2, glow = 0.85}
+	vein("generator_hall", "w", 0.15, 0.45, 3, [30, 40], high)
+	vein("generator_hall", "n", 0.55, 0.9, 3, [28, 40], high)
+	vein("generator_hall", "e", 0.5, 0.58, 2, [30, 42], high)
+	vein("generator_hall", "s", 0.15, 0.45, 3, [28, 40], high)

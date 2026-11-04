@@ -205,11 +205,11 @@ static func problems(world: VoxelWorld, objects: Dictionary, within := AABB()) -
 		if within.has_volume() and not within.intersects(box):
 			continue
 		var mount := PropCatalog.mount_of(object.name)
-		if mount == "any":
-			mount = "floor"
+		# "any" props are held by whichever of floor, wall (behind them) or ceiling they touch.
+		var mounts: Array = ["floor", "wall", "ceiling"] if mount == "any" else [mount]
 		var voxels: PackedByteArray = world.get_box(Vector3i(box.position), Vector3i(box.end))
 		if voxels.count(0) != voxels.size():
 			found.append({id = id, reason = "inside a wall or floor"})
-		elif not touches(world, objects, box, mount, int(object.facing), id):
+		elif not mounts.any(func(m: String) -> bool: return touches(world, objects, box, m, int(object.facing), id)):
 			found.append({id = id, reason = "floating"})
 	return found

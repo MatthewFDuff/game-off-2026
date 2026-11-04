@@ -1,7 +1,7 @@
 class_name WallTool
 extends BuildTools
-## Build mode's Wall tool (EditorTool, empty levels): press, drag, release on the storey's floor
-## draws a wall from the press. Its direction snaps to the nearest of 8 (along X, along Z, 45°) and
+## Build mode's Wall tool (EditorTool): press, drag, release on the storey's floor (in a rock level,
+## the floor aimed at when pressing) draws a wall from the press. Its direction snaps to the nearest of 8 (along X, along Z, 45°) and
 ## its end to the grid along it, unless a wall end, a point on a wall or a floor corner / edge lies
 ## on that line (BuildTools.snap_point), which wins. While dragging, the wheel sets its height and
 ## typing sets its length (Tab: the height). Ctrl+drag draws a rectangle of four walls (with its
@@ -13,7 +13,8 @@ const DIRECTIONS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 1), Vector2i(0,
 
 ## Ctrl+drag: four walls around the dragged rectangle.
 var rect_mode := false
-## This wall's height while dragging (voxels), and the storey's (what -1 means).
+## This wall's height while dragging (voxels), and the storey's (what -1 means; 0 in rock levels,
+## where walls keep their own).
 var height := 30
 var storey_height := 30
 ## The end the drag reaches this frame, and its direction (one of DIRECTIONS).
@@ -157,10 +158,10 @@ func _parse(text: String) -> float:
 	return number.to_float() if voxels else number.to_float() / world.voxel_size
 
 
-## The wall object for a segment, with the tool's settings.
+## The wall object for a segment, with the tool's settings (in rock, standing on plane_y).
 func make_wall(a: Vector2i, b: Vector2i, material: int, thickness: int, inner: int) -> Dictionary:
 	return LevelBuild.new_wall(storey, Vector3i(a.x, 0, a.y), Vector3i(b.x, 0, b.y), material, thickness,
-			-1 if height == storey_height else height, inner)
+			-1 if height == storey_height and storey >= 0 else height, inner, plane_y)
 
 
 ## Ends the drag: builds the wall (or the rectangle, with its floor and ceiling if slabs), or erases
@@ -187,8 +188,10 @@ func finish(objects: Dictionary, material: int, thickness: int, inner: int, slab
 	edits.begin_group()
 	edits.put_objects(drawn.map(func(s: Array) -> Array: return ["", make_wall(s[0], s[1], material, thickness, inner)]))
 	if slabs:
-		edits.add_slab_shape("floor", storey, LevelBuild.rect_shape(Vector3i(lo.x, 0, lo.y), Vector3i(hi.x, 0, hi.y), floor_material))
-		edits.add_slab_shape("ceiling", storey, LevelBuild.rect_shape(Vector3i(lo.x, 0, lo.y), Vector3i(hi.x, 0, hi.y), ceiling_material))
+		# In rock: the floor under the walls, the ceiling on top of them.
+		edits.add_slab_shape("floor", storey, LevelBuild.rect_shape(Vector3i(lo.x, 0, lo.y), Vector3i(hi.x, 0, hi.y), floor_material), plane_y)
+		edits.add_slab_shape("ceiling", storey, LevelBuild.rect_shape(Vector3i(lo.x, 0, lo.y), Vector3i(hi.x, 0, hi.y), ceiling_material),
+				plane_y + height)
 	edits.end_group()
 	return ""
 
@@ -200,7 +203,7 @@ func finish(objects: Dictionary, material: int, thickness: int, inner: int, slab
 func erase_along(objects: Dictionary, p: Vector2i, q: Vector2i) -> Array:
 	var puts: Array = []
 	var dp := Vector2(q - p).normalized()
-	for wall in LevelBuild.walls_on(objects, storey):
+	for wall in LevelBuild.walls_on(objects, storey, plane_y):
 		var a := Vector2i(wall.a.x, wall.a.z)
 		var b := Vector2i(wall.b.x, wall.b.z)
 		var steps := maxi(absi(b.x - a.x), absi(b.y - a.y))

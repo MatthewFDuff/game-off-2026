@@ -20,7 +20,15 @@ extends Node
 ## spawner's `on_dead`), comma-separated: `power=facility|backup|restored`, `lock=<door>`,
 ## `unlock=<door>`, `open=<door>`, `close=<door>` (story moves, locks ignored), `on=<spawner>`,
 ## `off=<spawner>`, `horde`, `wake` (HordeDirector.wake: spawning begins in a `spawns_dormant`
-## level). The host runs them; the results replicate as usual.
+## level), `wither` (Mycelium.wither: the colony greys and crumbles), `pulse` / `pulse=<0..1>`
+## (Mycelium.pulse: the veins throb), `lights=<room>:off|on|flicker` (the lights in a room's or
+## trigger volume's box) and `sprinkle=<room>` (sprinklers for 8 s: fire out, clouds gone, lights
+## flicker; both InteractRules). The host runs them; the results replicate as usual.
+##
+## The newer uses (switch, vendor, eyewash, defib, extinguisher, flip, printer, radio, squeak), the
+## props that react by name (extinguishers, gas cylinders), crushing fragments and forced doors are
+## InteractRules (the "Rules" child). The payroll keeps purchases (vendor prices: charge) and forced
+## doors (force_door, FORCED_DOOR_FEE each) beside the damage.
 ##
 ## Checkpoint: the clone vat the party reached last (any living player within CHECKPOINT_REACH of
 ## its marker); Lab respawns the dead there. The host decides and tells everyone.
@@ -61,6 +69,9 @@ const POWER_STATES := ["facility", "backup", "restored"]
 const STATION_AMMO := 20
 ## Meters from a damaged asset within which a player sees its "-$" toast (everyone is billed).
 const DAMAGE_NOTE_RANGE := 15.0
+const Rules := preload("res://scripts/interact/interact_rules.gd")
+## Dollars a forced door costs on the payroll.
+const FORCED_DOOR_FEE := 500
 
 @export var lab: Lab
 
@@ -69,6 +80,11 @@ var active := false
 var damage_by_name := {}
 ## Host: dollars of asset damage since play started.
 var total_damage := 0
+## Host: dollars charged to the payroll per thing bought (vending machines, coffee), since play
+## started (the payroll statement's purchases).
+var purchases := {}
+## Host: ids of doors forced (broken through) since play started, FORCED_DOOR_FEE each.
+var forced_doors: Array[String] = []
 ## Every peer (the host decides): "facility", "backup" or "restored".
 var power := "facility"
 ## Every peer (the host decides): keycard colors the party holds ("red", ...).
@@ -85,6 +101,8 @@ var reading := ""
 var checkpoint := ""
 ## Finds what the local player is looking at and words the prompt.
 var interactables := Interactables.new(self)
+## The newer uses, the props that react by name, room lights and sprinklers (a child, "Rules").
+var rules: Rules
 
 ## id -> {object, model (turned), origin: Vector3i, open: bool, moving: bool}
 var _doors := {}
@@ -104,6 +122,10 @@ var _note_timer := 0.0
 
 
 func _ready() -> void:
+	rules = Rules.new()
+	rules.name = "Rules"
+	rules.play = self
+	add_child(rules)
 	lab.peer_entered.connect(_send_state)
 	triggered.connect(_run_actions)
 	triggered.connect(func(id: String, _peer_id: int) -> void:
@@ -132,6 +154,8 @@ func start() -> void:
 	keycards.clear()
 	armed = false
 	_pending_notes.clear()
+	purchases.clear()
+	forced_doors.clear()
 	checkpoint = ""
 	close_reading()
 	_apply_armed()
@@ -166,10 +190,12 @@ func start() -> void:
 				_glass[object.id] = {origin = object.origin, size = turned.size, voxels = glass, intact = intact_glass}
 	if multiplayer.is_server() and not lab.world.voxels_changed.is_connected(_on_voxels_changed):
 		lab.world.voxels_changed.connect(_on_voxels_changed)
+	rules.start()
 
 
 func stop() -> void:
 	active = false
+	rules.stop()
 	_doors.clear()
 	_assets.clear()
 	_usables.clear()
@@ -412,7 +438,8 @@ func _use(id: String, peer_id: int) -> void:
 		"glass_case":
 			smash_glass(id)
 		_:
-			return
+			if not rules.use(id, object, state, peer_id):
+				return
 	prop_used.emit(id, peer_id)
 
 
@@ -669,6 +696,123 @@ func _break_glass(id: String) -> void:
 	_drop_contents(lab.level.objects.get(id, {}))
 
 
+## Host: a glass pane shattered (Glass; voxels already cleared, carved more went in the hit itself).
+## Props holding any of it react by name; glass outside every prop goes on the payroll as
+## "glass_pane" at Glass.PRICE a voxel (a prop's own glass is billed as its asset damage).
+func glass_shattered(voxels: Array, carved: int, at: Vector3) -> void:
+	if not active or not multiplayer.is_server():
+		return
+	var points: Array = voxels if not voxels.is_empty() else [lab.world.world_to_voxel(at)]
+	var lo: Vector3i = points[0]
+	var hi: Vector3i = points[0]
+	for p: Vector3i in points:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	var bounds := AABB(Vector3(lo), Vector3(hi - lo + Vector3i.ONE))
+	var boxes := {}
+	for object: Dictionary in lab.level.objects.values():
+		if object.kind == "prop" and not object.door:
+			var box := LevelSchema.prop_box(object)
+			if box.intersects(bounds):
+				boxes[object.id] = box
+	var held := {}
+	var loose := 0
+	for p: Vector3i in voxels:
+		var inside := false
+		for id: String in boxes:
+			if (boxes[id] as AABB).has_point(Vector3(p) + Vector3.ONE * 0.5):
+				held[id] = true
+				inside = true
+				break
+		if not inside:
+			loose += 1
+	if voxels.is_empty():
+		for id: String in boxes:
+			held[id] = true
+	if held.is_empty():
+		loose += carved
+	if loose > 0:
+		bill("glass_pane", loose * Glass.PRICE, at)
+	for id: String in held:
+		_glass_reaction(lab.level.objects[id], boxes[id])
+
+
+## Host: damage that isn't a placed asset's voxels (a loose glass pane), on the payroll as what.
+func bill(what: String, dollars: int, at: Vector3) -> void:
+	if dollars <= 0:
+		return
+	total_damage += dollars
+	damage_by_name[what] = int(damage_by_name.get(what, 0)) + dollars
+	asset_damaged.emit(what, dollars, total_damage)
+	for peer_id in lab.peers_in_level:
+		var player: Player = lab.players.get(peer_id)
+		if player and player.global_position.distance_to(at) <= DAMAGE_NOTE_RANGE:
+			lab.notify_peer(peer_id, "-$%d  %s" % [dollars, what.replace("_", " ")])
+
+
+## Host: a prop whose glass shattered, by name: a spore tank vents its spores, a clone vat drains,
+## a light fixture goes dark, an aquarium spills.
+func _glass_reaction(object: Dictionary, box: AABB) -> void:
+	var prop_name: String = object.name
+	var from := Vector3i(box.position)
+	var to := Vector3i(box.end)
+	if prop_name.begins_with("spore_tank"):
+		_swap_in_box(from, to, [VoxelMaterials.LIQUID_GREEN], VoxelMaterials.AIR)
+		Cloud.spawn("spore", lab.view.to_world(box.get_center()), SporeShroom.CLOUD_RADIUS, SporeShroom.CLOUD_SECONDS)
+	elif prop_name.begins_with("clone_vat"):
+		_swap_in_box(from, to, [VoxelMaterials.LIQUID_GREEN, VoxelMaterials.LIQUID_BLUE, VoxelMaterials.LIQUID_PINK, VoxelMaterials.WATER], VoxelMaterials.AIR)
+		Sfx.play_at("splash", lab.view.to_world(box.get_center()))
+	elif prop_name.begins_with("fixture_"):
+		_swap_in_box(from, to, [VoxelMaterials.LAMP], VoxelMaterials.CHAR)
+	elif prop_name.begins_with("aquarium"):
+		var spilled := _swap_in_box(from, to, [VoxelMaterials.WATER], VoxelMaterials.AIR)
+		_puddle(from, to, spilled)
+	elif prop_name.begins_with("vending_machine"):
+		# Shot for a free snack: it drops, and the snack goes on the bill as damage anyway.
+		var snack := object.duplicate()
+		snack.contents = "snack"
+		_drop_contents(snack)
+		bill(prop_name + "_snack", maxi(int(object.get("price", 0)), 1), lab.view.to_world(box.get_center()))
+
+
+## Host: every voxel of the sources materials in [from, to) becomes material, in one batch. Returns
+## how many changed.
+func _swap_in_box(from: Vector3i, to: Vector3i, sources: Array, material: int) -> int:
+	var size := to - from
+	var voxels := lab.world.get_box(from, to)
+	var points := PackedInt32Array()
+	var materials := PackedByteArray()
+	for i in voxels.size():
+		if voxels[i] in sources:
+			points.append_array([from.x + i % size.x, from.y + (i / size.x) % size.y, from.z + i / (size.x * size.y)])
+			materials.append(material)
+	if not materials.is_empty():
+		lab.world_sync.set_voxels(points, materials)
+	return materials.size()
+
+
+## Host: up to count water voxels as a one-voxel sheet on the floor around [from, to).
+func _puddle(from: Vector3i, to: Vector3i, count: int) -> void:
+	var points := PackedInt32Array()
+	var materials := PackedByteArray()
+	for z in range(from.z - 5, to.z + 5):
+		for x in range(from.x - 5, to.x + 5):
+			if materials.size() >= count:
+				break
+			var p := Vector3i(x, from.y, z)
+			if lab.world.get_voxel(p) != VoxelMaterials.AIR:
+				continue
+			for drop in 8:
+				if lab.world.get_voxel(p + Vector3i.DOWN) != VoxelMaterials.AIR:
+					break
+				p += Vector3i.DOWN
+			if lab.world.get_voxel(p + Vector3i.DOWN) != VoxelMaterials.AIR:
+				points.append_array([p.x, p.y, p.z])
+				materials.append(VoxelMaterials.WATER)
+	if not materials.is_empty():
+		lab.world_sync.set_voxels(points, materials)
+
+
 # --- Keycards and power ----------------------------------------------------------------------------
 
 ## Host: someone picked up an item; keycards and the spore shooter go to the whole party.
@@ -679,6 +823,28 @@ func _on_picked(item: String, _peer_id: int) -> void:
 		arm_party(_peer_id)
 	elif item.begins_with("keycard_"):
 		add_keycard(item.trim_prefix("keycard_"))
+	elif item.begins_with("paper_") and lab.level.objects.has(item.trim_prefix("paper_")):
+		_show_text(_peer_id, item.trim_prefix("paper_")) # A printed page: its printer's text.
+
+
+## Host: dollars charged to the payroll for something peer_id bought (a vendor's price), listed as
+## purchases on the statement.
+func charge(what: String, dollars: int, peer_id: int) -> void:
+	if dollars <= 0:
+		return
+	purchases[what] = int(purchases.get(what, 0)) + dollars
+	lab.notify_peer(peer_id, "-$%d  %s (billed to payroll)" % [dollars, what.replace("_", " ")])
+
+
+## Host: a door was broken through (InteractRules): FORCED_DOOR_FEE on the payroll, once per door.
+func force_door(id: String) -> void:
+	if id in forced_doors:
+		return
+	forced_doors.append(id)
+	for peer_id in lab.peers_in_level:
+		var player: Player = lab.players.get(peer_id)
+		if player and _doors.has(id) and player.global_position.distance_to(door_box(id).get_center()) <= DAMAGE_NOTE_RANGE:
+			lab.notify_peer(peer_id, "-$%d  door forced" % FORCED_DOOR_FEE)
 
 
 ## Host (story scripts too): the party has the spore shooter; every player is armed from now on,
@@ -814,6 +980,14 @@ func _run_actions(id: String, _peer_id: int) -> void:
 			"wake":
 				if lab.director:
 					lab.director.wake()
+			"wither", "pulse":
+				var mycelium := Mycelium.find()
+				if mycelium and key == "wither":
+					mycelium.wither()
+				elif mycelium:
+					mycelium.pulse(float(value) if value != "" else 1.0)
+			"lights", "sprinkle":
+				rules.run_action(id, key, value)
 			_:
 				push_warning("trigger %s: unknown action '%s'" % [id, item])
 	# A seal: the way back is shut, so this is where the shift is kept. Deferred, so the trigger's
@@ -854,6 +1028,8 @@ func capture() -> Dictionary:
 		fired = fired(),
 		damage_by_name = damage_by_name.duplicate(),
 		total_damage = total_damage,
+		purchases = purchases.duplicate(),
+		forced_doors = Array(forced_doors),
 	}
 
 
@@ -907,6 +1083,11 @@ func restore(record: Dictionary) -> void:
 	for what: String in ledger:
 		damage_by_name[what] = int(ledger[what])
 	total_damage = int(record.get("total_damage", 0))
+	purchases.clear()
+	var bought: Dictionary = record.get("purchases", {})
+	for what: String in bought:
+		purchases[what] = int(bought[what])
+	forced_doors.assign(Array(record.get("forced_doors", [])).map(func(door) -> String: return str(door)))
 	_pending_notes.clear()
 	for asset: Dictionary in _assets.values():
 		asset.intact = lab.world.count_matching(asset.origin, asset.size, asset.voxels)
@@ -1000,6 +1181,7 @@ func _physics_process(_delta: float) -> void:
 
 func _on_voxels_changed(from: Vector3i, to: Vector3i) -> void:
 	var changed := AABB(Vector3(from), Vector3(to - from + Vector3i.ONE))
+	rules.voxels_changed(changed)
 	for id: String in _glass.keys():
 		var glass: Dictionary = _glass[id]
 		if not changed.intersects(AABB(Vector3(glass.origin), Vector3(glass.size))):

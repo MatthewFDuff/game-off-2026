@@ -40,15 +40,15 @@ and slabs, so floors are 40 apart) and by what fit:
 - Dig: the mother cavern is 12.5 x 24.5 m and 9 m tall with pockets, a dais, a pool and glowing
   stems; the mother mass is a mommy spawner on the dais with two tentacle spawners and ceiling sacs.
   The drift's side burrows are boarded with a 5-voxel plank face. Killing the mother fires
-  `t_m4_mother_dead`, which turns off the cavern's trickle spawners; the wither effect is not
-  built.
+  `t_m4_mother_dead`, which turns off the cavern's trickle spawners and withers the mycelium
+  (dressing pass 2).
 - Nothing spawns before the outbreak: the level's `spawns_dormant` setting keeps the director
   dormant (no trickle, no hordes, whatever entry triggers fire: the open-plan office, Cultivation
   via the blue card) until `t_0_outbreak`'s `wake` action.
 - Engine hooks from section 9 that are in: trigger `actions`, spawner `on_dead`, hordes ranked by
   walking distance, checkpoint vats (the last vat any player reached), player-count scaling of
   spawners (data is tuned for two players). Not built: the ladder break, secret 2b (the bathroom
-  vent bypass), speaker lines, the payroll ending screen, the wither.
+  vent bypass), speaker lines, the payroll ending screen.
 - Nothing has been play-tested by hand yet; rates, caps and the finale length are the plan's
   numbers.
 
@@ -87,6 +87,85 @@ plays `say_flashlight` (T). The report's spawners in the line of travel moved to
 their rooms, and the lobby vent spawner sits under its grate. `tests/laboratory_play_test.gd`
 dies on floor 0 and after each seal and checks the respawn. `tests/laboratory_test.gd` checks
 each vat's tank is beside it and leaves room to respawn.
+
+Dressing pass 2 (2026-11-03, `docs/prop-build-plan.md` F): the lab is dressed from the prop packs
+(`scripts/world/packs/`), all in `scripts/tools/lab_layout.gd` (`_dress_g` to `_dress_dig`, with
+helpers `prop_at`, `ceiling_at`, `wall_at`, `wall_over`, `ceiling_run` / `duct_run` / `pipe_run` /
+`tray_run`, `tile_grid`, `lagging`, `vein`, `tendrils`, `poster`). The level went from 370 props
+(not counting doors) to 1,170: 182 of those are the builder's light fixtures (a `fixture_troffer`
+over every facility light, a `fixture_emergency` over every emergency light, package A), 618 are
+this pass. By floor (props, before and after): gatehouse 15 to 45, admin 88 to 246, cultivation
+81 to 218, compute 87 to 311, containment 59 to 207, the dig 40 to 143. The builder drops nothing
+and moves only one new ceiling piece (an end grille in the checkpoint, 4 voxels).
+
+- Ceilings: a duct run (riser, straights, end grille) along every route room but the stairs and
+  the shafts, two voxels in from a wall so it stays clear of the fixtures on the room's center
+  line; pipe bundles with valves in the cooling plant (two runs), grow room 0, both grow halls
+  and the pump room; cable trays (some sagging) in the server hall, ops and electrical;
+  suspended tile grids in the admin stair lobby, the lift lobby, security and the manager's
+  office, the middle cell left out for the troffer, with a missing or hanging tile. Vent
+  diffusers in the substrate store and grow hall 1, extractor fans in the bathrooms, cameras in
+  the gatehouse, lobby, vault and checkpoint. Nothing hangs over the stairs, the lift and cage
+  shafts or within 1 m of a doorway.
+- Camouflage rule: every `on_ceiling` spawner hangs under lagging, two parallel runs of
+  `duct_insulated` (the ceiling cloud's sac is the same CLOTH), with a `service_hatch` between
+  them over its marker: `s_m2_cool_2` (cooling plant), `s_m3_diss_1` (dissection), `s_m4_gen_c`
+  (generator hall), and `s_m4_cav_3` under two runs of mine ventilation lagging across the
+  cavern roof (no hatch there). As many lagged runs again hang where nothing spawns (grow hall 1,
+  incubation, the server hall's south duct, the bullpen, the ward, test chamber 3), so lagging
+  means "maybe" and a plain ceiling means safe.
+- Room sets: server racks in hot and cold aisles (42: open, closed and dead), two CRAC units, a
+  UPS, a tape library, a cable cage and lifted floor tiles in the server hall; tanks, pumps, a
+  valve stand, a compressor and a pipe gallery in the cooling plant; electrical cabinets, a
+  transformer, the breaker panel, a fuse box and a junction box in electrical; stalls, urinals,
+  sinks and a dryer in both bathrooms; the serving counter and tray stack in the break room; the
+  guard desk, turnstiles, metal detector and gatehouse panel in the gatehouse (the barrier arm,
+  bollards, a dumpster and the mascot in the yard); suit rack, hazmat locker and sprayer in the
+  airlock, an emergency shower and boot wash in decon; cages, the morgue wall, a dissection
+  table and body bag in containment; timber frames, rails and a mine cart in the drift, pumps in
+  the pump room, stalactites and stalagmites in the cavern; executive dressing (executive chair,
+  trophy shelf, drinks cabinet, globe) in the security office; a copier, filing cabinets and a
+  radio in the bullpen; a printer, filing cabinets, partitions and boards in the open office.
+- Corridors and signage: an extinguisher cabinet on every floor (gatehouse, lobby, lift dock,
+  compute stair lobby, hazmat, generator hall), evac maps, exit signs over the stair doors, the
+  lift lobby door, the cage door and the freight elevator, room plates, handrails down the ward.
+- Story: Fung posters on every floor, one scheme per floor from the bright `a` at the gatehouse
+  to the black `f` in the dig, each a note; the payroll ticker over the lobby desk; the operator
+  photo wall by the first vat (break room); an occupied clone vat in the cultivation clone bay;
+  cocoons from containment down (cells, test chambers, ward, the sample room, the drift, the
+  cavern's roof and walls, the generator hall's roof); two skeletons in the sample room;
+  overturned tables and desks, barricade panels and scratched notes from cultivation down
+  (mycology, ops, the break room, the gallery, the ward, the checkpoint). A third of
+  containment's furniture is its `_overgrown` twin (`LabLayout._overgrow`).
+- Interactables: the lobby's alarm pull (`alarm_lobby`, once) fires `t_0_alarm`, which unlocks and
+  opens the new fire door `d_0_fire` from the bathrooms to the cargo lift lobby (a shortcut back
+  from the break room; after the outbreak the pull also calls a horde; before it, nothing spawns);
+  the breaker panel in electrical (no `on_use`: it switches the room's lights); the break room's
+  vending machines priced ($4 machine, $5 glass machine) and compute's ($3); an extinguisher
+  cabinet per floor (each holds a `flask_foam`; mounted a voxel off the floor, so the walk test
+  reaches them); gas cylinders in the wet lab and the cooling plant; hanging crates over the lift
+  dock and the generator hall's north mouth, and a pallet beside a chain hoist under the gantry
+  by the south mouth; a radio on the bullpen's drawer desk; a printer in ops with a lore page; the
+  rubber duck on the gatehouse desk beside the sign-in terminal; an eyewash station in the wet lab.
+- Mycelium (166 nodes, 154 links, about 66,000 voxels stamped at play start in 0.65 s): floor 0
+  none; cultivation light (two small clusters hanging round the ceiling vents of the substrate
+  store and grow hall 1, a `spread` film on grow hall 2's floor); compute veins (the server hall's
+  north wall and the east end of its south wall, the inference lab's walls) and one hanging
+  cluster in the cooling plant's corner; containment tendrils (two strands down the gallery, a
+  clump over the dissection lab's south end) and a root wall (16 nodes of radius 6.5) across the
+  gallery north of the chamber 2 door, closing the optional side passage to chamber 1's window
+  and the sample room until it is burnt or shot; the dig dense with glow 0.9 (two rows on the
+  cavern's west and north walls, high on its east wall so the ledge stays clear, its south wall,
+  clumps on its roof, a ring of root round the mother's dais open on the east, the drift's
+  walls, the burrows, the survey and generator tunnels, the mouths and high on the generator
+  hall's walls). Nodes keep 15 voxels or more off every doorway, nodes on facing walls are out of
+  each other's reach (nothing spans a corridor), and none touches a vat, spawn, pickup or floor
+  spawner. `LabLayout.mycelium` now puts nodes on the far walls and the ceiling in the last voxel
+  of air, so their links run along the wall rather than inside it. `t_m4_mother_dead` now also
+  runs `wither`, and `t_m4_approach` (`pulse=0.8`) swells the veins as the party walks up to the
+  cavern door in the core lab.
+- The cubicle and the waiting room each got a suspended tile ceiling, a troffer (the cubicle's
+  with a faint light of its own), an exit sign and a Fung poster.
 
 ## 1. Premise
 

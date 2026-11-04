@@ -74,7 +74,7 @@ func prompt(id: String) -> String:
 			return "[E] Start generator" if play.power == "backup" else "Generator (on standby)"
 		"glass_case":
 			return "" if state.used else "[E] Smash glass"
-	return ""
+	return play.rules.prompt(id, object, state) # The newer uses (InteractRules).
 
 
 ## Why the local player can't use this right now, checked before asking the host (the host checks
@@ -98,4 +98,4 @@ func local_refusal(id: String, player: Player) -> String:
 			return "It's empty" if state.charges <= 0 else ""
 		"glass_case":
 			return "It's already broken" if state.used else ""
-	return ""
+	return play.rules.refusal(id, object, state)

@@ -2,7 +2,8 @@ extends SceneTree
 ## Props that sit on things (PropPlacement) and door props, headless:
 ##   godot --headless --path . --script res://tests/editor_prop_test.gd
 ## Floor props on floors and against walls, wall props on walls, push-out from walls and other
-## props, floating and wrong-face placements refused, a crate on a desk, floor markers, the Prop
+## props, ceiling props (flush under a ceiling, refused on floors and walls; "any" props on all three),
+## floating and wrong-face placements refused, a crate on a desk, floor markers, the Prop
 ## tool's red ghost, the level check, the warning after a resize, and a door between two rooms:
 ## its doorway through the wall, its hidden pocket, and sliding open and shut in play. Works on a
 ## scratch copy of the lab level, in rock high above it.
@@ -66,6 +67,45 @@ func _run() -> void:
 	spot = PropPlacement.place(world, objects, "whiteboard", 1, Vector3i(100, 215, 115), Vector3i(99, 215, 115), east, 5)
 	_check("R turns a wall prop from facing out", spot.facing == 2)
 
+	# Ceiling props hang from a downward face with their top flush; "any" props go on all three.
+	var down := Vector3i.DOWN
+	var troffer_h := int(LevelSchema.prop_box({kind = "prop", name = "fixture_troffer", origin = Vector3i.ZERO, facing = 0}).size.y)
+	spot = PropPlacement.place(world, objects, "fixture_troffer", 0, Vector3i(120, A_TO.y - 1, 115), Vector3i(120, A_TO.y, 115), down, 5)
+	_check("troffer under the ceiling: top flush with it", spot.valid and spot.mount == "ceiling" and spot.origin.y + troffer_h == A_TO.y, str(spot))
+	spot = PropPlacement.place(world, objects, "fixture_troffer", 0, Vector3i(120, 200, 115), Vector3i(120, 199, 115), up, 5)
+	_check("troffer on a floor is refused", not spot.valid and spot.reason.contains("ceiling"), str(spot))
+	spot = PropPlacement.place(world, objects, "fixture_troffer", 0, Vector3i(100, 215, 115), Vector3i(99, 215, 115), east, 5)
+	_check("troffer on a wall is refused", not spot.valid and spot.reason.contains("ceiling"), str(spot))
+	spot = PropPlacement.place(world, objects, "duct_straight", 1, Vector3i(120, A_TO.y - 1, 115), Vector3i(120, A_TO.y, 115), down, 5)
+	_check("R turns a ceiling prop", spot.valid and spot.facing == 1, str(spot))
+	spot = PropPlacement.place(world, objects, "fixture_troffer", 0, Vector3i(120, A_TO.y - 1, 115), Vector3i(120, A_TO.y, 115), up, 5)
+	_check("ceiling prop with nothing above is refused", not spot.valid, str(spot))
+	for aim: Array in [["wall", Vector3i(100, 215, 115), Vector3i(99, 215, 115), east], ["ceiling", Vector3i(120, A_TO.y - 1, 115), Vector3i(120, A_TO.y, 115), down],
+			["floor", Vector3i(120, 200, 115), Vector3i(120, 199, 115), up]]:
+		spot = PropPlacement.place(world, objects, "fixture_bulkhead", 0, aim[1], aim[2], aim[3], 5)
+		_check("bulkhead (any) on a %s" % aim[0], spot.valid and spot.mount == aim[0], str(spot))
+	# Moving an "any" prop that faces south on a ceiling onto the west wall: it faces out of the
+	# wall (east), not one turn off; back on the ceiling it keeps its facing; R still turns it.
+	var hung = LevelSchema.new_prop("fixture_bulkhead", Vector3i(118, A_TO.y - 3, 113), 2)
+	tool._grab = hung
+	tool._grab_id = ""
+	tool._grab_rotation = tool._start_rotation(hung)
+	for aim: Array in [["wall", Vector3i(100, 215, 115), Vector3i(99, 215, 115), east, 1], ["ceiling", Vector3i(120, A_TO.y - 1, 115), Vector3i(120, A_TO.y, 115), down, 2]]:
+		tool.cell = aim[1]
+		tool.solid_cell = aim[2]
+		tool.cursor_normal = aim[3]
+		var moved: Dictionary = hung.duplicate()
+		tool._place_grab(moved)
+		_check("moved bulkhead onto the %s faces %d" % [aim[0], aim[4]], tool._spot.valid and moved.facing == aim[4], "%s %s" % [moved.facing, tool._spot])
+	tool._grab_rotation += 1
+	tool.cell = Vector3i(100, 215, 115)
+	tool.solid_cell = Vector3i(99, 215, 115)
+	tool.cursor_normal = east
+	var turned: Dictionary = hung.duplicate()
+	tool._place_grab(turned)
+	_check("...and R turns it from facing out of the wall", turned.facing == 2, str(turned.facing))
+	tool._grab = {}
+
 	# A crate on a desk: other props count as something to sit on, and as something to avoid.
 	var desk = LevelSchema.new_prop("desk", Vector3i(110, 200, 110), 0)
 	lab.edits.put_object(desk)
@@ -98,18 +138,34 @@ func _run() -> void:
 	_check("crate aimed at the floor: real ghost", tool._spot.valid and tool._ghost.material_override == world.material)
 	await _click()
 	_check("...and clicking places it", lab.level.objects.size() == count + 1)
+	tool.prop_name = "fixture_troffer"
+	await _frames(2)
+	_check("troffer aimed at the floor: red ghost", tool.has_cursor and not tool._spot.valid and tool._ghost.material_override == tool._invalid_material)
+	me.head.rotation.x = PI * 0.49
+	await _frames(3)
+	_check("troffer aimed at the ceiling: real ghost, flush under it", tool._spot.valid and tool._spot.origin.y + troffer_h == A_TO.y
+			and tool._ghost.material_override == world.material, str(tool._spot))
+	await _click()
+	_check("...and clicking hangs it", lab.level.objects.size() == count + 2)
+	me.head.rotation.x = -PI * 0.49
+	await _frames(2)
 
 	# The level check finds a floating crate and one inside a wall.
 	lab.edits.put_object(LevelSchema.new_prop("crate_6", Vector3i(130, 215, 120), 0).merged({id = "float_crate"}))
 	lab.edits.put_object(LevelSchema.new_prop("crate_6", Vector3i(96, 200, 120), 0).merged({id = "buried_crate"}))
+	# ...and a floating ceiling prop, but not one hung properly or an "any" prop on a wall.
+	lab.edits.put_object(LevelSchema.new_prop("smoke_detector", Vector3i(125, 222, 104), 0).merged({id = "float_detector"}))
+	lab.edits.put_object(LevelSchema.new_prop("fixture_troffer", Vector3i(102, A_TO.y - troffer_h, 122), 0).merged({id = "hung_troffer"}))
+	lab.edits.put_object(LevelSchema.new_prop("fixture_bulkhead", Vector3i(100, 215, 104), 1).merged({id = "wall_bulkhead"}))
 	await _frames(2)
 	var found := PropPlacement.problems(world, lab.level.objects)
 	var ids: Array = found.map(func(f: Dictionary) -> String: return f.id)
 	_check("level check finds the floating crate", "float_crate" in ids)
 	_check("...and the buried one", "buried_crate" in ids)
-	_check("...and nothing standing properly", not desk.get("id", "x") in ids and ids.size() == 2, str(found))
-	lab.edits.remove_object("float_crate")
-	lab.edits.remove_object("buried_crate")
+	_check("...and the floating ceiling prop", "float_detector" in ids)
+	_check("...and nothing standing or hanging properly", not desk.get("id", "x") in ids and ids.size() == 3, str(found))
+	for id in ["float_crate", "buried_crate", "float_detector", "hung_troffer", "wall_bulkhead"]:
+		lab.edits.remove_object(id)
 	await _frames(2)
 
 	# Shrinking room A past the desk leaves it inside the new wall: a warning.

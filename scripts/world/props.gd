@@ -790,6 +790,13 @@ func _stock_shelf(at: Vector3i, width: int, stock: String) -> void:
 
 # --- Frame ----------------------------------------------------------------------------------------
 
+## Starts drawing a w x d prop at origin turned to facing: box() works in its frame after this.
+## Public for the prop packs (scripts/world/packs/); it calls _begin, which subclasses (the
+## turning test props in tests/vox_test.gd) override.
+func begin(origin: Vector3i, w: int, d: int, facing: int) -> void:
+	_begin(origin, w, d, facing)
+
+
 func _begin(origin: Vector3i, w: int, d: int, facing: int) -> void:
 	_origin = origin
 	_w = w

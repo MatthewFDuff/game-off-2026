@@ -65,10 +65,10 @@ func put_objects(puts: Array) -> void:
 
 
 ## Build mode: paints (or erases) a shape (LevelBuild.shape) onto a storey's floor or ceiling
-## (kind), on top of what's there. The host adds it to the slab as it is then, so two people
-## painting at once both land.
-func add_slab_shape(kind: String, storey: int, shape: Array) -> void:
-	_call("_do_slab", [kind, storey, shape])
+## (kind), on top of what's there; storey -1 (rock levels): onto the one at plane (voxel y). The
+## host adds it to the slab as it is then, so two people painting at once both land.
+func add_slab_shape(kind: String, storey: int, shape: Array, plane := 0) -> void:
+	_call("_do_slab", [kind, storey, shape, plane])
 
 
 ## Everything between begin_group and end_group undoes as one step (a brush stroke).
@@ -121,7 +121,7 @@ func _request(method: String, args: Array) -> void:
 func _do_voxel_op(peer: int, op: Dictionary) -> void:
 	if lab.mode != "edit" or not op.get("type", "") in ["box", "room", "sphere", "replace"]:
 		return
-	var bounds := WorldSync.op_bounds(op)
+	var bounds := WorldSync.op_bounds_below(op)
 	var size: Vector3i = lab.world.get_size_in_voxels()
 	var from: Vector3i = bounds[0].clamp(Vector3i.ZERO, size)
 	var to: Vector3i = bounds[1].clamp(Vector3i.ZERO, size)
@@ -159,15 +159,19 @@ func _do_put(peer: int, old_id: String, object: Dictionary) -> void:
 	_record(peer, {type = "object", before = before, after = after})
 
 
-func _do_slab(peer: int, kind: String, storey: int, shape: Array) -> void:
-	if lab.mode != "edit" or not kind in ["floor", "ceiling"] or storey < 0 or shape.size() < 3 + 3 * 2:
+func _do_slab(peer: int, kind: String, storey: int, shape: Array, plane := 0) -> void:
+	if lab.mode != "edit" or not kind in ["floor", "ceiling"] or shape.size() < 3 + 3 * 2:
+		return
+	# Storey -1: a plane (rock levels build there, with no storeys object).
+	var rock := storey < 0
+	if rock and (plane < 0 or plane > lab.world.get_size_in_voxels().y):
 		return
 	var objects: Dictionary = lab.level.objects
-	var id := LevelBuild.slab_id(kind, storey)
+	var id := LevelBuild.slab_id(kind, storey, plane)
 	var puts: Array = []
-	if not objects.has(LevelBuild.STOREYS_ID):
+	if not rock and not objects.has(LevelBuild.STOREYS_ID):
 		puts.append(["", LevelBuild.storeys(objects)])
-	var slab: Dictionary = objects[id].duplicate(true) if objects.has(id) else LevelBuild.new_slab(kind, storey)
+	var slab: Dictionary = objects[id].duplicate(true) if objects.has(id) else LevelBuild.new_slab(kind, storey, plane)
 	slab.shapes.append(shape.map(func(v: Variant) -> int: return int(v)))
 	puts.append([id if objects.has(id) else "", slab])
 	_do_puts(peer, puts)

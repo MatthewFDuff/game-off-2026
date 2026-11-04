@@ -49,6 +49,8 @@ var _view_buttons: Array[Button] = []
 var _cut_buttons: Array[Button] = []
 var _cut_row: HBoxContainer
 var _walls_button: Button
+var _hidden_row: HBoxContainer
+var _hidden_button: Button
 ## Build mode (empty levels, builder view): the active storey, ▼ / ▲, and its wall height.
 var _storey_row: HBoxContainer
 var _storey_label: Label
@@ -166,6 +168,9 @@ func _process(delta: float) -> void:
 	for i in _cut_buttons.size():
 		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
 	_walls_button.set_pressed_no_signal(tool.camera.walls_down)
+	_hidden_row.visible = tool.builder
+	_hidden_button.set_pressed_no_signal(not tool.edit_hidden)
+	_hidden_button.text = "Editable" if tool.edit_hidden else "Locked"
 	_storey_row.visible = tool.builder and tool.is_build_level()
 	if _storey_row.visible:
 		var st := LevelBuild.storeys(lab.level.objects)
@@ -196,6 +201,8 @@ func _hint_text() -> String:
 		return "Release to build  ·  wheel: height  ·  type a length (2.5 m, 25v), Tab: the height  ·  Enter: keep it  ·  Esc: cancel"
 	if tool.builder:
 		var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap()]
+		if tool.is_rock_level() and tool.tool in [EditorTool.Tool.FLOOR, EditorTool.Tool.CEILING]:
+			parts.append("Ctrl+wheel: raise / lower the plane")
 		var camera := tool.camera
 		if tool.is_build_level():
 			parts.append("Storey %d (PgUp / PgDn)" % (tool.storey + 1))
@@ -498,6 +505,15 @@ func _build_inspector() -> void:
 	_cut_row.add_child(_walls_button)
 	column.add_child(_cut_row)
 
+	_hidden_row = HBoxContainer.new()
+	_hidden_row.add_theme_constant_override("separation", 4)
+	_hidden_row.add_child(_label("Above the cut", "MutedLabel", 11))
+	_hidden_button = _button("Locked", "ChipButton", "Locked: Box, Brush and Replace only change what the cutaway shows (%s)" % InputSetup.describe("editor_edit_hidden"),
+			func() -> void: tool.toggle_edit_hidden())
+	_hidden_button.toggle_mode = true
+	_hidden_row.add_child(_hidden_button)
+	column.add_child(_hidden_row)
+
 	_storey_row = HBoxContainer.new()
 	_storey_row.add_theme_constant_override("separation", 4)
 	_storey_row.add_child(_label("Storey", "MutedLabel", 11))
@@ -741,7 +757,7 @@ func _build_help() -> Control:
 		["Builder view", [["Switch view", "editor_view"], ["Orbit", "RMB / MMB drag"], ["Pan", "WASD, Shift+MMB drag"],
 			["Zoom", "Wheel"], ["Turn 45°", "editor_orbit_left", "editor_orbit_right"], ["Frame selection", "editor_frame"],
 			["Whole level", "editor_frame_all"], ["Cut height (rock levels)", "editor_cut_up", "editor_cut_down"], ["Cut mode", "editor_cut_mode"],
-			["Walls down", "editor_walls_down"], ["Front / right / top", "editor_view_front", "editor_view_right", "editor_view_top"],
+			["Walls down", "editor_walls_down"], ["Lock above the cut", "editor_edit_hidden"], ["Front / right / top", "editor_view_front", "editor_view_right", "editor_view_top"],
 			["Other side, turn around", "Ctrl+Num", "editor_view_around"], ["Turn, tilt", "Num 4 6 8 2"],
 			["Orthographic", "editor_view_ortho"], ["Zoom", "editor_zoom_in", "editor_zoom_out"],
 			["Brush carve", "Shift+LMB"]]],
@@ -809,8 +825,12 @@ func _refresh() -> void:
 		EditorTool.Tool.FLOOR, EditorTool.Tool.CEILING:
 			var is_floor: bool = tool.tool == EditorTool.Tool.FLOOR
 			_material_row("Material", tool.room_floor if is_floor else tool.room_ceiling)
-			_note("Storey %d. Drag an area to %s it, or click inside walls to fill the room they close in. Shift erases. Corners snap to wall ends, walls and edges already there. Pick a material in the catalog or Alt+click one." % [
-					tool.storey + 1, "floor" if is_floor else "cover"])
+			var where := "Storey %d." % (tool.storey + 1)
+			if tool.is_rock_level():
+				where = "%s Ctrl+wheel (or the wheel while dragging) raises or lowers it: a mezzanine, a dropped ceiling; Esc lets it follow the surface again." % (
+						"On the floor you aim at." if is_floor else "Under the ceiling over the floor you aim at.")
+			_note("%s Drag an area to %s it, or click inside walls to fill the room they close in. Shift erases. Corners snap to wall ends, walls and edges already there. Pick a material in the catalog or Alt+click one." % [
+					where, "floor" if is_floor else "cover"])
 			if not is_floor:
 				var auto := _button("Auto ceiling", "Button", "A ceiling over every room the walls close in that has a floor", func() -> void:
 					tool.auto_ceiling()
@@ -827,13 +847,17 @@ func _refresh() -> void:
 					_refresh()))
 			_number_row("Thickness", tool.wall_thickness, 1, 10, 1, func(v: float) -> void: tool.wall_thickness = int(v))
 			var meters: float = lab.world.voxel_size
-			_check_row("Storey height", tool.wall_height <= 0, func(on: bool) -> void:
-				tool.wall_height = -1 if on else LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), tool.storey)
+			var rock: bool = tool.is_rock_level()
+			_check_row("Up to the ceiling" if rock else "Storey height", tool.wall_height <= 0, func(on: bool) -> void:
+				tool.wall_height = -1 if on else (LevelBuild.DEFAULT_HEIGHT if rock else LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), tool.storey))
 				_refresh())
 			if tool.wall_height > 0:
 				_number_row("Height (m)", tool.wall_height * meters, 0.1, 50.0, 0.1, func(v: float) -> void: tool.wall_height = maxi(roundi(v / meters), 1))
 			_check_row("Floor and ceiling", tool.wall_slabs, func(on: bool) -> void: tool.wall_slabs = on)
-			_note("Storey %d. Drag a wall: it snaps to 8 directions and to wall ends, walls and floor edges. While dragging, the wheel sets its height and typing its length (Tab: the height). Ctrl+drag: four walls around an area (with its floor and ceiling when checked). Shift+drag along walls erases. The inner face is the left side, going from where you pressed." % (tool.storey + 1))
+			var where := "Storey %d." % (tool.storey + 1)
+			if rock:
+				where = "A wall stands on the floor you press on and reaches up to the ceiling there (at most %.0f m)." % (EditorTool.ROCK_WALL_MAX * meters)
+			_note("%s Drag a wall: it snaps to 8 directions and to wall ends, walls and floor edges. While dragging, the wheel sets its height and typing its length (Tab: the height). Ctrl+drag: four walls around an area (with its floor and ceiling when checked). Shift+drag along walls erases. The inner face is the left side, going from where you pressed." % where)
 		EditorTool.Tool.ROOM:
 			_heading("Lining")
 			for target: String in ROOM_TARGETS:
@@ -1022,7 +1046,9 @@ func _selection() -> void:
 func _wall_inspector(object: Dictionary) -> void:
 	var meters: float = lab.world.voxel_size
 	var st := LevelBuild.storeys(lab.level.objects)
-	_note("Storey %d. Drag the handles on its ends to move them (walls joined there follow) or the one in the middle to slide it; click one to pick it up, the wheel nudges it. Split cuts it at its middle; Merge joins it to the wall in line with it." % (int(object.storey) + 1))
+	var rock := int(object.storey) < 0
+	var where := "Storey %d." % (int(object.storey) + 1) if not rock else "On a floor %.1f m up." % (int(object.get("base", 0)) * meters)
+	_note("%s Drag the handles on its ends to move them (walls joined there follow) or the one in the middle to slide it; click one to pick it up, the wheel nudges it. Split cuts it at its middle; Merge joins it to the wall in line with it." % where)
 	for target: String in WALL_TARGETS:
 		var id := int(object.material if target == "wall" else object.inner)
 		var row := _material_row(WALL_TARGETS[target], id) if id > 0 else _row(WALL_TARGETS[target], _label("Same as the wall", "MutedLabel", 11))
@@ -1030,12 +1056,18 @@ func _wall_inspector(object: Dictionary) -> void:
 	if int(object.inner) > 0:
 		_content.add_child(_button("No inner face", "ChipButton", "Both faces in the wall's material", func() -> void: tool.set_wall_field("inner", 0)))
 	_number_row("Length (m)", LevelBuild.wall_length(object) * meters, 0.1, 400.0, 0.1, func(v: float) -> void: tool.set_wall_length(v))
-	_check_row("Storey height", int(object.height) <= 0, func(on: bool) -> void:
-		tool.set_wall_field("height", -1 if on else LevelBuild.storey_height(st, int(object.storey))))
+	if not rock:
+		_check_row("Storey height", int(object.height) <= 0, func(on: bool) -> void:
+			tool.set_wall_field("height", -1 if on else LevelBuild.storey_height(st, int(object.storey))))
 	if int(object.height) > 0:
 		_number_row("Height (m)", int(object.height) * meters, 0.1, 100.0, 0.1, func(v: float) -> void: tool.set_wall_field("height", maxi(roundi(v / meters), 1)))
-	# Storeys count from 1 on screen (the storey bar's way), from 0 in the object.
-	_number_row("Storey", int(object.storey) + 1, 1, 64, 1, func(v: float) -> void: tool.set_wall_field("storey", int(v) - 1))
+	if rock:
+		# A rock level wall stands on its own floor (base, in voxels).
+		_number_row("Stands at (m)", int(object.get("base", 0)) * meters, 0.0, lab.world.get_size_in_voxels().y * meters, 0.1,
+				func(v: float) -> void: tool.set_wall_field("base", maxi(roundi(v / meters), 0)))
+	else:
+		# Storeys count from 1 on screen (the storey bar's way), from 0 in the object.
+		_number_row("Storey", int(object.storey) + 1, 1, 64, 1, func(v: float) -> void: tool.set_wall_field("storey", int(v) - 1))
 	for field: Dictionary in LevelSchema.WALL_FIELDS:
 		if field.key in ["id", "thickness"]:
 			_field(object, field)

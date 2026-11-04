@@ -12,6 +12,8 @@ signal damaged(amount: float, from: Vector3)
 signal died
 ## The interact key was pressed (local player, while playing).
 signal interacted
+## A footstep made a sound (sound is its Sfx name), on the peer that drew it.
+signal footstep_played(sound: String)
 
 @export var world: VoxelWorld
 
@@ -101,8 +103,10 @@ var _recoil := 0.0
 var _shake_noise := FastNoiseLite.new()
 
 ## Damage per second of each player status. blinded (spore clouds) does no damage: it fogs this
-## player's screen (BLIND_*).
-const STATUS_DPS := {poisoned = 2.0, burning = 6.0, blinded = 0.0}
+## player's screen (BLIND_*). hasted (the water cooler) walks HASTE_SPEED x faster, caffeinated (the
+## coffee machine) fires Weapon.CAFFEINE_RATE x faster (LevelPlay's vendor buffs).
+const STATUS_DPS := {poisoned = 2.0, burning = 6.0, blinded = 0.0, hasted = 0.0, caffeinated = 0.0}
+const HASTE_SPEED := 1.3
 ## Blinded: the fog overlay's color and how opaque it gets; fades in / out at BLIND_FADE per second.
 const BLIND_COLOR := Color(0.78, 0.78, 0.74)
 const BLIND_MAX := 0.93
@@ -122,6 +126,10 @@ var _blind_overlay: ColorRect
 ## Status damage lands in steps this many seconds apart.
 const STATUS_TICK := 0.5
 var _status_tick := 0.0
+
+## Meters walked between footstep checks (_footstep).
+const STRIDE := 0.6
+var _stride := 0.0
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
@@ -483,6 +491,8 @@ func _walk(delta: float) -> void:
 	var speed := walk_speed
 	if crouching:
 		speed = crouch_speed
+	if statuses.has("hasted"):
+		speed *= HASTE_SPEED
 	if held:
 		# Dragged toward the tentacle, then held there.
 		var to_anchor := Vector3(held_anchor.x - global_position.x, 0.0, held_anchor.z - global_position.z)
@@ -539,6 +549,8 @@ func _walk(delta: float) -> void:
 	global_position = result.position
 	on_floor = result.on_floor
 	_step_offset -= result.step_up
+	if on_floor:
+		_footstep(Vector2(global_position.x - start.x, global_position.z - start.z).length())
 	if on_floor and not was_on_floor and falling > 3.0:
 		_land_offset = minf(falling * land_dip, land_dip_max)
 
@@ -549,6 +561,21 @@ func _walk(delta: float) -> void:
 		var moved := (global_position - start) / delta
 		velocity.x = moved.x
 		velocity.z = moved.z
+
+
+## Footsteps: every STRIDE meters walked, what's underfoot may make a sound. Only glass shards
+## (Glass) do so far: a crunch everyone nearby hears (enemies don't react to it).
+func _footstep(moved: float) -> void:
+	if world == null:
+		return
+	_stride += moved
+	if _stride < STRIDE:
+		return
+	_stride = 0.0
+	var feet: Vector3i = world.world_to_voxel(global_position + Vector3.UP * 0.05)
+	if world.get_voxel(feet) == VoxelMaterials.GLASS_SHARDS or world.get_voxel(feet + Vector3i.DOWN) == VoxelMaterials.GLASS_SHARDS:
+		Sfx.play_at("glass_crunch", global_position, -2.0, 0.15)
+		footstep_played.emit("glass_crunch")
 
 
 ## Crouching on the ground lowers the head; in the air it pulls the feet up instead (a crouch-jump
@@ -683,8 +710,10 @@ func _interpolate_remote() -> void:
 			break
 	var span: float = b[0] - a[0]
 	var f := clampf((t - a[0]) / span, 0.0, 1.0) if span > 0.0 else 1.0
+	var was := global_position
 	global_position = (a[1] as Vector3).lerp(b[1], f)
 	rotation.y = lerp_angle(a[2], b[2], f)
+	_footstep(Vector2(global_position.x - was.x, global_position.z - was.z).length())
 	head.rotation.x = lerpf(a[3], b[3], f)
 
 

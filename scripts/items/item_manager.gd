@@ -124,7 +124,7 @@ func restore(taken: Array, loose_items: Array) -> void:
 func spawn(item: String, at: Vector3) -> Pickup:
 	if not multiplayer.is_server() or not active:
 		return null
-	if not item in GearModels.ITEMS:
+	if not item in GearModels.ITEMS and not item.begins_with("paper_"):
 		push_warning("item '%s' has no placeholder model; spawning it anyway" % item)
 	var id := _next_id
 	_next_id += 1
@@ -250,6 +250,10 @@ static func describe(item: String) -> String:
 		return "%s keycard" % item.trim_prefix("keycard_").capitalize()
 	if item == "spore_shooter":
 		return "Experimental spore shooter"
+	if item == "snack":
+		return "Snack (+%d health)" % int(Inventory.SNACK_HEAL)
+	if item.begins_with("paper_"):
+		return "Printed page"
 	return item.capitalize()
 
 

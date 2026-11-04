@@ -139,11 +139,13 @@ func _check_props() -> void:
 
 ## Floor props: solid voxels (or another prop) under at least half of the model's bottom layer.
 ## Wall props, and floor props that hang (nothing on their bottom layer): a wall behind at least
-## half of the model's back layer. Vent grates the builder put in a crawl hole are skipped (the
-## hole is behind them).
+## half of the model's back layer. Ceiling props: solid voxels over at least half of the model's top
+## layer. "any" props (bulkheads, lanterns): any one of the three. Vent grates the builder put in a
+## crawl hole are skipped (the hole is behind them).
 func _check_mounts() -> void:
 	var floating := []
 	var off_wall := []
+	var unhung := []
 	var holes: Array[AABB] = []
 	for object in _level.objects.values():
 		if object.kind == "opening" and object.type == "hole":
@@ -153,44 +155,87 @@ func _check_mounts() -> void:
 		var model: Dictionary = Props.orient(Props.load_prop(object.name), int(object.facing))
 		if model.is_empty():
 			continue
-		var size: Vector3i = model.size
-		var origin: Vector3i = object.origin
-		var walled: bool = PropCatalog.mount_of(object.name) == "wall" or Builder.hangs(object.name)
-		if not walled:
-			var cells := 0
-			var held := 0
-			for z in size.z:
-				for x in size.x:
-					if model.voxels[x + z * size.x * size.y] == 0:
-						continue
-					cells += 1
-					var below := origin + Vector3i(x, -1, z)
-					if _voxel(below) != M.AIR or _in_other_prop(below, object, props):
-						held += 1
-			if cells == 0 or held * 2 < cells:
-				floating.append("%s %s (%d/%d)" % [object.id, object.name, held, cells])
-			continue
+		var mount := PropCatalog.mount_of(object.name)
 		var box: AABB = LevelSchema.prop_box(object)
 		if object.name.begins_with("vent_grate") and holes.any(func(h: AABB) -> bool: return h.intersects(box)):
 			continue
-		# The back is opposite the front: facing north (front at -z) backs onto +z, and so on.
-		var back: Vector3i = -[Vector3i(0, 0, -1), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0)][int(object.facing)]
-		var axis := 0 if back.x != 0 else 2
-		var layer := 0 if (back[axis] < 0) else size[axis] - 1
-		var cells := 0
-		var held := 0
-		for y in size.y:
-			for a in (size.z if axis == 0 else size.x):
-				var local := Vector3i(layer, y, a) if axis == 0 else Vector3i(a, y, layer)
-				if model.voxels[local.x + local.y * size.x + local.z * size.x * size.y] == 0:
-					continue
-				cells += 1
-				if _voxel(origin + local + back) != M.AIR:
-					held += 1
-		if cells == 0 or held * 2 < cells:
-			off_wall.append("%s %s (%d/%d)" % [object.id, object.name, held, cells])
+		match mount:
+			"ceiling":
+				var above := _held_above(object, model)
+				if not above.ok:
+					unhung.append("%s %s (%s)" % [object.id, object.name, above.detail])
+			"any":
+				var above := _held_above(object, model)
+				var behind := _held_behind(object, model)
+				if not (above.ok or behind.ok or _held_below(object, model, props).ok):
+					floating.append("%s %s (any: none of floor, wall %s, ceiling %s)" % [object.id, object.name, behind.detail, above.detail])
+			_:
+				if mount == "wall" or Builder.hangs(object.name):
+					var behind := _held_behind(object, model)
+					if not behind.ok:
+						off_wall.append("%s %s (%s)" % [object.id, object.name, behind.detail])
+				else:
+					var below := _held_below(object, model, props)
+					if not below.ok:
+						floating.append("%s %s (%s)" % [object.id, object.name, below.detail])
 	_check("floor props stand on something", floating.is_empty(), ", ".join(floating.slice(0, 12)))
 	_check("wall and hanging props touch a wall behind them", off_wall.is_empty(), ", ".join(off_wall.slice(0, 12)))
+	_check("ceiling props hang from a ceiling", unhung.is_empty(), ", ".join(unhung.slice(0, 12)))
+
+
+## {ok, detail}: solid voxels (or another prop) under at least half of the model's bottom layer.
+func _held_below(object: Dictionary, model: Dictionary, props: Array) -> Dictionary:
+	var size: Vector3i = model.size
+	var origin: Vector3i = object.origin
+	var cells := 0
+	var held := 0
+	for z in size.z:
+		for x in size.x:
+			if model.voxels[x + z * size.x * size.y] == 0:
+				continue
+			cells += 1
+			var cell := origin + Vector3i(x, -1, z)
+			if _voxel(cell) != M.AIR or _in_other_prop(cell, object, props):
+				held += 1
+	return {ok = cells > 0 and held * 2 >= cells, detail = "%d/%d" % [held, cells]}
+
+
+## {ok, detail}: solid voxels over at least half of the model's top layer.
+func _held_above(object: Dictionary, model: Dictionary) -> Dictionary:
+	var size: Vector3i = model.size
+	var origin: Vector3i = object.origin
+	var top := size.y - 1
+	var cells := 0
+	var held := 0
+	for z in size.z:
+		for x in size.x:
+			if model.voxels[x + top * size.x + z * size.x * size.y] == 0:
+				continue
+			cells += 1
+			if _voxel(origin + Vector3i(x, size.y, z)) != M.AIR:
+				held += 1
+	return {ok = cells > 0 and held * 2 >= cells, detail = "%d/%d" % [held, cells]}
+
+
+## {ok, detail}: a wall behind at least half of the model's back layer (the back is opposite the
+## front: facing north, front at -z, backs onto +z, and so on).
+func _held_behind(object: Dictionary, model: Dictionary) -> Dictionary:
+	var size: Vector3i = model.size
+	var origin: Vector3i = object.origin
+	var back: Vector3i = -[Vector3i(0, 0, -1), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0)][int(object.facing)]
+	var axis := 0 if back.x != 0 else 2
+	var layer := 0 if (back[axis] < 0) else size[axis] - 1
+	var cells := 0
+	var held := 0
+	for y in size.y:
+		for a in (size.z if axis == 0 else size.x):
+			var local := Vector3i(layer, y, a) if axis == 0 else Vector3i(a, y, layer)
+			if model.voxels[local.x + local.y * size.x + local.z * size.x * size.y] == 0:
+				continue
+			cells += 1
+			if _voxel(origin + local + back) != M.AIR:
+				held += 1
+	return {ok = cells > 0 and held * 2 >= cells, detail = "%d/%d" % [held, cells]}
 
 
 func _in_other_prop(cell: Vector3i, object: Dictionary, props: Array) -> bool:

@@ -5,8 +5,44 @@ class_name PropCatalog
 ##
 ## Props with random dressing (shelf stock, bench equipment, board scribbles) get a few lettered
 ## variants, each from its own fixed seed.
+##
+## Props come in packs, one file each under scripts/world/packs/. To add a pack:
+##   1. Write scripts/world/packs/<name>_pack.gd (copy ceiling_pack.gd's header):
+##        extends RefCounted
+##        const CATEGORY := "Ceiling"            # editor tab for every prop the pack draws ("" = by prefix)
+##        const MOUNTS := {"duct_": "ceiling"}   # name prefix -> floor | wall | ceiling | door | any
+##        const VALUES := {"duct_": 150}         # name prefix -> payroll value in $
+##        const USES := {}                       # name prefix -> default use (LevelSchema USES)
+##        static func entries(add: Callable) -> void:
+##            add.call("duct_straight", func(p: Props, o: Vector3i) -> void: _duct(p, o))
+##      Draw with p.begin(o, w, d, P.NORTH) and p.box(from, to, material) in the prop's frame,
+##      inside its w x d footprint and from y = 0 up (generate() warns about anything outside).
+##   2. Add one line to PACKS below.
+## A pack's CATEGORY is the tab for every prop it draws. The other tables are merged after the
+## built-in ones (MOUNTS here, LevelSchema's ASSET_VALUES and DEFAULT_USES); the longest matching
+## prefix wins, and a prefix two tables give different values gets a warning. Then run tools/export_vox.gd (never --force) for the files.
 
 const P := preload("res://scripts/world/props.gd")
+
+## The prop packs, in catalog order.
+const PACKS := [
+	preload("res://scripts/world/packs/base_pack.gd"),
+	preload("res://scripts/world/packs/ceiling_pack.gd"),
+	preload("res://scripts/world/packs/lighting_pack.gd"),
+	preload("res://scripts/world/packs/corridor_pack.gd"),
+	preload("res://scripts/world/packs/compute_pack.gd"),
+	preload("res://scripts/world/packs/plant_pack.gd"),
+	preload("res://scripts/world/packs/mine_pack.gd"),
+	preload("res://scripts/world/packs/kitchen_pack.gd"),
+	preload("res://scripts/world/packs/bathroom_pack.gd"),
+	preload("res://scripts/world/packs/office_pack.gd"),
+	preload("res://scripts/world/packs/exec_pack.gd"),
+	preload("res://scripts/world/packs/story_pack.gd"),
+	preload("res://scripts/world/packs/specimen_pack.gd"),
+	preload("res://scripts/world/packs/decon_pack.gd"),
+	preload("res://scripts/world/packs/security_pack.gd"),
+	preload("res://scripts/world/packs/interact_pack.gd"),
+]
 
 
 ## Editor catalog tabs, by prop name prefix. Props from new .vox files that match none go in Other.
@@ -28,14 +64,20 @@ const MOUNTS := {
 
 
 static func mount_of(prop_name: String) -> String:
+	var mounts := merged("MOUNTS", MOUNTS)
 	var best := ""
-	for prefix: String in MOUNTS:
+	for prefix: String in mounts:
 		if prop_name.begins_with(prefix) and prefix.length() > best.length():
 			best = prefix
-	return MOUNTS.get(best, "floor")
+	return mounts.get(best, "floor")
 
 
+## A pack's CATEGORY wins for the props it draws (so an overgrown desk sits in Story, not
+## Office); the prefix table covers the base pack and props from .vox files no pack draws.
 static func category_of(prop_name: String) -> String:
+	_index()
+	if _pack_category.has(prop_name):
+		return _pack_category[prop_name]
 	for category: String in CATEGORIES:
 		for prefix: String in CATEGORIES[category]:
 			if prop_name.begins_with(prefix):
@@ -43,72 +85,50 @@ static func category_of(prop_name: String) -> String:
 	return "Other"
 
 
-## [{name: String, draw: Callable(props: Props, origin: Vector3i)}]
+## A table (MOUNTS, VALUES or USES) with every pack's merged in after the built-in one, built once.
+static func merged(table: String, built_in: Dictionary) -> Dictionary:
+	if not _merged.has(table):
+		var out := built_in.duplicate()
+		for pack: Script in PACKS:
+			var extra: Dictionary = pack.get_script_constant_map().get(table, {})
+			for prefix: String in extra:
+				if out.has(prefix) and out[prefix] != extra[prefix]:
+					push_warning("prop pack %s: %s[%s] is already %s" % [pack.resource_path.get_file(), table, prefix, out[prefix]])
+					continue
+				out[prefix] = extra[prefix]
+		_merged[table] = out
+	return _merged[table]
+
+
+static var _merged := {}
+## Prop name -> its pack's CATEGORY, for packs that have one.
+static var _pack_category := {}
+static var _indexed := false
+
+
+static func _index() -> void:
+	if _indexed:
+		return
+	_indexed = true
+	for pack: Script in PACKS:
+		var category: String = pack.get_script_constant_map().get("CATEGORY", "")
+		if category == "":
+			continue
+		pack.entries(func(name: String, _draw: Callable) -> void: _pack_category[name] = category)
+
+
+## [{name: String, draw: Callable(props: Props, origin: Vector3i)}], every pack's in PACKS order.
 static func entries() -> Array[Dictionary]:
 	var list: Array[Dictionary] = []
-	var add := func(name: String, draw: Callable) -> void: list.append({name = name, draw = draw})
-
-	add.call("table_small", func(p: Props, o: Vector3i) -> void: p.table(o, P.NORTH, 10, 6))
-	add.call("table", func(p: Props, o: Vector3i) -> void: p.table(o, P.NORTH, 12, 8))
-	add.call("table_large", func(p: Props, o: Vector3i) -> void: p.table(o, P.NORTH, 16, 10))
-	add.call("chair", func(p: Props, o: Vector3i) -> void: p.chair(o, P.NORTH))
-	add.call("stool", func(p: Props, o: Vector3i) -> void: p.stool(o))
-	add.call("bench", func(p: Props, o: Vector3i) -> void: p.bench(o, P.NORTH, 14))
-	add.call("couch", func(p: Props, o: Vector3i) -> void: p.couch(o, P.NORTH))
-	add.call("desk", func(p: Props, o: Vector3i) -> void: p.desk(o, P.NORTH, 16))
-	add.call("desk_empty", func(p: Props, o: Vector3i) -> void: p.desk(o, P.NORTH, 16, false))
-	for v in ["a", "b", "c"]:
-		add.call("lab_bench_" + v, func(p: Props, o: Vector3i) -> void: p.lab_bench(o, P.NORTH, 26, 7))
-	for v in ["a", "b"]:
-		add.call("shelf_lab_" + v, func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "lab"))
-		add.call("shelf_storage_" + v, func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "storage"))
-	add.call("shelf_lab_jars", func(p: Props, o: Vector3i) -> void: p.shelf(o, P.NORTH, 12, 20, 4, "jars"))
-	add.call("fume_hood", func(p: Props, o: Vector3i) -> void: p.fume_hood(o, P.NORTH))
-	add.call("fridge", func(p: Props, o: Vector3i) -> void: p.fridge(o, P.NORTH))
-	add.call("water_cooler", func(p: Props, o: Vector3i) -> void: p.water_cooler(o, P.NORTH))
-	add.call("counter_sink", func(p: Props, o: Vector3i) -> void: p.counter(o, P.NORTH, 16, true))
-	add.call("counter_coffee", func(p: Props, o: Vector3i) -> void: p.counter(o, P.NORTH, 12, false))
-	add.call("vending_machine", func(p: Props, o: Vector3i) -> void: p.vending_machine(o, P.NORTH))
-	add.call("locker", func(p: Props, o: Vector3i) -> void: p.locker(o, P.NORTH))
-	for s in [5, 6, 7, 8]:
-		add.call("crate_%d" % s, func(p: Props, o: Vector3i) -> void: p.crate(o, s))
-	add.call("barrel", func(p: Props, o: Vector3i) -> void: p.barrel(o))
-	add.call("barrel_hazard", func(p: Props, o: Vector3i) -> void: p.barrel(o, true))
-	add.call("trash_can", func(p: Props, o: Vector3i) -> void: p.trash_can(o))
-	add.call("grow_bed", func(p: Props, o: Vector3i) -> void: p.grow_bed(o, P.NORTH, 30, 12))
-	add.call("spore_tank", func(p: Props, o: Vector3i) -> void: p.spore_tank(o))
-	add.call("clone_vat", func(p: Props, o: Vector3i) -> void: p.clone_vat(o))
-	add.call("plank_stack", func(p: Props, o: Vector3i) -> void: p.plank_stack(o, P.NORTH, 5))
-	add.call("sandbags", func(p: Props, o: Vector3i) -> void: p.sandbags(o, P.NORTH))
-	add.call("whiteboard", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 18, 9, true))
-	for v in ["a", "b", "c"]:
-		add.call("corkboard_" + v, func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 16, 9, false))
-	add.call("corkboard_small", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 12, 8, false))
-	add.call("corkboard_tall", func(p: Props, o: Vector3i) -> void: p.wall_board(o, P.NORTH, 10, 12, false))
-	add.call("vent_grate", func(p: Props, o: Vector3i) -> void: p.vent_grate(o, P.NORTH))
-	add.call("vent_duct", func(p: Props, o: Vector3i) -> void: p.vent_duct(o, P.NORTH))
-	add.call("terminal", func(p: Props, o: Vector3i) -> void: p.terminal(o, P.NORTH))
-	add.call("cabinet", func(p: Props, o: Vector3i) -> void: p.cabinet(o, P.NORTH))
-	add.call("drawer_desk", func(p: Props, o: Vector3i) -> void: p.drawer_desk(o, P.NORTH))
-	add.call("medkit_station", func(p: Props, o: Vector3i) -> void: p.medkit_station(o, P.NORTH))
-	add.call("ammo_bench", func(p: Props, o: Vector3i) -> void: p.ammo_bench(o, P.NORTH))
-	add.call("generator", func(p: Props, o: Vector3i) -> void: p.generator(o, P.NORTH))
-	add.call("glass_case", func(p: Props, o: Vector3i) -> void: p.glass_case(o, P.NORTH))
-	add.call("specimen_case", func(p: Props, o: Vector3i) -> void: p.specimen_case(o, P.NORTH))
-	add.call("vial_cabinet", func(p: Props, o: Vector3i) -> void: p.vial_cabinet(o, P.NORTH))
-	add.call("specimen_jar", func(p: Props, o: Vector3i) -> void: p.specimen_jar(o, P.NORTH))
-	for v in ["a", "b"]:
-		add.call("grow_bed_shrooms_" + v, func(p: Props, o: Vector3i) -> void: p.grow_bed_shrooms(o, P.NORTH, 30, 12))
-	add.call("lab_table_gear", func(p: Props, o: Vector3i) -> void: p.lab_table_gear(o, P.NORTH))
-	add.call("fake_plant", func(p: Props, o: Vector3i) -> void: p.fake_plant(o))
-	add.call("rubber_duck", func(p: Props, o: Vector3i) -> void: p.rubber_duck(o))
-	add.call("sleeping_bag", func(p: Props, o: Vector3i) -> void: p.sleeping_bag(o))
-	add.call("shroom_pot", func(p: Props, o: Vector3i) -> void: p.shroom_pot(o))
-	add.call("door_single", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "single"))
-	add.call("door_double", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 24, 22, "single"))
-	add.call("door_security", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 22, "security"))
-	add.call("door_blast", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 24, 24, "blast"))
-	add.call("vent_hatch", func(p: Props, o: Vector3i) -> void: p.door_panel(o, P.NORTH, 12, 12, "hatch"))
+	var seen := {}
+	var add := func(name: String, draw: Callable) -> void:
+		if seen.has(name):
+			push_warning("prop %s is drawn by two packs; keeping the first" % name)
+			return
+		seen[name] = true
+		list.append({name = name, draw = draw})
+	for pack: Script in PACKS:
+		pack.entries(add)
 	return list
 
 

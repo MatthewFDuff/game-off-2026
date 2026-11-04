@@ -58,6 +58,17 @@ static func play_at(sound: String, position: Vector3, volume_db := 0.0, pitch_ji
 		_instance._play_at(sound, position, volume_db, pitch_jitter, pitch)
 
 
+## The synthesized stream called sound (null if there's none), for players of their own (a radio's
+## positional loop, InteractRules).
+static func stream(sound: String) -> AudioStream:
+	return _instance._streams.get(sound) if is_instance_valid(_instance) else null
+
+
+## True when nothing should start playing (headless runs, see _muted).
+static func is_muted() -> bool:
+	return not is_instance_valid(_instance) or _instance._muted
+
+
 ## Crossfades the looped background to sound (or just retargets its volume if it's already playing).
 ## fade <= 0 sets the volume at once, unless a crossfade is still running.
 static func set_ambience(sound: String, volume_db := -18.0, fade := 1.5) -> void:
@@ -261,10 +272,12 @@ func _synthesize_all() -> int:
 		"sting_night", "sting_finale", "sting_quota", "sting_gameover", "sting_dawn",
 		"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
 		"melee_swing", "melee_hit", "flask_throw", "flask_break",
-		"drawer_open", "terminal_beep", "station_use", "glass_break",
+		"drawer_open", "terminal_beep", "station_use", "glass_break", "glass_crack", "glass_shatter", "glass_shatter_big",
+		"glass_crunch",
 		"fuse", "shroom_scream", "spit", "giant_slam",
 		"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
 		"intercom_chime", "register_tick", "crash", "zap", "splash", "rain", "emerge",
+		"squeak", "vend", "gas_hiss", "foam_spray", "thud", "printer", "radio_loop",
 	]:
 		var stream: AudioStreamWAV = call("_make_" + sound)
 		if stream:
@@ -596,6 +609,76 @@ func _make_hatch_servo() -> AudioStreamWAV:
 	return _to_wav(buf, LOW_RATE)
 
 
+## Rubber duck: a nasal rising-falling squeak with a buzz in it.
+func _make_squeak() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.14, 900.0, 1500.0, 0.28, 0.0, Shape.SQUARE, 0.004, 0.02, 40.0, 0.4)
+	_add_tone(buf, RATE, 0.12, 0.16, 1500.0, 1100.0, 0.22, 0.1, Shape.SQUARE, 0.003, 0.04, 40.0, 0.4)
+	return _to_wav(buf, RATE)
+
+
+## Vending machine: a motor whirr, then the snack's thunk into the tray.
+func _make_vend() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.75)
+	_add_tone(buf, RATE, 0.0, 0.45, 110.0, 130.0, 0.18, 0.0, Shape.SAW, 0.02, 0.05, 18.0, 0.3)
+	_add_noise(buf, RATE, 0.0, 0.45, 0.12, 0.0, 1200.0, 200.0, 0.02, 0.05)
+	_add_noise(buf, RATE, 0.5, 0.12, 0.7, 0.03, 500.0, 60.0)
+	_add_tone(buf, RATE, 0.5, 0.15, 90.0, 55.0, 0.5, 0.04)
+	return _to_wav(buf, RATE)
+
+
+## Gas cylinder venting: a loud high hiss that tails off.
+func _make_gas_hiss() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.9)
+	_add_noise(buf, RATE, 0.0, 0.9, 0.6, 0.35, 0.0, 2500.0, 0.005, 0.2)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.3, 0.2, 3000.0, 600.0, 0.005, 0.1)
+	return _to_wav(buf, RATE)
+
+
+## Extinguisher burst: a pop and a broad whooshing spray.
+func _make_foam_spray() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.0)
+	_add_noise(buf, RATE, 0.0, 0.05, 0.8, 0.02, 1500.0, 100.0)
+	_add_noise(buf, RATE, 0.02, 0.95, 0.45, 0.5, 4000.0, 400.0, 0.03, 0.3, 7.0, 0.3)
+	return _to_wav(buf, RATE)
+
+
+## Something heavy landing: a low thump and a wooden knock.
+func _make_thud() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.45)
+	_add_tone(buf, RATE, 0.0, 0.35, 95.0, 45.0, 0.8, 0.09)
+	_add_noise(buf, RATE, 0.0, 0.12, 0.6, 0.04, 700.0, 80.0)
+	_add_tone(buf, RATE, 0.01, 0.08, 320.0, 260.0, 0.2, 0.03, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Printer: a stepping feed, the head rattling across, and the page sliding out.
+func _make_printer() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.1)
+	for i in 6:
+		_add_tone(buf, RATE, i * 0.12, 0.08, 420.0, 400.0, 0.12, 0.03, Shape.SQUARE, 0.003, 0.02)
+		_add_noise(buf, RATE, i * 0.12 + 0.02, 0.06, 0.18, 0.02, 3000.0, 800.0)
+	_add_noise(buf, RATE, 0.8, 0.28, 0.3, 0.15, 2500.0, 300.0, 0.01, 0.08)
+	return _to_wav(buf, RATE)
+
+
+## The radio's looping track: a cheerful, tinny elevator tune (a bass walk and a square lead) over
+## a soft hiss, 4 bars at 120 bpm, seamless.
+func _make_radio_loop() -> AudioStreamWAV:
+	const BEAT := 0.5
+	var buf := _buffer(RATE, BEAT * 16.0 + 0.05)
+	var bass := [130.8, 164.8, 196.0, 164.8, 110.0, 130.8, 164.8, 130.8, 174.6, 220.0, 261.6, 220.0, 196.0, 246.9, 293.7, 246.9]
+	var lead := [523.3, 0.0, 659.3, 587.3, 523.3, 0.0, 440.0, 0.0, 698.5, 659.3, 587.3, 0.0, 587.3, 659.3, 784.0, 0.0]
+	for i in 16:
+		_add_tone(buf, RATE, i * BEAT, BEAT * 0.9, bass[i], bass[i], 0.16, 0.3, Shape.TRIANGLE, 0.005, 0.05)
+		if lead[i] > 0.0:
+			_add_tone(buf, RATE, i * BEAT, BEAT * 0.7, lead[i], lead[i], 0.06, 0.25, Shape.SQUARE, 0.005, 0.05, 6.0, 0.2)
+		_add_noise(buf, RATE, i * BEAT + BEAT * 0.5, 0.04, 0.05, 0.01, 0.0, 5000.0)
+	_add_noise(buf, RATE, 0.0, BEAT * 16.0, 0.015, 0.0, 6000.0, 1500.0)
+	_seam(buf, RATE)
+	return _to_wav(buf, RATE, true)
+
+
 ## Drawer / cabinet opening: a low wooden scrape and a latch click.
 func _make_drawer_open() -> AudioStreamWAV:
 	var buf := _buffer(RATE, 0.45)
@@ -684,6 +767,54 @@ func _make_glass_break() -> AudioStreamWAV:
 		var f := _rng.randf_range(2500.0, 5200.0)
 		_add_tone(buf, RATE, t, 0.25, f, f * 0.97, 0.12, 0.05, Shape.TRIANGLE)
 		_add_noise(buf, RATE, t, 0.04, 0.3, 0.01, 0.0, 4000.0)
+	return _to_wav(buf, RATE)
+
+
+## Tempered glass taking a hit: a sharp tick and a dry splintering crackle, nothing falls.
+func _make_glass_crack() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.35)
+	_add_noise(buf, RATE, 0.0, 0.03, 0.8, 0.008, 0.0, 3500.0)
+	for i in 5:
+		var t := 0.01 + i * 0.035 + _rng.randf() * 0.02
+		_add_noise(buf, RATE, t, 0.03, 0.35 - i * 0.05, 0.008, 0.0, 2500.0)
+	_add_tone(buf, RATE, 0.0, 0.2, 3400.0, 3100.0, 0.08, 0.06, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## A pane going all at once (Glass): a bright burst, then a tumble of tinkles and a rattle settling.
+func _make_glass_shatter() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.1)
+	_add_noise(buf, RATE, 0.0, 0.25, 0.95, 0.06, 0.0, 2500.0)
+	_add_noise(buf, RATE, 0.0, 0.5, 0.3, 0.15, 3000.0, 500.0)
+	for i in 12:
+		var t := 0.02 + i * 0.07 + _rng.randf() * 0.05
+		var f := _rng.randf_range(2400.0, 5600.0)
+		_add_tone(buf, RATE, t, 0.2, f, f * 0.97, 0.12 - i * 0.006, 0.04, Shape.TRIANGLE)
+		_add_noise(buf, RATE, t, 0.04, 0.28 - i * 0.015, 0.01, 0.0, 3500.0)
+	return _to_wav(buf, RATE)
+
+
+## A big pane (a window wall): a low thump under the burst, then a longer cascade of falling glass.
+func _make_glass_shatter_big() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 1.8)
+	_add_tone(buf, RATE, 0.0, 0.3, 110.0, 50.0, 0.5, 0.1, Shape.SINE, 0.002, 0.05)
+	_add_noise(buf, RATE, 0.0, 0.35, 1.0, 0.09, 0.0, 1800.0)
+	_add_noise(buf, RATE, 0.05, 0.9, 0.35, 0.3, 4000.0, 400.0)
+	for i in 22:
+		var t := 0.03 + i * 0.07 + _rng.randf() * 0.06
+		var f := _rng.randf_range(2000.0, 6000.0)
+		_add_tone(buf, RATE, t, 0.2, f, f * 0.96, 0.13 - i * 0.004, 0.04, Shape.TRIANGLE)
+		_add_noise(buf, RATE, t, 0.05, 0.3 - i * 0.01, 0.012, 0.0, 3000.0)
+	return _to_wav(buf, RATE)
+
+
+## Walking on shards: a short gritty crunch with a couple of tiny glints.
+func _make_glass_crunch() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.18)
+	_add_noise(buf, RATE, 0.0, 0.12, 0.6, 0.03, 6000.0, 1500.0)
+	_add_noise(buf, RATE, 0.03, 0.08, 0.35, 0.02, 0.0, 3000.0)
+	_add_tone(buf, RATE, 0.01, 0.06, 4200.0, 4000.0, 0.06, 0.02, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.05, 0.06, 5100.0, 4900.0, 0.05, 0.02, Shape.TRIANGLE)
 	return _to_wav(buf, RATE)
 
 

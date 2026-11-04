@@ -17,6 +17,14 @@ class_name LevelBuild
 ##   share a slab, the ceiling's material shows on the bottom layer and the floor's above it.
 ## - An opening in a wall (an opening with `wall` set): `along` (voxels from a), `width`, `sill`
 ##   (from the floor) and `height`; it moves with the wall.
+##
+## Rock levels (fill "rock") have no storeys: pieces stand on whatever they were built on.
+## - A wall there has `storey` -1, `base` (the voxel y of the floor top it stands on) and always a
+##   height of its own.
+## - Floors and ceilings are kept per plane instead of per storey: `storey` -1 and `y`, the floor's
+##   top or the ceiling's bottom (id "floor_y<y>" / "ceiling_y<y>"), the slab (the default storeys'
+##   thickness) under or over it.
+## - VoxelWorld lets them fill a room's inside and recolor its lining there, never the rock around.
 
 const KINDS := ["wall", "floor", "ceiling", "storeys"]
 const STOREYS_ID := "storeys"
@@ -37,18 +45,26 @@ static func new_storeys(floor: int, heights: Array = [DEFAULT_HEIGHT], slab := D
 	return {kind = "storeys", id = STOREYS_ID, floor = floor, slab = slab, heights = heights.duplicate()}
 
 
-static func new_wall(storey: int, a: Vector3i, b: Vector3i, material: int, thickness := 2, height := -1, inner := 0) -> Dictionary:
-	return {kind = "wall", storey = storey, a = Vector3i(a.x, 0, a.z), b = Vector3i(b.x, 0, b.z), material = material,
+## A wall on a storey, or (storey -1, rock levels) standing on the floor top at voxel y base.
+static func new_wall(storey: int, a: Vector3i, b: Vector3i, material: int, thickness := 2, height := -1, inner := 0, base := 0) -> Dictionary:
+	var wall := {kind = "wall", storey = storey, a = Vector3i(a.x, 0, a.z), b = Vector3i(b.x, 0, b.z), material = material,
 			thickness = thickness, height = height, inner = inner}
+	if storey < 0:
+		wall.base = base
+	return wall
 
 
-## An empty floor or ceiling for a storey (kind "floor" or "ceiling").
-static func new_slab(kind: String, storey: int) -> Dictionary:
-	return {kind = kind, id = "%s_%d" % [kind, storey], storey = storey, shapes = []}
+## An empty floor or ceiling (kind "floor" or "ceiling") for a storey, or (storey -1, rock levels)
+## at plane y.
+static func new_slab(kind: String, storey: int, plane := 0) -> Dictionary:
+	var slab := {kind = kind, id = slab_id(kind, storey, plane), storey = storey, shapes = []}
+	if storey < 0:
+		slab.y = plane
+	return slab
 
 
-static func slab_id(kind: String, storey: int) -> String:
-	return "%s_%d" % [kind, storey]
+static func slab_id(kind: String, storey: int, plane := 0) -> String:
+	return "%s_y%d" % [kind, plane] if storey < 0 else "%s_%d" % [kind, storey]
 
 
 ## A slab shape: a polygon of grid points (Vector3i, y unused), painted (add) or erased.
@@ -133,6 +149,11 @@ static func wall_height(wall: Dictionary, st: Dictionary) -> int:
 	return int(wall.height) if int(wall.height) > 0 else storey_height(st, int(wall.storey))
 
 
+## The floor top a wall stands on (voxel y): its storey's, or its own base in a rock level.
+static func wall_base(wall: Dictionary, st: Dictionary) -> int:
+	return int(wall.get("base", 0)) if int(wall.storey) < 0 else floor_y(st, int(wall.storey))
+
+
 # --- Geometry ------------------------------------------------------------------------------------
 
 ## A wall's box in voxels (a little bigger than its cells).
@@ -140,14 +161,17 @@ static func wall_box(wall: Dictionary, st: Dictionary) -> AABB:
 	var a: Vector3i = wall.a
 	var b: Vector3i = wall.b
 	var grow := int(wall.thickness) / 2 + 2
-	var y := floor_y(st, int(wall.storey))
+	var y := wall_base(wall, st)
 	var lo := Vector3(mini(a.x, b.x) - grow, y, mini(a.z, b.z) - grow)
 	var hi := Vector3(maxi(a.x, b.x) + grow, y + wall_height(wall, st), maxi(a.z, b.z) + grow)
 	return AABB(lo, hi - lo)
 
 
-## The y range [y0, y1) a floor or ceiling slab of a storey fills.
-static func slab_range(kind: String, storey: int, st: Dictionary) -> Vector2i:
+## The y range [y0, y1) a floor or ceiling slab of a storey fills; storey -1: the one at plane (a
+## floor's top, a ceiling's bottom).
+static func slab_range(kind: String, storey: int, st: Dictionary, plane := 0) -> Vector2i:
+	if storey < 0:
+		return Vector2i(plane - int(st.slab), plane) if kind == "floor" else Vector2i(plane, plane + int(st.slab))
 	if kind == "floor":
 		var top := floor_y(st, storey)
 		return Vector2i(top - int(st.slab), top)
@@ -167,7 +191,7 @@ static func slab_box(slab: Dictionary, st: Dictionary) -> AABB:
 		hi = hi.max(rect.end)
 	if hi.x < lo.x:
 		return AABB()
-	var y := slab_range(slab.kind, int(slab.storey), st)
+	var y := slab_range(slab.kind, int(slab.storey), st, int(slab.get("y", 0)))
 	return AABB(Vector3(lo.x, y.x, lo.y), Vector3(hi.x - lo.x, y.y - y.x, hi.y - lo.y))
 
 
@@ -269,7 +293,7 @@ static func prism_corners(a: Vector2, b: Vector2, thickness: float, y0: float, y
 static func corners_of(object: Dictionary, objects: Dictionary) -> Array[Vector3]:
 	var st := storeys(objects)
 	if object.get("kind") == "wall":
-		var y := floor_y(st, int(object.storey))
+		var y := wall_base(object, st)
 		var e := ends(object)
 		return prism_corners(Vector2(e[0]), Vector2(e[1]), int(object.thickness), y, y + wall_height(object, st), int(object.thickness) * 0.5)
 	if object.get("kind") == "opening" and str(object.get("wall", "")) != "":
@@ -278,7 +302,7 @@ static func corners_of(object: Dictionary, objects: Dictionary) -> Array[Vector3
 			return []
 		var a := Vector2(wall.a.x, wall.a.z)
 		var u := wall_unit(wall)
-		var y := floor_y(st, int(wall.storey)) + int(object.sill)
+		var y := wall_base(wall, st) + int(object.sill)
 		return prism_corners(a + u * int(object.along), a + u * (int(object.along) + int(object.width)), int(wall.thickness) + 2, y,
 				y + int(object.height), 0.0)
 	return []
@@ -306,7 +330,7 @@ static func wall_at(objects: Dictionary, voxel: Vector3i, prefer_storey := -1) -
 	for object: Dictionary in objects.values():
 		if object.kind != "wall" or not is_diagonal_ok(object.a, object.b):
 			continue
-		var y := floor_y(st, int(object.storey))
+		var y := wall_base(object, st)
 		if voxel.y < y or voxel.y >= y + wall_height(object, st) or not wall_has(object, voxel.x, voxel.z):
 			continue
 		var rank := 1 if int(object.storey) == prefer_storey else 0
@@ -326,7 +350,7 @@ static func opening_at(objects: Dictionary, voxel: Vector3i) -> String:
 		var wall: Dictionary = objects.get(object.wall, {})
 		if wall.get("kind") != "wall":
 			continue
-		var y := floor_y(st, int(wall.storey)) + int(object.sill)
+		var y := wall_base(wall, st) + int(object.sill)
 		var along := along_of(wall, c)
 		if voxel.y >= y and voxel.y < y + int(object.height) and along >= int(object.along) and along < int(object.along) + int(object.width) \
 				and absf(across_of(wall, c)) < int(wall.thickness) * 0.5 + 1.0:
@@ -346,7 +370,7 @@ static func openings_in(objects: Dictionary, wall_id: String) -> Array[Dictionar
 ## Door props standing in a wall (their middle in its cells, on its storey).
 static func doors_in(objects: Dictionary, wall: Dictionary) -> Array[Dictionary]:
 	var st := storeys(objects)
-	var y := floor_y(st, int(wall.storey))
+	var y := wall_base(wall, st)
 	var out: Array[Dictionary] = []
 	for object: Dictionary in objects.values():
 		if not LevelSchema.is_door(object):
@@ -357,20 +381,28 @@ static func doors_in(objects: Dictionary, wall: Dictionary) -> Array[Dictionary]
 	return out
 
 
-## A storey's walls (valid ones).
-static func walls_on(objects: Dictionary, storey: int) -> Array[Dictionary]:
+## A storey's walls (valid ones); storey -1: the rock level walls standing on base.
+static func walls_on(objects: Dictionary, storey: int, base := 0) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for object: Dictionary in objects.values():
-		if object.kind == "wall" and int(object.storey) == storey and is_diagonal_ok(object.a, object.b):
+		if object.kind != "wall" or not is_diagonal_ok(object.a, object.b):
+			continue
+		var on := int(object.storey) == storey if storey >= 0 else int(object.storey) < 0 and int(object.get("base", 0)) == base
+		if on:
 			out.append(object)
 	return out
 
 
-## The columns closed in by a storey's walls around a start column: {ok, runs ([z, x0, x1], under
-## the walls too, out to their far side), reason}. Not ok if the start is in a wall or the space
-## reaches past the walls (it isn't closed in).
-static func enclosure(objects: Dictionary, storey: int, start: Vector2i) -> Dictionary:
-	var grid := _wall_grid(objects, storey)
+## The walls standing with a wall (itself too): on its storey, or on its base in a rock level.
+static func walls_with(objects: Dictionary, wall: Dictionary) -> Array[Dictionary]:
+	return walls_on(objects, int(wall.storey), int(wall.get("base", 0)))
+
+
+## The columns closed in by a storey's walls (storey -1: the walls on base) around a start column:
+## {ok, runs ([z, x0, x1], under the walls too, out to their far side), reason}. Not ok if the start
+## is in a wall or the space reaches past the walls (it isn't closed in).
+static func enclosure(objects: Dictionary, storey: int, start: Vector2i, base := 0) -> Dictionary:
+	var grid := _wall_grid(objects, storey, base)
 	if grid.is_empty():
 		return {ok = false, reason = "Not enclosed by walls"}
 	var lo: Vector2i = grid.lo
@@ -387,9 +419,10 @@ static func enclosure(objects: Dictionary, storey: int, start: Vector2i) -> Dict
 	return {ok = true, runs = _runs(grid, 2)}
 
 
-## Every space a storey's walls close in, each as runs (like enclosure's).
-static func enclosures(objects: Dictionary, storey: int) -> Array:
-	var grid := _wall_grid(objects, storey)
+## Every space a storey's walls (storey -1: the walls on base) close in, each as runs (like
+## enclosure's).
+static func enclosures(objects: Dictionary, storey: int, base := 0) -> Array:
+	var grid := _wall_grid(objects, storey, base)
 	if grid.is_empty():
 		return []
 	var state: PackedByteArray = grid.state
@@ -411,8 +444,8 @@ static func enclosures(objects: Dictionary, storey: int) -> Array:
 
 ## The storey's walls drawn into a grid over their box (a voxel per column): {lo, size, state, thickest},
 ## state 0 open, 1 wall. {} without walls.
-static func _wall_grid(objects: Dictionary, storey: int) -> Dictionary:
-	var walls := walls_on(objects, storey)
+static func _wall_grid(objects: Dictionary, storey: int, base := 0) -> Dictionary:
+	var walls := walls_on(objects, storey, base)
 	if walls.is_empty():
 		return {}
 	var st := storeys(objects)
@@ -531,26 +564,26 @@ static func pack(objects: Dictionary, region: AABB) -> PackedInt32Array:
 	# A ceiling and the floor above share a slab: the ceiling shows underneath, the floor on top.
 	for slab in slabs:
 		if slab.kind == "ceiling":
-			var y := slab_range("ceiling", int(slab.storey), st)
+			var y := slab_range("ceiling", int(slab.storey), st, int(slab.get("y", 0)))
 			if y.y - y.x > 1:
 				_pack_slab(out, slab, y.x + 1, y.y)
 	for slab in slabs:
 		if slab.kind == "floor":
-			var y := slab_range("floor", int(slab.storey), st)
+			var y := slab_range("floor", int(slab.storey), st, int(slab.get("y", 0)))
 			_pack_slab(out, slab, y.x, y.y)
 	for slab in slabs:
 		if slab.kind == "ceiling":
-			var y := slab_range("ceiling", int(slab.storey), st)
+			var y := slab_range("ceiling", int(slab.storey), st, int(slab.get("y", 0)))
 			_pack_slab(out, slab, y.x, y.x + 1)
 	for wall in walls:
-		var y := floor_y(st, int(wall.storey))
+		var y := wall_base(wall, st)
 		out.append_array([WALL, 9, wall.a.x, wall.a.z, wall.b.x, wall.b.z, y, y + wall_height(wall, st),
 				int(wall.thickness), int(wall.material), int(wall.inner)])
 	for opening in openings:
 		var wall: Dictionary = objects[opening.wall]
 		if wall.get("kind") != "wall" or not wall_box(wall, st).intersects(region):
 			continue
-		var y := floor_y(st, int(wall.storey)) + int(opening.sill)
+		var y := wall_base(wall, st) + int(opening.sill)
 		out.append_array([WALL_OPENING, 9, wall.a.x, wall.a.z, wall.b.x, wall.b.z, y, y + int(opening.height),
 				int(wall.thickness), int(opening.along), int(opening.along) + int(opening.width)])
 	return out

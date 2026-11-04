@@ -56,6 +56,7 @@ const FLASK_DEFS := {
 	poison = {label = "Poison", color = Color(0.45, 1.0, 0.3), cloud_type = "poison"},
 	rage = {label = "Rage", color = Color(1.0, 0.2, 0.3), cloud_type = "rage"},
 	freeze = {label = "Freeze", color = Color(0.55, 0.85, 1.0), cloud_type = "freeze"},
+	foam = {label = "Foam", color = Color(0.93, 0.95, 0.97), cloud_type = "foam"},
 }
 
 var name := ""

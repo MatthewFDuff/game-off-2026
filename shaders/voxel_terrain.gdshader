@@ -13,6 +13,9 @@ uniform float edge_darkening : hint_range(0.0, 0.5) = 0.08;
 uniform float emission_energy = 2.5;
 // 1 while the facility has power. Powered lamps fade out with it; emergency lights fade in.
 uniform float facility_power : hint_range(0.0, 1.0) = 1.0;
+// Mycelium veins (palette row 2 blue = PULSING): emission swings in a slow wave travelling along
+// world x + z, deeper and faster with pulse_amount (Mycelium.pulse raises it for a few seconds).
+uniform float pulse_amount : hint_range(0.0, 1.0) = 0.25;
 // Level editor cutaway: nothing above this world height is drawn (EditorCamera sets it; the cut
 // face itself is EditorCamera's cap plane).
 uniform float cut_height = 1e9;
@@ -75,5 +78,10 @@ void fragment() {
 
 	ALBEDO = albedo * ao;
 	ROUGHNESS = 0.9;
-	EMISSION = entry.rgb * entry.a * emission_energy * light_switch;
+	float pulse = 1.0;
+	if (texelFetch(palette, ivec2(id, 2), 0).b > 0.5) {
+		float wave = 0.5 + 0.5 * sin((world_position.x + world_position.z) * 1.3 - TIME * (1.2 + 3.0 * pulse_amount));
+		pulse = mix(1.0, 0.2 + 1.8 * wave * wave, pulse_amount);
+	}
+	EMISSION = entry.rgb * entry.a * emission_energy * light_switch * pulse;
 }

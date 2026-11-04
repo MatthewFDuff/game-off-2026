@@ -31,7 +31,30 @@ const FACINGS := ["north", "east", "south", "west"]
 ##   generator       on backup power: restores power, fires `on_use`, starts the director's finale
 ##                   for `finale_seconds`
 ##   glass_case      breaking any of its GLASS voxels (or E, which smashes it) drops its `contents`
-const USES := ["none", "container", "terminal", "note", "station_medkit", "station_ammo", "generator", "glass_case"]
+##   switch          a lever, button, light switch, breaker or alarm pull: fires `on_use` every time
+##                   (only the first time with `once`). With no `on_use`, a breaker panel, fuse box
+##                   or light switch toggles the lights of the room it is in; an alarm pull also
+##                   starts a horde (never while the director is dormant)
+##   vendor          charges `price` to the payroll (the statement's purchases), drops `contents`
+##                   and gives the user `buff` (speed or reload, for 20 s). A vending machine's
+##                   glass shot out drops a snack too and bills it as damage
+##   eyewash         clears Poisoned and Burning on the user; an emergency shower also douses fire
+##                   around it
+##   defib           revives a dead teammate within 3 m where they lie (before their clone grows),
+##                   else heals the user to full, `charges` times
+##   extinguisher    E picks it up as a foam flask; shot or caught in fire it bursts into a foam
+##                   cloud (slows enemies, clears spore and poison clouds, douses fire)
+##   flip            swaps the prop for its `<name>_flipped` twin (cover), once
+##   printer         prints `text` as a page (a `paper_<id>` pickup; picking it up reads it), once
+##   radio           toggles a looping track that pulls enemies within 20 m who can't see a player
+##   squeak          a squeak: enemies within 10 m who can't see a player go to it for 4 s
+## Props that react by name in play, whatever their use: a gas cylinder shot vents and skids 6 m
+## (knocking enemies back), shot again, burnt or blasted it explodes; a fragment of more than 50
+## voxels coming loose (a hanging crate whose chain is shot) crushes what is under it.
+const USES := ["none", "container", "terminal", "note", "station_medkit", "station_ammo", "generator", "glass_case",
+		"switch", "vendor", "eyewash", "defib", "extinguisher", "flip", "printer", "radio", "squeak"]
+## Buffs a vendor gives (Player statuses "hasted" and "caffeinated").
+const BUFFS := ["none", "speed", "reload"]
 
 ## Prop fields shown in the inspector, with their defaults (props saved before a field existed get
 ## these). Door fields only matter when `door` is on; `use` fields only for that use.
@@ -56,11 +79,14 @@ const PROP_FIELDS := [
 	{key = "charges", type = "int", min = 0, max = 99, default = 3, label = "Charges (station)"},
 	{key = "station_ammo_type", type = "string", default = "", label = "Ammo type (empty = loaded)"},
 	{key = "finale_seconds", type = "float", min = 1.0, max = 1800.0, default = 120.0, label = "Finale (s, generator)"},
+	{key = "once", type = "bool", default = false, label = "Works once (switch)"},
+	{key = "price", type = "int", min = 0, max = 10000, default = 0, label = "Price ($, vendor)"},
+	{key = "buff", type = "enum", options = BUFFS, default = "none", label = "Buff (vendor, 20 s)"},
 ]
 
 ## Default `use` by prop name prefix (the longest matching prefix wins).
 const DEFAULT_USES := {
-	"cabinet": "container", "drawer_desk": "container", "fridge": "container", "water_cooler": "container",
+	"cabinet": "container", "drawer_desk": "container", "fridge": "container", "water_cooler": "vendor",
 	"locker": "container", "terminal": "terminal", "generator": "generator", "glass_case": "glass_case",
 	"medkit_station": "station_medkit", "ammo_bench": "station_ammo",
 }
@@ -103,6 +129,15 @@ const MARKERS := {
 	]},
 	item = {label = "Item spot", color = Color(0.85, 0.6, 1.0), fields = [
 		{key = "item", type = "string", default = "medkit", label = "Item (medkit, ammo_<type>, flask_<type>, keycard_<color>)"},
+	]},
+	# A mycelium node (Mycelium): nodes link up by themselves into roots and tendrils.
+	mycelium = {label = "Mycelium node", color = Color(0.45, 0.95, 0.85), fields = [
+		{key = "radius", type = "float", min = 1.0, max = 12.0, default = 4.0, label = "Radius (voxels)"},
+		{key = "reach", type = "float", min = 0.0, max = 200.0, default = 40.0, label = "Links to nodes within (voxels)"},
+		{key = "links", type = "int", min = 0, max = 8, default = 3, label = "Most links"},
+		{key = "sag", type = "float", min = 0.0, max = 1.0, default = 0.0, label = "Sag (links droop)"},
+		{key = "glow", type = "float", min = 0.0, max = 1.0, default = 0.3, label = "Glowing veins"},
+		{key = "spread", type = "int", min = 0, max = 30, default = 0, label = "Film on its surface (voxels)"},
 	]},
 }
 
@@ -163,11 +198,11 @@ const ASSET_VALUES := {
 
 
 static func default_value(prop_name: String) -> int:
-	return _by_prefix(ASSET_VALUES, prop_name, 100)
+	return _by_prefix(PropCatalog.merged("VALUES", ASSET_VALUES), prop_name, 100) # Plus the prop packs'.
 
 
 static func default_use(prop_name: String) -> String:
-	return _by_prefix(DEFAULT_USES, prop_name, "none")
+	return _by_prefix(PropCatalog.merged("USES", DEFAULT_USES), prop_name, "none") # Plus the prop packs'.
 
 
 static func _by_prefix(table: Dictionary, prop_name: String, fallback: Variant) -> Variant:
@@ -181,6 +216,8 @@ static func _by_prefix(table: Dictionary, prop_name: String, fallback: Variant) 
 static func new_prop(prop_name: String, origin: Vector3i, facing: int) -> Dictionary:
 	var prop := {kind = "prop", name = prop_name, origin = origin, facing = facing, value = default_value(prop_name)}
 	fill_defaults(prop)
+	# The prop packs' per-name field defaults (a vending machine's price and snack, ...).
+	prop.merge(_by_prefix(PropCatalog.merged("FIELDS", {}), prop_name, {}), true)
 	if PropCatalog.mount_of(prop_name) == "door":
 		prop.door = true
 		prop.door_speed = 0.8 if prop_name.contains("blast") else 2.5
@@ -249,11 +286,15 @@ static func fill_defaults(object: Dictionary) -> void:
 			fields = WALL_OPENING_FIELDS
 	elif object.get("kind") == "wall":
 		fields = WALL_FIELDS
+		if object.has("base"):
+			object.base = int(object.base) # A rock level wall's floor (LevelBuild).
 	elif object.get("kind") == "storeys":
 		fields = STOREY_FIELDS
 		object.heights = object.get("heights", []).map(func(h: Variant) -> int: return int(h))
 	elif object.get("kind") in ["floor", "ceiling"]:
 		object.storey = int(object.get("storey", 0))
+		if object.has("y"):
+			object.y = int(object.y) # A rock level floor's or ceiling's plane (LevelBuild).
 		object.shapes = object.get("shapes", []).map(func(s: Array) -> Array: return s.map(func(v: Variant) -> int: return int(v)))
 	for field: Dictionary in fields:
 		if not field.has("default"):

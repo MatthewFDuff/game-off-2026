@@ -21,12 +21,15 @@ signal menu_requested
 enum Tool { SELECT, ROOM, BOX, BRUSH, REPLACE, OPENING, PROP, MARKER, FLOOR, WALL, CEILING }
 
 const TOOL_NAMES := ["Select", "Room", "Box", "Brush", "Replace", "Opening", "Prop", "Marker", "Floor", "Wall", "Ceiling"]
-## The number keys, by place on the rail (1 ... 9, 0); the rail's tools depend on the level (tools()).
+## The number keys, by place on the rail (1 ... 9, 0, -); the rail's tools depend on the level
+## (tools()).
 const SLOT_ACTIONS := ["editor_tool_select", "editor_tool_room", "editor_tool_box", "editor_tool_brush",
-		"editor_tool_replace", "editor_tool_opening", "editor_tool_prop", "editor_tool_marker", "editor_tool_slot_9", "editor_tool_slot_10"]
-## The rail in rock levels (carving rooms) and in build levels (empty: floors, walls and ceilings on
-## storeys, no Room tool).
-const ROCK_TOOLS := [Tool.SELECT, Tool.ROOM, Tool.BOX, Tool.BRUSH, Tool.REPLACE, Tool.OPENING, Tool.PROP, Tool.MARKER]
+		"editor_tool_replace", "editor_tool_opening", "editor_tool_prop", "editor_tool_marker", "editor_tool_slot_9", "editor_tool_slot_10",
+		"editor_tool_slot_11"]
+## The rail in rock levels (carving rooms, then building in them: the first eight keep their keys)
+## and in build levels (empty: floors, walls and ceilings on storeys, no Room tool).
+const ROCK_TOOLS := [Tool.SELECT, Tool.ROOM, Tool.BOX, Tool.BRUSH, Tool.REPLACE, Tool.OPENING, Tool.PROP, Tool.MARKER,
+		Tool.FLOOR, Tool.WALL, Tool.CEILING]
 const BUILD_TOOLS := [Tool.SELECT, Tool.FLOOR, Tool.WALL, Tool.CEILING, Tool.BOX, Tool.BRUSH, Tool.REPLACE, Tool.OPENING, Tool.PROP, Tool.MARKER]
 ## Short how-tos for tooltips.
 const TOOL_ABOUT := [
@@ -56,6 +59,10 @@ const TOOL_HINTS := [
 	"LMB drag: cover an area · LMB click inside walls: fill · Shift: erase · Auto (inspector): every closed room",
 ]
 const SNAPS := [1, 5, 10]
+## Rock levels: the tallest wall the Wall tool reaches up to a ceiling with, and how far up it (or the
+## Ceiling tool) looks for one (voxels).
+const ROCK_WALL_MAX := 80
+const ROCK_CEILING_REACH := 200
 ## How far the cursor reaches, in meters.
 const REACH := 80.0
 const DAB_INTERVAL := 0.06
@@ -73,12 +80,15 @@ var free_cursor := false
 var free_distance := 4.0
 var brush_size := 3
 var brush_cube := false
+## Off: Box, Brush and Replace leave what the cutaway hides (above the cut) alone.
+var edit_hidden := false
 var prop_name := "chair"
 var facing := 0
 var marker_type := "light"
 var selected := ""
 ## Build mode (empty levels): the storey being worked on (LevelBuild). Page Up / Down change it, the
-## cutaway opens it, and the cursor lands on its floor plane where nothing else is.
+## cutaway opens it, and the cursor lands on its floor plane where nothing else is. Rock levels have
+## none: the build tools work on the surface aimed at.
 var storey := 0
 ## Room tool linings (from the level's defaults).
 var room_floor := VoxelMaterials.CONCRETE
@@ -113,8 +123,8 @@ var wall_handles := WallHandles.new()
 ## Floor and Ceiling tools (build levels): their aim, snapping and drag.
 var build := BuildTools.new()
 ## Wall tool (build levels): its drag, and the walls it draws: material (room_wall), the left face's
-## material (0: none), thickness, height (-1: the storey's), and whether Ctrl's rectangle also gets
-## a floor and a ceiling.
+## material (0: none), thickness, height (-1: the storey's; in rock levels, up to the ceiling), and
+## whether Ctrl's rectangle also gets a floor and a ceiling.
 var wall := WallTool.new()
 var wall_inner := 0
 var wall_thickness := 2
@@ -122,9 +132,10 @@ var wall_height := -1
 var wall_slabs := true
 ## Last height built per tool, in voxels: the next one starts there.
 var _last_height := {Tool.ROOM: 30, Tool.BOX: 10, Tool.REPLACE: 10}
-## This frame's aim ray (mouse or crosshair).
+## This frame's aim ray (mouse or crosshair), and where it hit the world (world space).
 var _aim_from := Vector3.ZERO
 var _aim_direction := Vector3.FORWARD
+var _hit_point := Vector3.ZERO
 ## Object being moved / duplicated (a copy with the pending changes), its original id ("" = new),
 ## and for a duplicate, the id it was copied from.
 var _grab := {}
@@ -408,13 +419,16 @@ func cancel() -> void:
 
 ## Something to back out of with Esc: a volume being sized, a move or a stroke.
 func has_step() -> bool:
-	return volume.is_active() or handles.is_busy() or wall_handles.is_busy() or not _grab.is_empty() or _stroke != 0 or build.dragging or wall.dragging
+	return volume.is_active() or handles.is_busy() or wall_handles.is_busy() or not _grab.is_empty() or _stroke != 0 or build.dragging or wall.dragging \
+			or build.held >= 0
 
 
 func _process(delta: float) -> void:
 	if camera.active != (builder and is_active()):
 		_apply_view()
-	camera.zoom_enabled = not volume.is_active() and not handles.is_busy() and not wall_handles.is_busy() and not wall.dragging
+	# The wheel sizes while a tool step has it (in rock levels it also moves a Floor / Ceiling drag's plane).
+	camera.zoom_enabled = not volume.is_active() and not handles.is_busy() and not wall_handles.is_busy() and not wall.dragging \
+			and not (build.dragging and is_rock_level())
 	if not is_active():
 		for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, _bounds, _ground, _wall_fill, _wall_lines] + _size_labels:
 			node.visible = false
@@ -499,6 +513,7 @@ func _update_cursor() -> void:
 	has_cursor = hit.hit or object_under != ""
 	if hit.hit:
 		solid_cell = hit.voxel
+		_hit_point = from + direction * float(hit.distance)
 		cursor_normal = Vector3i(hit.normal)
 		cell = hit.voxel + cursor_normal
 		cursor_on_cap = hit.get("cap", false)
@@ -513,7 +528,7 @@ func _update_cursor() -> void:
 	elif object_under != "" and hit.hit and hit.distance < object_distance:
 		object_under = "" # Behind a wall.
 	if tool == Tool.SELECT and object_under == "" and hit.hit:
-		object_under = build_under() if is_build_level() else ""
+		object_under = build_under()
 		if object_under == "":
 			object_under = room_under()
 
@@ -530,15 +545,18 @@ func _slab_material() -> int:
 
 
 ## Floor and Ceiling tools: aim at the storey's floor top or ceiling bottom; the Wall tool at the
-## floor top.
+## floor top. In rock levels (no storeys) the plane comes from what's aimed at (_update_rock_aim).
 func _update_build_aim() -> void:
 	_update_wall_aim()
-	if not tool in [Tool.FLOOR, Tool.CEILING] or not is_build_level():
+	if not tool in [Tool.FLOOR, Tool.CEILING]:
 		build.has_aim = false
 		build.cancel()
 		return
-	var st := LevelBuild.storeys(lab.level.objects)
 	build.kind = "ceiling" if tool == Tool.CEILING else "floor"
+	if is_rock_level():
+		_update_rock_aim(build)
+		return
+	var st := LevelBuild.storeys(lab.level.objects)
 	build.storey = storey
 	build.plane_y = LevelBuild.top_y(st, storey) if tool == Tool.CEILING else LevelBuild.floor_y(st, storey)
 	if is_aiming():
@@ -548,37 +566,145 @@ func _update_build_aim() -> void:
 
 
 func _update_wall_aim() -> void:
-	if tool != Tool.WALL or not is_build_level():
+	if tool != Tool.WALL:
 		wall.has_aim = false
 		wall.cancel()
 		return
-	var st := LevelBuild.storeys(lab.level.objects)
-	wall.storey = storey
-	wall.plane_y = LevelBuild.floor_y(st, storey)
-	wall.storey_height = LevelBuild.storey_height(st, storey)
-	if is_aiming():
-		wall.update_aim(_aim_from, _aim_direction, lab.level.objects, snap())
-	elif not wall.dragging:
-		wall.has_aim = false
+	if is_rock_level():
+		wall.storey_height = 0
+		_update_rock_aim(wall)
+	else:
+		var st := LevelBuild.storeys(lab.level.objects)
+		wall.storey = storey
+		wall.plane_y = LevelBuild.floor_y(st, storey)
+		wall.storey_height = LevelBuild.storey_height(st, storey)
+		if is_aiming():
+			wall.update_aim(_aim_from, _aim_direction, lab.level.objects, snap())
+		elif not wall.dragging:
+			wall.has_aim = false
 	wall.update_end(snap())
 
 
-## The height a new wall starts at (voxels): the tool's, or the storey's.
-func _wall_start_height() -> int:
-	return wall_height if wall_height > 0 else LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), storey)
-
-
-## Ceiling tool's Auto: covers every closed-in room on the storey that has a floor.
-func auto_ceiling() -> void:
-	if not is_build_level():
+## Rock levels: builds on what's aimed at (storey -1). The Floor and Wall tools take the floor top
+## under the cursor as their plane (and base), the Ceiling tool the underside of what's over that
+## floor. A Floor or Ceiling plane held with the wheel (BuildTools.held) stays put instead, its base
+## the floor under it. While dragging, the plane stays where the press put it. The aim is where the
+## ray meets the plane (on a floor that's the point aimed at; on a wall's face, the point on it).
+func _update_rock_aim(aimer: BuildTools) -> void:
+	aimer.storey = -1
+	if not is_aiming():
+		if not aimer.dragging:
+			aimer.has_aim = false
 		return
-	build.storey = storey
+	var objects: Dictionary = lab.level.objects
+	var surface := _rock_surface()
+	var hit := (_hit_point - lab.world.global_position) / lab.world.voxel_size
+	if aimer.held >= 0:
+		aimer.plane_y = aimer.held
+	elif not aimer.dragging:
+		if surface.is_empty():
+			aimer.has_aim = false
+			return
+		aimer.plane_y = surface.top
+		aimer.base = surface.top
+		if aimer == build and tool == Tool.CEILING:
+			var over := _ceiling_over(surface.column, surface.top)
+			if over < 0:
+				aimer.has_aim = false
+				return
+			aimer.plane_y = over
+	aimer.update_aim(_aim_from, _aim_direction, objects, snap())
+	if not surface.is_empty() and aimer.held < 0 and (not aimer.has_aim or (not surface.up and not aimer.dragging)):
+		aimer.aim_at(Vector2(hit.x, hit.z), objects, snap()) # On a wall's face, or the ray never meets the plane.
+	elif aimer.dragging:
+		aimer.has_aim = true # The ray left the plane: the drag keeps its last aim.
+	if aimer.held >= 0 and not aimer.dragging:
+		# A held plane: the floor under it is what the walls snapped to stand on.
+		var column := Vector3i(floori(aimer.aim.x), aimer.plane_y, floori(aimer.aim.y))
+		aimer.base = aimer.plane_y if tool == Tool.FLOOR else RoomTools.floor_under(lab.world, column)
+		aimer.aim_at(aimer.aim, objects, snap())
+
+
+## Rock levels: the floor under the cursor: {top (voxel y of its top), column (Vector2i), up (aimed
+## at the top itself, not a wall or ceiling over it)}; {} when there's none (nothing hit, or the
+## cutaway's cross section).
+func _rock_surface() -> Dictionary:
+	if not has_cursor or cursor_on_cap or not is_aiming():
+		return {}
+	if cursor_normal == Vector3i.UP:
+		return {top = solid_cell.y + 1, column = Vector2i(solid_cell.x, solid_cell.z), up = true}
+	return {top = RoomTools.floor_under(lab.world, cell), column = Vector2i(cell.x, cell.z), up = false}
+
+
+## The bottom of the first solid voxel over a floor top in a column (voxel y), within reach; -1 none.
+## skip_walls passes through build walls (the Wall tool's start may be on one).
+func _ceiling_over(column: Vector2i, top: int, reach := ROCK_CEILING_REACH, skip_walls := false) -> int:
+	var objects: Dictionary = lab.level.objects
+	var size_y: int = lab.world.get_size_in_voxels().y
+	for y in range(top, mini(top + reach, size_y)):
+		var voxel := Vector3i(column.x, y, column.y)
+		if lab.world.get_voxel(voxel) == 0:
+			continue
+		if skip_walls and LevelBuild.wall_at(objects, voxel) != "":
+			continue
+		return y
+	return -1
+
+
+## The height a new wall starts at (voxels): the tool's, or the storey's. In rock levels, up to the
+## ceiling over the aim (at most ROCK_WALL_MAX), unless the tool has a height of its own.
+func _wall_start_height() -> int:
+	if wall_height > 0:
+		return wall_height
+	if is_rock_level():
+		var column := Vector2i(floori(wall.aim.x), floori(wall.aim.y))
+		var over := _ceiling_over(column, wall.plane_y, ROCK_WALL_MAX + 1, true)
+		return clampi(over - wall.plane_y, 1, ROCK_WALL_MAX) if over > wall.plane_y else LevelBuild.DEFAULT_HEIGHT
+	return LevelBuild.storey_height(LevelBuild.storeys(lab.level.objects), storey)
+
+
+## Rock levels: how high the Floor or Ceiling tool's plane is over the floor under it.
+func rock_plane_text() -> String:
+	var under := build.base if build.kind == "ceiling" else RoomTools.floor_under(lab.world, Vector3i(floori(build.aim.x), build.plane_y, floori(build.aim.y)))
+	var up := build.plane_y - under
+	var text := "on the floor" if up == 0 else "%.1f m up" % (up * lab.world.voxel_size)
+	return text + (" (held)" if build.held >= 0 else "")
+
+
+## Ceiling tool's Auto: covers every closed-in room on the storey that has a floor. In rock levels:
+## every room closed in by the walls on the floor last aimed at, at the ceiling plane aimed at.
+func auto_ceiling() -> void:
+	if is_rock_level():
+		if build.plane_y <= 0 or build.kind != "ceiling":
+			lab.notify("Aim the Ceiling tool at a floor first", false)
+			return
+		build.storey = -1
+	else:
+		build.storey = storey
 	lab.notify(build.auto_ceiling(lab.level.objects, room_ceiling), false)
 
 
 ## A build mode level (empty): floors, walls and ceilings on storeys.
 func is_build_level() -> bool:
 	return lab.level != null and lab.level.settings.get("fill", "rock") == "empty"
+
+
+## A rock level: rooms carved out of rock, and the build tools building on what they aim at.
+func is_rock_level() -> bool:
+	return lab.level != null and lab.level.settings.get("fill", "rock") == "rock"
+
+
+## The storey a wall picked at the cursor is preferred on (-1 in rock levels: none).
+func _prefer_storey() -> int:
+	return storey if is_build_level() else -1
+
+
+## Floor or Ceiling tool in a rock level: holds the plane a grid step up or down (steps), from where
+## it is now. Esc lets it follow the surface again.
+func nudge_plane(steps: int) -> void:
+	var start := build.held if build.held >= 0 else build.plane_y
+	build.held = clampi(start + steps * snap(), 1, lab.world.get_size_in_voxels().y - 1)
+	changed.emit()
 
 
 ## The active storey's floor top (voxel y) and the storeys as they are.
@@ -730,7 +856,7 @@ func build_under() -> String:
 		var id := LevelBuild.opening_at(objects, voxel)
 		if id != "":
 			return id
-	return LevelBuild.wall_at(objects, solid_cell, storey)
+	return LevelBuild.wall_at(objects, solid_cell, _prefer_storey())
 
 
 ## A cell snapped down to the grid.
@@ -849,6 +975,13 @@ func _mouse(event: InputEventMouseButton) -> void:
 		wall.nudge_height(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1, snap())
 		get_viewport().set_input_as_handled()
 		return
+	# Floor or Ceiling in a rock level: the wheel while dragging, or Ctrl+wheel any time, raises or
+	# lowers the plane (the wheel alone zooms otherwise).
+	if tool in [Tool.FLOOR, Tool.CEILING] and is_rock_level() and (build.dragging or event.ctrl_pressed) and event.pressed \
+			and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and (build.has_aim or build.held >= 0):
+		nudge_plane(1 if event.button_index == MOUSE_BUTTON_WHEEL_UP else -1)
+		get_viewport().set_input_as_handled()
+		return
 	# Builder view: the camera has the wheel and the right button (a right click comes back as
 	# right_clicked).
 	if builder and event.button_index != MOUSE_BUTTON_LEFT:
@@ -866,7 +999,8 @@ func _mouse(event: InputEventMouseButton) -> void:
 	if not event.pressed:
 		_end_stroke()
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.hover != Vector3i.ZERO 			and not handles.is_busy() and not _hold(handles.room.get("id", "")):
+	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.hover != Vector3i.ZERO \
+			and not handles.is_busy() and not _hold(handles.room.get("id", "")):
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT and tool == Tool.SELECT and _grab.is_empty() and handles.press(pointer(), _aim_from, _aim_direction):
 		return
@@ -926,6 +1060,7 @@ func _key(event: InputEventKey) -> bool:
 		editor_rotate = _rotate,
 		editor_grid = func() -> void: snap_index = (snap_index + 1) % SNAPS.size(),
 		editor_free_cursor = func() -> void: free_cursor = not free_cursor,
+		editor_edit_hidden = toggle_edit_hidden,
 		editor_brush_smaller = func() -> void: brush_size = maxi(brush_size - 1, 1),
 		editor_brush_bigger = func() -> void: brush_size = mini(brush_size + 1, 20),
 		editor_move = _start_move,
@@ -1061,13 +1196,13 @@ func _build_volume() -> void:
 	var box := volume.box()
 	match tool:
 		Tool.BOX:
-			lab.edits.voxel_op({type = "box", from = box[0], to = box[1], material = VoxelMaterials.AIR if _volume_carve else material})
+			lab.edits.voxel_op(_seen({type = "box", from = box[0], to = box[1], material = VoxelMaterials.AIR if _volume_carve else material}))
 		Tool.ROOM:
 			lab.edits.put_object(LevelSchema.new_room(box[0], box[1], room_floor, room_wall, room_ceiling, room_thickness,
 					LevelStructure.next_order(lab.level.objects)))
 		Tool.REPLACE:
 			if _replace_source != 0:
-				lab.edits.voxel_op({type = "replace", from = box[0], to = box[1], material = material, source = _replace_source})
+				lab.edits.voxel_op(_seen({type = "replace", from = box[0], to = box[1], material = material, source = _replace_source}))
 	_last_height[tool] = absi(volume.extent.y)
 	volume.cancel()
 	changed.emit()
@@ -1192,9 +1327,14 @@ func volume_readout() -> String:
 		var r := build.rect()
 		var area := Vector2(r.size) * lab.world.voxel_size
 		var what := ("Erase " + build.kind) if build.erase else build.kind.capitalize()
+		if build.storey < 0:
+			what += ", " + rock_plane_text()
 		if r.size.x == 0 and r.size.y == 0:
 			return "[b]%s[/b]   release to fill the walls around it, or drag an area" % what
 		return "[b]%s[/b]   %.1f × %.1f m   [color=#%s](%d × %d voxels)[/color]" % [what, area.x, area.y, PaperPalette.INK_MUTED.to_html(false), r.size.x, r.size.y]
+	if build.held >= 0 and tool in [Tool.FLOOR, Tool.CEILING]:
+		return "[b]%s[/b]   %s   [color=#%s]Ctrl+wheel: up / down  ·  Esc: back to the surface[/color]" % [build.kind.capitalize(),
+				rock_plane_text(), PaperPalette.INK_MUTED.to_html(false)]
 	if not volume.is_active():
 		return ""
 	var size := volume.size()
@@ -1231,9 +1371,23 @@ func _dab() -> void:
 	var paint := VoxelMaterials.AIR if carve else material
 	if brush_cube:
 		var half := Vector3i.ONE * (brush_size - 1)
-		lab.edits.voxel_op({type = "box", from = target - half, to = target + half + Vector3i.ONE, material = paint})
+		lab.edits.voxel_op(_seen({type = "box", from = target - half, to = target + half + Vector3i.ONE, material = paint}))
 	else:
-		lab.edits.voxel_op({type = "sphere", center = Vector3(target) + Vector3.ONE * 0.5, radius = float(brush_size), material = paint})
+		lab.edits.voxel_op(_seen({type = "sphere", center = Vector3(target) + Vector3.ONE * 0.5, radius = float(brush_size), material = paint}))
+
+
+func toggle_edit_hidden() -> void:
+	edit_hidden = not edit_hidden
+	lab.notify("Above the cut: editable" if edit_hidden else "Above the cut: locked", false)
+	changed.emit()
+
+
+## A voxel op kept below the cut (WorldSync's "below") while the cutaway hides what's above it,
+## unless edit_hidden.
+func _seen(op: Dictionary) -> Dictionary:
+	if builder and camera.is_cutting() and not edit_hidden:
+		op.below = camera.cut_layer
+	return op
 
 
 ## Alt+LMB: take the material (voxel tools) or the prop type (prop tool) under the cursor; with the
@@ -1267,7 +1421,7 @@ func _pick() -> void:
 ## Whether a voxel is on the inner (left) face of a build wall that has one, in that face's material.
 func _on_inner_face(voxel: Vector3i, picked: int) -> bool:
 	var objects: Dictionary = lab.level.objects
-	var id := LevelBuild.wall_at(objects, voxel, storey)
+	var id := LevelBuild.wall_at(objects, voxel, _prefer_storey())
 	if id == "":
 		return false
 	var wall_object: Dictionary = objects[id]
@@ -1334,6 +1488,15 @@ func _start_rotation(object: Dictionary) -> int:
 	return int(object.facing)
 
 
+## The R turns to place the grabbed prop with at the cursor. An "any" prop aimed at a wall faces out
+## of it (PropPlacement adds the turns to the wall's facing), so there only the turns pressed since
+## the grab count, not the facing it had on a floor or ceiling.
+func _grab_turns() -> int:
+	if _grab.get("kind") == "prop" and PropCatalog.mount_of(str(_grab.name)) == "any" and cursor_normal.y == 0 and cursor_normal != Vector3i.ZERO:
+		return posmod(_grab_rotation - _start_rotation(_grab), 4)
+	return _grab_rotation
+
+
 func _duplicate() -> void:
 	if selected == "":
 		return
@@ -1376,7 +1539,7 @@ func _commit_move() -> void:
 			var source: Dictionary = objects[_grab_source]
 			lab.edits.put_objects(RoomTools.duplicate(objects, source, object.from - source.from, move_contents))
 	elif object.kind == "prop":
-		var spot := prop_spot(object.name, _grab_rotation, _grab_id)
+		var spot := prop_spot(object.name, _grab_turns(), _grab_id)
 		if not spot.valid:
 			lab.notify("Can't put it there: " + spot.reason, false)
 			return
@@ -1389,15 +1552,19 @@ func _commit_move() -> void:
 func _place_grab(object: Dictionary) -> void:
 	match object.kind:
 		"prop":
-			_placed(object, prop_spot(object.name, _grab_rotation, _grab_id))
+			_placed(object, prop_spot(object.name, _grab_turns(), _grab_id))
 		"wall":
-			# Its start on the grid point under the cursor (on the active storey's floor).
+			# Its start on the grid point under the cursor (on the active storey's floor; in a rock
+			# level, standing on the floor aimed at).
 			var s := snap()
 			var e := LevelBuild.ends(object)
 			var start := Vector2i(roundi(cell.x / float(s)) * s, roundi(cell.z / float(s)) * s)
 			var offset := start - e[0]
 			object.a = Vector3i(start.x, 0, start.y)
 			object.b = Vector3i(e[1].x + offset.x, 0, e[1].y + offset.y)
+			var surface := _rock_surface() if int(object.storey) < 0 else {}
+			if not surface.is_empty():
+				object.base = surface.top
 		"room", "opening":
 			# Centered on the cursor; it stands on the floor there, or keeps its height over cut rock.
 			var size: Vector3i = object.to - object.from
@@ -1444,10 +1611,9 @@ func opening_at_cursor() -> Dictionary:
 	if not has_cursor or cursor_normal.y != 0:
 		return {}
 	var objects: Dictionary = lab.level.objects
-	if is_build_level():
-		var on_wall := wall_opening_at_cursor()
-		if not on_wall.is_empty():
-			return on_wall
+	var on_wall := wall_opening_at_cursor()
+	if not on_wall.is_empty():
+		return on_wall
 	var room_id := LevelStructure.room_at(objects, AABB(Vector3(solid_cell) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
 	var bottom := RoomTools.floor_under(lab.world, cell) if room_id == "" else int(objects[room_id].from.y)
 	match opening_type:
@@ -1478,14 +1644,14 @@ func _place_opening() -> void:
 ## on a wall; with `reason` when it doesn't fit.
 func wall_opening_at_cursor() -> Dictionary:
 	var objects: Dictionary = lab.level.objects
-	var wall_id := LevelBuild.wall_at(objects, solid_cell, storey)
+	var wall_id := LevelBuild.wall_at(objects, solid_cell, _prefer_storey())
 	if wall_id == "":
 		return {}
 	var on: Dictionary = objects[wall_id]
 	var st := LevelBuild.storeys(objects)
 	var length := LevelBuild.wall_length(on)
 	var height := LevelBuild.wall_height(on, st)
-	var floor_top := LevelBuild.floor_y(st, int(on.storey))
+	var floor_top := LevelBuild.wall_base(on, st)
 	var out := {wall = wall_id, width = opening_width, height = mini(opening_height, height), along = 0, sill = 0}
 	if length < opening_width:
 		out.reason = "The wall is shorter than the opening"
@@ -1510,8 +1676,8 @@ func prop_spot(name: String, rotation: int, ignore: String) -> Dictionary:
 		_spot_key = key
 		_spot = PropPlacement.place(lab.world, lab.level.objects, name, rotation, cell, solid_cell, cursor_normal, snap(), ignore)
 		# A sliding door needs a straight wall; in a 45° one its panel would cut across the steps.
-		if _spot.valid and _spot.mount == "door" and is_build_level():
-			var wall_id := LevelBuild.wall_at(lab.level.objects, solid_cell, storey)
+		if _spot.valid and _spot.mount == "door":
+			var wall_id := LevelBuild.wall_at(lab.level.objects, solid_cell, _prefer_storey())
 			if wall_id != "":
 				var step := LevelBuild.ends(lab.level.objects[wall_id])
 				if step[0].x != step[1].x and step[0].y != step[1].y:
@@ -1609,7 +1775,15 @@ func _update_build_preview() -> void:
 	if not tool in [Tool.FLOOR, Tool.CEILING] or not build.has_aim:
 		return
 	var st := LevelBuild.storeys(lab.level.objects)
-	var y := LevelBuild.slab_range(build.kind, storey, st)
+	var y := LevelBuild.slab_range(build.kind, build.storey, st, build.plane_y)
+	if build.storey < 0:
+		# Rock levels: how high the plane is over the floor under it.
+		var label := _size_labels[1]
+		label.text = rock_plane_text()
+		label.modulate = LABEL_ACTIVE_COLOR if build.held >= 0 else LABEL_COLOR
+		label.font_size = 24
+		label.position = lab.view.to_world(Vector3(build.aim.x, build.plane_y + 4, build.aim.y))
+		label.visible = true
 	if build.dragging:
 		var r := build.rect()
 		var color := Color(1.0, 0.3, 0.3) if build.erase else (Color(0.85, 0.9, 1.0) if build.kind == "ceiling" else Color(0.3, 0.6, 1.0))
@@ -1709,7 +1883,7 @@ func _update_wall_edit_preview() -> void:
 		var moved := _grab.duplicate()
 		_place_grab(moved)
 		prisms.append(LevelBuild.corners_of(moved, objects))
-	elif tool == Tool.OPENING and is_build_level():
+	elif tool == Tool.OPENING:
 		var at := wall_opening_at_cursor()
 		if not at.is_empty():
 			var opening := LevelSchema.new_wall_opening(at.wall, at.along, at.width, at.sill, at.height)

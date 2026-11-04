@@ -95,6 +95,17 @@ static func build(parent: Node) -> Dictionary:
 	_wall_prop(level, room, NOTES[3][0], "n", 0.3, 14, {use = "note", text = NOTES[3][1]})
 	_prop(level, rooms.closet, "shelf_storage_a", 0.5, 0.05, P.SOUTH)
 	_prop(level, rooms.closet, "barrel", 0.2, 0.8)
+	# A suspended ceiling of 2 m tile pieces south of the desk strip (which is left bare for the exit
+	# sign over the admittance door), with a troffer in a gap over each light and one tile missing.
+	for row in range(1, 4):
+		for col in 6:
+			if col in [1, 4] and row in [1, 2]:
+				continue
+			_ceiling_prop(level, room, "ceiling_tile_missing" if Vector2i(col, row) == Vector2i(5, 3) else "ceiling_tile_grid", 20 * col, 20 * row)
+	for x: int in [24, 84]:
+		_ceiling_prop(level, room, "fixture_troffer", x, 37)
+	_wall_prop(level, room, "exit_sign", "n", 0.5, 24)
+	_wall_prop(level, room, "poster_fung_a", "e", 0.05, 10, {use = "note", text = "FUNG AI\nBecause you are replaceable."})
 
 	var extent: Vector3i = room.to - room.from
 	for i in 4:
@@ -197,6 +208,16 @@ static func _prop(level: LevelData, room: Dictionary, name: String, fx: float, f
 			prop[key] = fields[key]
 	_add(level, id, prop)
 
+
+## A prop hanging from room's ceiling (its top flush under it) with its west / north corner at voxel
+## offsets (ox, oz) from the room's.
+static func _ceiling_prop(level: LevelData, room: Dictionary, name: String, ox: int, oz: int, facing := P.NORTH, fields := {}) -> void:
+	var size := Vector3i(LevelSchema.prop_box({kind = "prop", name = name, origin = Vector3i.ZERO, facing = facing}).size)
+	var prop := LevelSchema.new_prop(name, Vector3i(room.from.x + ox, room.to.y - size.y, room.from.z + oz), facing)
+	for key in fields:
+		if key != "id":
+			prop[key] = fields[key]
+	_add(level, fields.get("id", ""), prop)
 
 static func _wall_prop(level: LevelData, room: Dictionary, name: String, side: String, f: float, up: int, fields := {}) -> void:
 	var facing: int = {n = P.SOUTH, s = P.NORTH, e = P.WEST, w = P.EAST}[side]

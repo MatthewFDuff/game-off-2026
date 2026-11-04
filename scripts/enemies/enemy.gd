@@ -17,6 +17,7 @@ extends Node3D
 ##   frozen    stopped for FREEZE_STOP seconds, then half speed; takes FROZEN_DAMAGE x damage; blue
 ##   raging    goes for the nearest other enemy instead of players (its normal attack, through
 ##             EnemyManager.damage), RAGE_SPEED x speed, red tint
+##   slowed    FOAM_SLOW x speed (a foam cloud, Cloud), white tint
 ## The host tells every peer the active set (EnemyManager.statuses_changed), so all of them tint it.
 ##
 ## Sight: melee only starts and lands with a clear line (Combat.can_see) from its eye_point to the
@@ -56,7 +57,10 @@ const RAGE_RANGE := 20.0
 const STATUS_TINTS := {
 	frozen = Color(0.45, 0.75, 1.0, 0.45), burning = Color(1.0, 0.45, 0.1, 0.4),
 	raging = Color(1.0, 0.12, 0.12, 0.38), poisoned = Color(0.35, 1.0, 0.25, 0.35),
+	slowed = Color(0.95, 0.97, 1.0, 0.45),
 }
+## Speed multiplier while slowed (foam).
+const FOAM_SLOW := 0.5
 
 @export var kind := "basic"
 @export var max_health := 30.0
@@ -352,6 +356,8 @@ func status_speed() -> float:
 		factor *= 0.0 if elapsed < FREEZE_STOP else FREEZE_SLOW
 	if statuses.has("raging"):
 		factor *= RAGE_SPEED
+	if statuses.has("slowed"):
+		factor *= FOAM_SLOW
 	return factor
 
 
@@ -453,6 +459,17 @@ func _physics_process(delta: float) -> void:
 func _think(delta: float) -> Dictionary:
 	var out := {direction = Vector3.ZERO, facing = Vector3.ZERO, breach = false}
 	var target := manager.nearest_player(global_position)
+	# A lure (a radio, a squeaky duck: EnemyManager.lure_for) wins over a player it can't see.
+	if manager.has_lures() and _windup <= 0.0:
+		var lure: Variant = manager.lure_for(global_position)
+		if lure != null and (target == null or not sees(target)):
+			_windup = 0.0
+			var to_lure: Vector3 = lure - global_position
+			to_lure.y = 0.0
+			if to_lure.length() > 1.2:
+				out.direction = to_lure.normalized()
+				out.facing = out.direction
+			return out
 	if target == null:
 		_windup = 0.0
 		return out

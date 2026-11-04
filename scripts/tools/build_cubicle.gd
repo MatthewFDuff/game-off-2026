@@ -103,6 +103,12 @@ static func build(parent: Node) -> Dictionary:
 	_wall_prop(level, room, "corkboard_tall", "w", 0.2, 14, {id = "poster", use = "note", text = POSTER_TEXT, value = 0})
 	_wall_prop(level, room, "corkboard_small", "n", 0.84, 18, {id = "sticky", use = "note", text = STICKY_TEXT, value = 0})
 	_wall_prop(level, room, "corkboard_small", "e", 1.0, 14, {id = NAMEPLATE_ID, use = "note", text = NAMEPLATE_TEXT, value = 0})
+	_wall_prop(level, room, "poster_fung_a", "e", 0.2, 8, {id = "poster_fung", use = "note", text = "FUNG AI\nBecause you are replaceable.", value = 0})
+	# The exit sign over the partition west of the opening, pointing the way out nobody takes.
+	_wall_prop(level, room, "exit_sign", "s", 0.0, 17, {value = 0})
+	# A suspended ceiling over the desk half (one 2 x 2 m piece) and a troffer in the strip south of it.
+	_ceiling_prop(level, room, "ceiling_tile_grid", 5, 0, P.NORTH, {value = 0})
+	_ceiling_prop(level, room, "fixture_troffer", 9, 22, P.NORTH, {id = "troffer", value = 0})
 
 	# Across the hallway: three dark cubicles, each open onto it, a desk against the far partition.
 	for i in BAYS.size():
@@ -134,6 +140,12 @@ static func build(parent: Node) -> Dictionary:
 		bay_light.range = 6.0
 		_add(level, "", bay_light)
 	_add(level, "", LevelSchema.new_marker("speaker", Vector3(room.from) + Vector3(0.5 * extent.x, float(H - 2), 0.5 * extent.z)))
+	# The troffer's own glow, faint: the room stays lit by the desk lamp and the screen.
+	var troffer := LevelSchema.new_marker("light", Vector3(room.from) + Vector3(15.0, float(H - 3), 25.0))
+	troffer.color = Color(0.85, 0.9, 1.0)
+	troffer.energy = 0.3
+	troffer.range = 4.5
+	_add(level, "", troffer)
 
 	# Standing beside the chair (east of it), facing the monitor's screen.
 	var chair_box := LevelSchema.prop_box(level.objects[CHAIR_ID])
@@ -238,6 +250,16 @@ static func _on_top(level: LevelData, support: Dictionary, name: String, prefer:
 	_add(level, fields.get("id", ""), prop)
 	return true
 
+
+## A prop hanging from room's ceiling (its top flush under it) with its west / north corner at voxel
+## offsets (ox, oz) from the room's.
+static func _ceiling_prop(level: LevelData, room: Dictionary, name: String, ox: int, oz: int, facing := P.NORTH, fields := {}) -> void:
+	var size := Vector3i(LevelSchema.prop_box({kind = "prop", name = name, origin = Vector3i.ZERO, facing = facing}).size)
+	var prop := LevelSchema.new_prop(name, Vector3i(room.from.x + ox, room.to.y - size.y, room.from.z + oz), facing)
+	for key in fields:
+		if key != "id":
+			prop[key] = fields[key]
+	_add(level, fields.get("id", ""), prop)
 
 static func _wall_prop(level: LevelData, room: Dictionary, name: String, side: String, f: float, up: int, fields := {}) -> void:
 	var facing: int = {n = P.SOUTH, s = P.NORTH, e = P.WEST, w = P.EAST}[side]

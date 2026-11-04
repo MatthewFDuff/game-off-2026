@@ -12,7 +12,9 @@ extends Node3D
 ## Types (TYPES): fire (a burning pool that sets flammable voxels alight through Fire),
 ## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once,
 ## and it puts out fire),
-## spore (a thick grey-white cloud that blinds players inside, from spore shrooms).
+## spore (a thick grey-white cloud that blinds players inside, from spore shrooms),
+## foam (a fire extinguisher's burst: enemies inside are slowed, it puts out fire and clears the
+## spore and poison clouds it overlaps, every tick: `clears`).
 ##
 ## Spawn one from any peer with Cloud.spawn(type, at, radius, seconds); it goes through the host.
 
@@ -38,6 +40,9 @@ const TYPES := {
 	# puff make it a dense, thick cloud.
 	spore = {color = Color(0.82, 0.82, 0.78), radius = 4.0, seconds = 8.0, status = "",
 			player_status = "blinded", player_seconds = 3.0, particles = 140, puff = 0.35, alpha = 0.5, sound = "spore_puff"},
+	# Fire extinguishers (LevelPlay) and foam flasks: slows enemies, douses, clears gas clouds.
+	foam = {color = Color(0.93, 0.95, 0.97), radius = 4.0, seconds = 6.0, status = "slowed", status_seconds = 1.0,
+			douses = true, clears = ["spore", "poison"], particles = 90, sound = "foam_spray"},
 }
 
 ## Unique per session, the same on every peer (the node is named after it).
@@ -139,6 +144,12 @@ func _apply() -> void:
 		for player in manager.targets():
 			if reaches(player.get_body_aabb(), Combat.chest(player)):
 				manager.status_player(player, defs.player_status, defs.player_seconds)
+	if defs.has("clears"):
+		for other: Cloud in manager.clouds.values():
+			if other != self and other.type in defs.clears and not other.is_queued_for_deletion() 					and other.global_position.distance_to(global_position) < radius + other.radius * 0.5:
+				manager.end_cloud(other.id)
+	if defs.get("douses", false) and not defs.get("instant", false):
+		Fire.douse_at(global_position, radius)
 
 
 ## Host: whether the cloud's effect reaches a body (its world box, and the point sight aims at).
@@ -282,6 +293,16 @@ func _rising_cubes(color: Color, instant: bool) -> CPUParticles3D:
 			p.gravity = Vector3.ZERO
 			p.damping_min = 1.2
 			p.damping_max = 2.0
+		"foam":
+			# A heavy white froth: big cubes thrown out low that sink back and settle.
+			p = VoxelFx.particles(0.2, [Color.WHITE, color, color.darkened(0.08), color.darkened(0.15)], 0.7)
+			p.lifetime = 2.2
+			p.spread = 60.0
+			p.initial_velocity_min = 0.6
+			p.initial_velocity_max = 1.4
+			p.gravity = Vector3(0.0, -0.6, 0.0)
+			p.damping_min = 0.6
+			p.damping_max = 1.0
 		"rage":
 			# Cubes that barely rise and jitter (_process shakes their pull), pulsing red.
 			p = VoxelFx.particles(0.1, [Color(1.0, 0.35, 0.35), color, color.darkened(0.3)], 0.6)
@@ -333,6 +354,8 @@ func _stain_color() -> Color:
 			return color.lightened(0.35)
 		"spore":
 			return color.darkened(0.1)
+		"foam":
+			return color
 	return color.darkened(0.3)
 
 

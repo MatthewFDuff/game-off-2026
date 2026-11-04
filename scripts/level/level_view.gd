@@ -4,7 +4,8 @@ extends Node3D
 ## LevelPlay.power (facility lights off and emergency lights on during backup power), as do the lamp
 ## and emergency voxels (the terrain shader's facility_power). In edit mode props are
 ## drawn as meshes (they're only stamped into the voxels for play) and markers as colored gizmos
-## with their id, and the selection gets an outline.
+## with their id, and the selection gets an outline. Mycelium nodes also show their network: each
+## cluster (Mycelium) voxelized into a mesh, redrawn when one of its nodes changes; play stamps it.
 
 ## How fast (per second) the voxel lamps fade between powered and emergency.
 const LAMP_FADE := 3.0
@@ -38,6 +39,11 @@ var _cut_layer := NO_CUT
 
 const NO_CUT := 1 << 30
 
+## Edit mode: Mycelium cluster key -> its meshes (MeshInstance3D), and whether to redraw them.
+var mycelium_meshes := {}
+var _mycelium_ids := {}
+var _mycelium_dirty := false
+
 
 func _ready() -> void:
 	_selection.mesh = ImmediateMesh.new()
@@ -56,6 +62,7 @@ func rebuild() -> void:
 		node.queue_free()
 	_nodes.clear()
 	_lights.clear()
+	_clear_mycelium()
 	_selection.visible = false
 	if lab.level == null:
 		return
@@ -65,6 +72,8 @@ func rebuild() -> void:
 
 ## An object was added, changed or removed (LevelEdits.object_set).
 func object_set(remove_id: String, object: Dictionary) -> void:
+	if _mycelium_ids.has(remove_id) or object.get("type") == Mycelium.TYPE:
+		_mycelium_dirty = true
 	_remove(remove_id)
 	if not object.is_empty():
 		_remove(object.id)
@@ -124,6 +133,8 @@ func _process(delta: float) -> void:
 	if lab == null or not is_instance_valid(lab):
 		return
 	_flicker_time += delta
+	if _mycelium_dirty:
+		refresh_mycelium()
 	var backup := on_backup()
 	var lamp_target := 0.0 if backup else 1.0
 	if _lamp_power != lamp_target:
@@ -131,11 +142,20 @@ func _process(delta: float) -> void:
 		var shader := lab.world.material as ShaderMaterial
 		if shader:
 			shader.set_shader_parameter("facility_power", _lamp_power)
-	for light: Light3D in _lights.values():
+	var rules: LevelPlay.Rules = lab.play.rules if mode == "play" and lab.play and lab.play.active else null
+	for light_id: String in _lights:
+		var light: Light3D = _lights[light_id]
 		var base: float = light.get_meta("energy")
 		var emergency: bool = light.get_meta("emergency")
 		var on := mode == "edit" or (backup == emergency)
 		var energy := base if on else 0.0
+		# A room's lights cut or flickering (breakers, `lights=`, sprinklers: InteractRules).
+		var cut: String = rules.light_mode(light_id) if rules else ""
+		if cut == "off":
+			energy = 0.0
+		elif cut == "flicker":
+			var f := _flicker_time * 9.0 + light.get_instance_id() % 53
+			energy *= 0.0 if fmod(f, 2.3) < 0.5 or fmod(f * 1.3, 1.7) < 0.3 else 1.0
 		match light.get_meta("flicker"):
 			"subtle":
 				energy *= 0.92 + 0.08 * sin(_flicker_time * 13.0 + light.get_instance_id())
@@ -183,8 +203,48 @@ func _add(object: Dictionary) -> void:
 	else:
 		node = _gizmo(object)
 		node.visible = LevelSchema.marker_box(object).position.y < _cut_layer
+		if object.type == Mycelium.TYPE:
+			_mycelium_ids[object.id] = true
+			_mycelium_dirty = true
 	add_child(node)
 	_nodes[object.id] = node
+
+
+## Edit mode: redraws the mycelium clusters that changed (a node moved, was added or removed, or
+## its fields changed) and drops the ones that are gone. Play stamps them instead.
+func refresh_mycelium() -> void:
+	_mycelium_dirty = false
+	if mode != "edit" or lab.level == null:
+		_clear_mycelium()
+		return
+	var plan := Mycelium.plan(lab.level.objects, lab.world)
+	var kept := {}
+	for cluster: Dictionary in Mycelium.clusters(plan):
+		var key: String = cluster.key
+		if mycelium_meshes.has(key):
+			kept[key] = mycelium_meshes[key]
+			mycelium_meshes.erase(key)
+			continue
+		var parts: Array = []
+		for model: Dictionary in Mycelium.cluster_models(plan, cluster, lab.world):
+			var mesh_instance := MeshInstance3D.new()
+			mesh_instance.mesh = lab.world.build_model_mesh(model.size, model.voxels)
+			mesh_instance.material_override = lab.world.material
+			mesh_instance.position = to_world(Vector3(model.origin))
+			add_child(mesh_instance)
+			parts.append(mesh_instance)
+		kept[key] = parts
+	_clear_mycelium()
+	mycelium_meshes = kept
+
+
+func _clear_mycelium() -> void:
+	for parts: Array in mycelium_meshes.values():
+		for node: Node in parts:
+			node.queue_free()
+	mycelium_meshes.clear()
+	if mode != "edit":
+		_mycelium_ids.clear()
 
 
 ## Hides marker gizmos at or above a voxel layer (NO_CUT shows them all).
@@ -208,6 +268,7 @@ func _remove(id: String) -> void:
 		if node:
 			node.queue_free()
 			table.erase(id)
+	_mycelium_ids.erase(id)
 
 
 func _add_light(object: Dictionary) -> void:

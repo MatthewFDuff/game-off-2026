@@ -157,7 +157,8 @@ static func _spore(variant: int) -> Dictionary:
 
 ## Ceiling poison cloud: an upside-down bulbous sac (narrow root at the top, swollen below) with
 ## green drips hanging from its bottom. Stands on the bottom of its box like every model; it hangs
-## with the top touching the ceiling.
+## with the top touching the ceiling. The sac is CLOTH with steel bands, the insulated duct's
+## lagging (ceiling_pack.gd duct_insulated), so among the lagging it reads as ducting until it moves.
 static func _ceiling_cloud(variant: int) -> Dictionary:
 	var rng := _brood_rng("ceiling_cloud", variant)
 	var size := Vector3i(8, 10, 8)
@@ -168,12 +169,10 @@ static func _ceiling_cloud(variant: int) -> Dictionary:
 	return _brood_fill(size, func(x: int, y: int, z: int) -> int:
 		var flat := Vector2(x - c, z - c).length()
 		if y >= 8:
-			return _BROOD_M.SHROOM_STEM if flat <= 1.6 else _BROOD_M.AIR
+			return _BROOD_M.CLOTH if flat <= 1.6 else _BROOD_M.AIR
 		var dy := y - 5.0
 		if y >= 2 and flat * flat / 14.0 + dy * dy / 10.0 <= 1.0:
-			if (x + z * 3 + y) % 7 == 0:
-				return _BROOD_M.SHROOM_SPOT
-			return _BROOD_M.LIQUID_GREEN if y <= 3 else _BROOD_M.SHROOM_CAP
+			return _BROOD_M.STEEL if y == 6 else _BROOD_M.CLOTH # A lagging band round the middle.
 		var key := Vector2i(x, z)
 		if y < 2 and drips.has(key) and y >= 2 - int(drips[key]):
 			return _BROOD_M.LIQUID_GREEN

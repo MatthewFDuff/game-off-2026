@@ -16,6 +16,13 @@ const BACK_WALL := {0: "s", 1: "w", 2: "n", 3: "e"}
 ## Route rooms' emergency lights: where along the long axis (and 1 - this), and their energy.
 const EMERGENCY_AT := 0.3
 const EMERGENCY_ENERGY := 2.5
+## The ceiling fixture props under facility and emergency lights, and how far (voxels) one may
+## slide along the ceiling off its light to clear another prop or a doorway before it's skipped.
+const FIXTURE := "fixture_troffer"
+const EMERGENCY_FIXTURE := "fixture_emergency"
+const FIXTURE_SLIDE := 8
+## How far (voxels) a layout ceiling prop may slide along the ceiling to a clear spot.
+const CEILING_SLIDE := 40
 const M := preload("res://scripts/voxel/voxel_materials.gd")
 const P := preload("res://scripts/world/props.gd")
 const Layout := preload("res://scripts/tools/lab_layout.gd")
@@ -242,6 +249,9 @@ func _prop(p: Dictionary) -> void:
 	var r := _room(p.room)
 	if r.is_empty():
 		return
+	if p.get("ceiling", false):
+		_ceiling_prop(r, p)
+		return
 	var facing: int = p.facing
 	var fields: Dictionary = p.fields
 	var side: String = p.wall
@@ -286,6 +296,70 @@ func _prop(p: Dictionary) -> void:
 		print("build_laboratory: moved %s in %s by %s to clear a doorway" % [p.name, p.room, Vector3i(spot) - origin])
 	_placed.append(AABB(Vector3(spot), Vector3(size)))
 	_add(fields.get("id", ""), _prop_object(p.name, spot, facing, fields))
+
+
+## A prop hanging from the ceiling (LabLayout.ceiling_prop): its top flush under the room's ceiling at
+## fractions (fx, fz) of the free space, slid along the ceiling to the nearest spot clear of the
+## keep-out boxes and the props placed so far.
+func _ceiling_prop(r: Dictionary, p: Dictionary) -> void:
+	var facing: int = p.facing
+	var fields: Dictionary = p.fields
+	var size := Vector3i(LevelSchema.prop_box({kind = "prop", name = p.name, origin = Vector3i.ZERO, facing = facing}).size)
+	var free: Vector3i = (r.to - r.from - size).max(Vector3i.ZERO)
+	var origin := Vector3i(r.from.x + roundi(float(p.fx) * free.x), r.to.y - size.y, r.from.z + roundi(float(p.fz) * free.z))
+	var spot: Variant = _ceiling_spot(r, origin, size, CEILING_SLIDE)
+	if spot == null:
+		push_warning("build_laboratory: dropped %s in %s, no clear spot on the ceiling" % [p.name, p.room])
+		dropped.append("%s in %s" % [p.name, p.room])
+		return
+	if spot != origin:
+		print("build_laboratory: moved %s in %s by %s along the ceiling to clear a doorway or prop" % [p.name, p.room, Vector3i(spot) - origin])
+	_placed.append(AABB(Vector3(spot), Vector3(size)))
+	_add(fields.get("id", ""), _prop_object(p.name, spot, facing, fields))
+
+
+## A light fixture prop with its top flush under the room's ceiling, centered over `at` (a light
+## marker's position), slid up to FIXTURE_SLIDE along the ceiling to clear other props and the
+## doorways; skipped when there's no such spot.
+func _fixture(room: Dictionary, prop_name: String, at: Vector3, facing: int) -> void:
+	var size := Vector3i(LevelSchema.prop_box({kind = "prop", name = prop_name, origin = Vector3i.ZERO, facing = facing}).size)
+	if size.x > room.to.x - room.from.x or size.z > room.to.z - room.from.z:
+		return
+	var origin := Vector3i(roundi(at.x) - size.x / 2, room.to.y - size.y, roundi(at.z) - size.z / 2)
+	origin = origin.clamp(room.from, room.to - size)
+	var spot: Variant = _ceiling_spot(room, origin, size, FIXTURE_SLIDE)
+	if spot == null:
+		return
+	_placed.append(AABB(Vector3(spot), Vector3(size)))
+	var prop := LevelSchema.new_prop(prop_name, spot, facing)
+	_add("", prop)
+
+
+## origin if a ceiling prop's box there is clear (of the keep-out boxes and the props placed), else
+## the nearest clear spot within `reach` along the ceiling (by rings, the straightest offset first),
+## inside the room. null: none.
+func _ceiling_spot(r: Dictionary, origin: Vector3i, size: Vector3i, reach: int) -> Variant:
+	if _clear(origin, size, true):
+		return origin
+	var lo: Vector3i = r.from
+	var hi: Vector3i = (r.to - size).max(r.from)
+	for d in range(1, reach + 1):
+		var best: Variant = null
+		var best_cost := 0
+		for dz in range(-d, d + 1):
+			for dx in range(-d, d + 1):
+				if maxi(absi(dx), absi(dz)) != d:
+					continue
+				var o := origin + Vector3i(dx, 0, dz)
+				if o.x < lo.x or o.z < lo.z or o.x > hi.x or o.z > hi.z:
+					continue
+				var cost := absi(dx) + absi(dz)
+				if (best == null or cost < best_cost) and _clear(o, size, true):
+					best = o
+					best_cost = cost
+		if best != null:
+			return best
+	return null
 
 
 func _prop_object(prop_name: String, origin: Vector3i, facing: int, fields: Dictionary) -> Dictionary:
@@ -386,10 +460,14 @@ func _marker(m: Dictionary) -> void:
 
 ## Facility lights from the room's `lights` count, two emergency lights on route rooms (0.3 and 0.7
 ## along the long axis), a soft glow light in glow rooms (both of those are emergency-powered: they
-## come on when the power goes).
+## come on when the power goes). Lights under the ceiling get a fixture prop over them (FIXTURE, its
+## long side along the room's; EMERGENCY_FIXTURE for emergency lights); lamps hung lower (lamp_up)
+## and glow lights don't.
 func _lights(room: Dictionary) -> void:
 	var extent: Vector3i = room.to - room.from
-	var top := float(room.to.y - 4) if int(room.get("lamp_up", -1)) < 0 else float(room.from.y + int(room.lamp_up))
+	var under_ceiling := int(room.get("lamp_up", -1)) < 0
+	var top := float(room.to.y - 4) if under_ceiling else float(room.from.y + int(room.lamp_up))
+	var along: int = P.EAST if extent.z > extent.x else P.NORTH
 	var spots: Array = []
 	if not room.dark and int(room.lights) > 0:
 		match int(room.lights):
@@ -408,6 +486,8 @@ func _lights(room: Dictionary) -> void:
 		light.energy = float(room.get("lamp_energy", 4.0))
 		light.range = range
 		_add("", light)
+		if under_ceiling:
+			_fixture(room, FIXTURE, light.position, along)
 	if room.route:
 		for f: float in [EMERGENCY_AT, 1.0 - EMERGENCY_AT]:
 			var at := Vector2(f, 0.5) if extent.x > extent.z else Vector2(0.5, f)
@@ -417,6 +497,8 @@ func _lights(room: Dictionary) -> void:
 			red.range = clampf(maxf(extent.x, extent.z) / 10.0 * 0.7, 6.0, 12.0)
 			red.power = "emergency"
 			_add("", red)
+			if under_ceiling:
+				_fixture(room, EMERGENCY_FIXTURE, red.position, along)
 	if room.glow:
 		var glow := LevelSchema.new_marker("light", Vector3(room.from.x + 0.5 * extent.x, float(room.from.y + 8), room.from.z + 0.5 * extent.z))
 		glow.color = Color(0.4, 1.0, 0.75)

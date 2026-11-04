@@ -233,7 +233,9 @@ func _exit_walls_down(origin: Vector3, direction: Vector3) -> float:
 
 
 ## VoxelWorld.raycast past what walls-down hides, from where the ray enters the world: outside it
-## the world reads as solid, so a camera above or beside it would hit itself.
+## the world reads as solid, so a camera above or beside it would hit itself. The world's outer
+## faces aren't drawn either (rock at the edge shows nothing from outside), so a ray coming in
+## through solid goes on to the first air before it can hit anything.
 func _raycast_walls_down(origin: Vector3, direction: Vector3, reach: float) -> Dictionary:
 	var world := lab.world
 	var box := AABB(world.global_position, Vector3(world.get_size_in_voxels()) * world.voxel_size)
@@ -244,14 +246,46 @@ func _raycast_walls_down(origin: Vector3, direction: Vector3, reach: float) -> D
 		return {hit = false}
 	var dir := direction.normalized()
 	var skipped: float = origin.distance_to(entry) + 0.0005
+	skipped += _solid_run(origin + dir * skipped, dir, reach - skipped)
 	if skipped >= reach:
 		return {hit = false}
 	var hit := _raycast_walls_down_inside(origin + dir * skipped, direction, reach - skipped)
 	if hit.hit:
-		if hit.normal == Vector3.ZERO and hit.distance < world.voxel_size:
-			hit.normal = Vector3(EditorTool._face_normal(box, entry)) # Solid right at the edge it came in by.
 		hit.distance += skipped
 	return hit
+
+
+## How far a ray starting inside the world goes through solid voxels before it reaches air (0 when
+## it starts in air; past reach when it never does inside the world).
+func _solid_run(origin: Vector3, dir: Vector3, reach: float) -> float:
+	var world := lab.world
+	var size: Vector3i = world.get_size_in_voxels()
+	var o := (origin - world.global_position) / world.voxel_size
+	var pos := Vector3i(o.floor())
+	var step := Vector3i.ZERO
+	var t_max := Vector3.INF
+	var t_delta := Vector3.INF
+	for a in 3:
+		if dir[a] > 0.0:
+			step[a] = 1
+			t_delta[a] = 1.0 / dir[a]
+			t_max[a] = (pos[a] + 1 - o[a]) * t_delta[a]
+		elif dir[a] < 0.0:
+			step[a] = -1
+			t_delta[a] = -1.0 / dir[a]
+			t_max[a] = (o[a] - pos[a]) * t_delta[a]
+	var max_t := reach / world.voxel_size
+	var t := 0.0
+	while t <= max_t:
+		if pos.x < 0 or pos.y < 0 or pos.z < 0 or pos.x >= size.x or pos.y >= size.y or pos.z >= size.z:
+			return reach + 1.0 # Out the far side: nothing in the world to see.
+		if world.get_voxel(pos) == 0:
+			return t * world.voxel_size + (0.0005 if t > 0.0 else 0.0)
+		var a := 0 if t_max.x < t_max.y and t_max.x < t_max.z else (1 if t_max.y < t_max.z else 2)
+		t = t_max[a]
+		t_max[a] += t_delta[a]
+		pos[a] += step[a]
+	return reach + 1.0
 
 
 func _raycast_walls_down_inside(origin: Vector3, direction: Vector3, reach: float) -> Dictionary:
@@ -371,8 +405,11 @@ func zoom(factor: float) -> void:
 
 func _drag(relative: Vector2) -> void:
 	if _drag_pans:
+		# Pans in the screen's plane: looking straight ahead, up / down raises and lowers the view;
+		# looking down, it moves forward and back.
 		var scale := _shown_distance * 0.0015
-		_pan(Vector3(-relative.x, 0.0, -relative.y) * scale)
+		var tilt := deg_to_rad(pitch)
+		_pan(Vector3(-relative.x, relative.y * cos(tilt), -relative.y * sin(tilt)) * scale)
 		_shown_pivot = pivot
 		return
 	yaw -= relative.x * ORBIT_SPEED
@@ -387,6 +424,7 @@ func _pan(offset: Vector3) -> void:
 	var lo := lab.world.global_position
 	var hi := lo + Vector3(lab.world.get_size_in_voxels()) * lab.world.voxel_size
 	pivot.x = clampf(pivot.x, lo.x, hi.x)
+	pivot.y = clampf(pivot.y, lo.y, hi.y)
 	pivot.z = clampf(pivot.z, lo.z, hi.z)
 
 
