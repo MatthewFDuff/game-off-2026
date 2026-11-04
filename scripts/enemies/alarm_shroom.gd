@@ -90,7 +90,7 @@ func _physics_process(delta: float) -> void:
 ## Host: whether any living player within SIGHT_RANGE is in clear view of the trumpet.
 func sees_player() -> bool:
 	var mouth := global_position + Vector3.UP * (bounds.size.y - 0.15)
-	for player in manager.targets():
+	for player in manager.frame_targets():
 		var eye := player.global_position + Vector3.UP * player.get_body_size().y * 0.85
 		var to := eye - mouth
 		var distance := to.length()

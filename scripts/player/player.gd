@@ -88,6 +88,18 @@ var statuses := {}
 
 var _since_damage := 0.0
 var _ladder_cooldown := 0.0
+## _ladder_direction's last answer and what it was asked for (the four probe columns, the feet layer
+## and the body's height in voxels): it reads up to 72 voxels, so it only does that again when one
+## of them changes, or every LADDER_RECHECK seconds (a ladder carved away under a still player).
+var _ladder_cached := Vector3.ZERO
+var _ladder_key: Array = []
+var _ladder_age := 0.0
+const LADDER_RECHECK := 0.25
+const LADDER_PROBES: Array[Vector3] = [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
+## _input_live() worked out once per physics tick (it's asked about eight times a tick); valid
+## while _live_cached_tick is the current physics frame.
+var _live_cached := false
+var _live_cached_tick := -1
 var _height := standing_height
 var _step_offset := 0.0
 ## Seconds of coyote time and jump buffer left.
@@ -462,14 +474,26 @@ func _look(look: Vector2) -> void:
 func _ladder_direction() -> Vector3:
 	# Rungs are one voxel tall, so check every voxel layer the body spans, not a few sample heights.
 	var reach := width * 0.5 + 0.06
-	var feet: Vector3i = world.world_to_voxel(global_position + Vector3.UP * 0.05)
+	var base := global_position + Vector3.UP * 0.05
+	var feet: Vector3i = world.world_to_voxel(base)
 	var layers := ceili(_height / world.voxel_size)
-	for direction in [Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]:
-		var column: Vector3i = world.world_to_voxel(global_position + Vector3.UP * 0.05 + direction * reach)
+	var columns: Array[Vector3i] = []
+	for direction in LADDER_PROBES:
+		columns.append(world.world_to_voxel(base + direction * reach))
+	var key: Array = [feet.y, layers, columns]
+	_ladder_age += get_physics_process_delta_time()
+	if key == _ladder_key and _ladder_age < LADDER_RECHECK:
+		return _ladder_cached
+	_ladder_key = key
+	_ladder_age = 0.0
+	_ladder_cached = Vector3.ZERO
+	for i in LADDER_PROBES.size():
+		var column := columns[i]
 		for y in layers:
 			if world.get_voxel(Vector3i(column.x, feet.y + y, column.z)) == VoxelMaterials.LADDER:
-				return direction
-	return Vector3.ZERO
+				_ladder_cached = LADDER_PROBES[i]
+				return _ladder_cached
+	return _ladder_cached
 
 
 func get_body_size() -> Vector3:
@@ -656,6 +680,16 @@ func _fly(delta: float) -> void:
 # field has the keys, and not under the editor's builder view (whose WASD pans the camera);
 # otherwise typing or a menu would walk the player around.
 func _input_live() -> bool:
+	if Engine.is_in_physics_frame():
+		var tick := Engine.get_physics_frames()
+		if tick != _live_cached_tick:
+			_live_cached_tick = tick
+			_live_cached = _input_live_now()
+		return _live_cached
+	return _input_live_now()
+
+
+func _input_live_now() -> bool:
 	return InputSetup.is_playing() and not builder_view and not EditorInput.blocks_keyboard()
 
 
@@ -682,7 +716,10 @@ func _send_state(delta: float) -> void:
 		_net_state.rpc_id(peer_id, global_position, rotation.y, head.rotation.x, crouching, flashlight.visible, is_dead, has_weapon)
 
 
-@rpc("authority", "call_remote", "unreliable_ordered")
+# Channel 1: not behind the reliable traffic (carves, snapshots, state) on channel 0, so a lost
+# reliable packet or a snapshot burst doesn't hold movement up. ENet peers get every channel by
+# default (Net creates them with max_channels 0).
+@rpc("authority", "call_remote", "unreliable_ordered", 1)
 func _net_state(feet: Vector3, yaw: float, pitch: float, is_crouching: bool, light_on: bool, dead: bool, armed := true) -> void:
 	has_weapon = armed
 	var now := Time.get_ticks_msec() / 1000.0

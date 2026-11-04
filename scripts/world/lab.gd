@@ -32,6 +32,9 @@ signal mode_changed(mode: String)
 ## Host: a joining peer has the level, its world and the players, and is now in peers_in_level
 ## (EnemyManager sends it the enemies here).
 signal peer_entered(peer_id: int)
+## Host: the level is loaded (level set, world filled, play started). A joiner's entry request that
+## arrives during the load waits for it.
+signal level_loaded
 
 ## Loaded when a player spawns, not preloaded: player.tscn's scripts reach Lab, and a preload here
 ## mid-way through loading player.tscn gets an empty scene.
@@ -83,6 +86,11 @@ var story: Story
 ## This peer, joining: where the host put the new player (_entry_spot), used when play starts here.
 var _entry_at: Array = []
 var _fade: ColorRect
+## The host's "Loading" screen, up for the frame drawn before the level loads (freed after).
+var _loading: CanvasLayer
+## Host: this play session's world isn't the level as built plus its changed chunks (it was resumed
+## from a whole-world FORMAT_FULL save), so shift saves stay whole-world (ShiftSave.write).
+var _full_saves := false
 
 
 func _ready() -> void:
@@ -91,6 +99,9 @@ func _ready() -> void:
 	world_sync.blob_received.connect(_on_blob)
 	world_sync.snapshot_applied.connect(_on_snapshot)
 	edits.object_set.connect(view.object_set)
+	edits.object_set.connect(func(_remove_id: String, _object: Dictionary) -> void:
+		if level:
+			level.invalidate_info())
 	play.killed_in_zone.connect(func(_id: String, peer_id: int) -> void: _kill(peer_id))
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	Net.players_changed.connect(_on_roster_changed)
@@ -99,6 +110,13 @@ func _ready() -> void:
 	if not multiplayer.is_server():
 		_request_entry.rpc_id(1)
 		return
+	# Playing solo (the web build, story shifts alone): draw a frame of "Loading" before the seconds
+	# of parsing, stamping and meshing below, so the window (or the web page) isn't frozen on a
+	# blank or stale frame. Not for a co-op host yet: its scene would then exist a frame before its
+	# level, which Net's level_open announcement and the co-op tests don't expect.
+	if Net.session.mode == "play" and multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+		_show_loading()
+		await get_tree().process_frame
 	var start := Time.get_ticks_msec()
 	level = LevelData.load_level(Net.session.level)
 	if level == null:
@@ -111,6 +129,8 @@ func _ready() -> void:
 	_set_mode_locally(Net.session.mode)
 	if not save.is_empty():
 		resumed = _resume_shift(save)
+	if Net.session.mode == "play":
+		VoxelFx.prewarm_stains(stain_radii()) # So the first cloud's stain isn't built mid-fight.
 	world.remesh_all_now()
 	print("level %s loaded in %d ms" % [level.name, Time.get_ticks_msec() - start])
 	peers_in_level = [1]
@@ -118,6 +138,44 @@ func _ready() -> void:
 		_spawn_player(1, respawn_point(), respawn_yaw())
 	else:
 		_spawn_player(1, spawn_point(0), spawn_yaw(0))
+	if _loading:
+		_loading.queue_free()
+		_loading = null
+	level_loaded.emit()
+
+
+## Every stain size a cloud of a stock radius shows (Cloud.TYPES radii times Cloud.STAIN_STEPS),
+## each once, for VoxelFx.prewarm_stains. Clouds spawned with other radii build theirs on first use.
+static func stain_radii() -> Array:
+	var out: Array = []
+	for settings: Dictionary in Cloud.TYPES.values():
+		for step in Cloud.STAIN_STEPS:
+			var r := snappedf(float(settings.get("radius", 3.0)) * float(step), 0.1)
+			if r not in out:
+				out.append(r)
+	return out
+
+
+## The host's plain loading screen: black, "Loading" in the middle. Made here (not the HUD) so it
+## is up before anything else in the level has work to do.
+func _show_loading() -> void:
+	_loading = CanvasLayer.new()
+	_loading.name = "Loading"
+	_loading.layer = 100
+	add_child(_loading)
+	var back := ColorRect.new()
+	back.color = Color(0.02, 0.02, 0.03)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_loading.add_child(back)
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var label := Label.new()
+	label.text = "Loading..."
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color(0.75, 0.8, 0.75))
+	_loading.add_child(label)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
 func _process(delta: float) -> void:
@@ -184,7 +242,14 @@ func save_shift() -> void:
 		record.items_loose = items.loose()
 	record.party = Net.players.values().map(func(entry: Dictionary) -> String: return str(entry.name))
 	record.vat_room = ShiftSave.room_of(level, play.checkpoint)
-	var error := ShiftSave.write(record, world.get_data())
+	# Only the chunks changed since the level was built for play (cleared in _set_mode_locally), as
+	# a delta on the level as built from its voxels.bin, which level_hash guards; not the whole world.
+	var error: Error
+	if _full_saves:
+		error = ShiftSave.write(record, world.get_data())
+	else:
+		var slots := world.get_changed_chunks()
+		error = ShiftSave.write_delta(record, slots, world.get_chunks_data(slots))
 	if error != OK:
 		notify("Fung AI could not keep your clone on file (%s)." % error_string(error), false)
 
@@ -204,7 +269,15 @@ func _load_shift() -> Dictionary:
 ## Host, as the level opens (play started, no peer in yet): the saved world, then play's state, the
 ## director's spawners and the item spots. False (and a fresh start) if the world was refused.
 func _resume_shift(save: Dictionary) -> bool:
-	if not play.replace_world(save.voxels):
+	# A delta (format 2) goes onto the world as just built for play; an older whole-world save
+	# replaces it, and then later saves of this session stay whole-world (_full_saves).
+	var ok: bool
+	if save.has("voxels"):
+		ok = play.replace_world(save.voxels)
+		_full_saves = ok
+	else:
+		ok = play.replace_chunks(save.get("chunk_slots", PackedInt32Array()), save.get("chunk_data", PackedByteArray()))
+	if not ok:
 		shift_seconds = 0.0
 		resumed_deaths = 0
 		if story:
@@ -258,8 +331,12 @@ func _set_mode_locally(new_mode: String) -> void:
 	play.stop()
 	if multiplayer.is_server():
 		if new_mode == "play":
-			if mode == "edit" or _edit_base.is_empty():
+			if mode == "edit":
 				_edit_base = world.get_data()
+			elif _edit_base.is_empty():
+				# The session opened in play: the world is still exactly the level file's voxels (set
+				# just before), so keep those bytes for a return to edit rather than copying the world.
+				_edit_base = level.voxels if not level.voxels.is_empty() else world.get_data()
 			if mycelium:
 				mycelium.plan_level() # Links see the walls, not the props.
 			_props = Props.new(world, 0)
@@ -268,11 +345,16 @@ func _set_mode_locally(new_mode: String) -> void:
 					_props.place(object.name, object.origin, object.facing)
 			if mycelium:
 				mycelium.stamp_level() # Into air only, after the props.
+			# Changed chunks count from the level as built for play: shift saves are a delta on it.
+			world.clear_changed_chunks()
+			_full_saves = false
 		elif not _edit_base.is_empty() and mode == "play":
 			world.set_data(_edit_base)
 			_edit_base = PackedByteArray()
 			_props = null
 	mode = new_mode
+	if level:
+		level.invalidate_info()
 	world.detach_floating = mode == "play"
 	view.set_mode(mode)
 	if mode == "play":
@@ -557,8 +639,16 @@ func _request_entry() -> void:
 	var newcomer := multiplayer.get_remote_sender_id()
 	if newcomer in peers_in_level:
 		return
+	if level == null:
+		await level_loaded # Asked while the host's level was still loading (_ready).
+		if newcomer in peers_in_level or not multiplayer.get_peers().has(newcomer):
+			return
 	_entry_mode.rpc_id(newcomer, mode)
-	world_sync.send_blob(newcomer, "level", level.encode_info())
+	# The level info is cached in play (objects only change through LevelEdits, which invalidates
+	# it); editing encodes it fresh, since the editor changes objects all the time.
+	# TODO(perf): the world still goes whole (WorldSync.send_snapshot: get_data, zstd, 4 KB parts);
+	# a changed-chunks delta needs WorldSync and the joiner's build path changed (see the perf notes).
+	world_sync.send_blob(newcomer, "level", level.encode_info_cached() if mode == "play" else level.encode_info())
 	world_sync.send_snapshot(newcomer)
 	var index := _player_index(newcomer)
 	var feet := spawn_point(index)

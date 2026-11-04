@@ -25,6 +25,8 @@ signal enemy_died(enemy: Enemy)
 signal local_hit(enemy: Enemy, point: Vector3)
 ## Every peer: a cloud appeared (on the host, with its effects; elsewhere, its looks).
 signal cloud_spawned(cloud: Cloud)
+## Host: the flow field was just refreshed (refresh_flow); HordeDirector re-reads its walk distances.
+signal flow_refreshed
 
 ## The manager's node group (Cloud.spawn finds it through this).
 const GROUP := "enemy_manager"
@@ -45,8 +47,20 @@ const MAX_ENEMIES := 80
 const STATE_RATE := 10.0
 ## Flow field refreshes per second.
 const FLOW_RATE := 5.0
-## Meters of walking the flow field covers around the players.
+## Meters of walking the flow field covers around the players. Not lower: HordeDirector picks the
+## finale's spawners by walking distance up to finale_range_factor (2) x wake_range (40 m) = 80 m,
+## and ranks horde spawners by it; a shorter field would leave those unreached (INF).
 const FLOW_RANGE := 80.0
+## Most enemies per position packet (_states), so one stays under a typical 1400-byte MTU (20
+## bytes an enemy) and losing one fragment never drops the whole roster's update.
+const STATES_PER_PACKET := 50
+## Hit flash and sound (_hit_fx): at most one per enemy per this many seconds (the flamethrower
+## and multi-pellet shots land many hits a second).
+const HIT_FX_INTERVAL := 0.1
+## Separation's neighbour cells.
+const _AROUND := [-1, 0, 1]
+## A shared empty list for crowd cells with nobody in them (never modified).
+const _NOBODY := []
 ## Requests from peers are clamped to this so a bad packet can't do anything silly.
 const MAX_DAMAGE := 1000.0
 ## Knockback speed (m/s) by damage kind.
@@ -92,6 +106,16 @@ var _hit_peer := 0
 ## Host: separation's buckets, Vector2i column -> [Enemy], and the physics frame they were built.
 var _crowd_cells := {}
 var _crowd_frame := -1
+## Host: msec of the last flow field refresh (Enemy.flow_here drops older lookups).
+var flow_msec := 0
+## Host: counts every time an enemy leaves `enemies` (killed, despawned, sunk, cleared), so the
+## director only re-checks its spawners' alive lists when something went.
+var removed_version := 0
+## targets() as of the frame _targets_frame (Engine.get_process_frames, see frame_targets).
+var _targets: Array[Player] = []
+var _targets_frame := -1
+## Damage kind -> the AmmoType whose status a batched hit of that kind gives (request_hits).
+var _kind_status := {}
 
 
 func _ready() -> void:
@@ -127,12 +151,15 @@ func clear() -> void:
 		enemy.remove_from_group(Enemy.GROUP)
 		enemy.queue_free()
 	enemies.clear()
+	removed_version += 1
 	for cloud: Cloud in clouds.values():
 		cloud.queue_free()
 	clouds.clear()
 	lures.clear()
 	_crowd_cells.clear()
 	_crowd_frame = -1
+	_targets.clear()
+	_targets_frame = -1
 
 
 func get_enemy(id: int) -> Enemy:
@@ -195,6 +222,7 @@ func kill(id: int) -> void:
 		return
 	enemy_died.emit(enemy)
 	enemies.erase(id)
+	removed_version += 1
 	enemy.die()
 	for peer_id in _peers():
 		_died.rpc_id(peer_id, id)
@@ -223,6 +251,7 @@ func _sink(id: int) -> void:
 	if enemy == null:
 		return
 	enemies.erase(id)
+	removed_version += 1
 	enemy.alive = false
 	enemy.remove_from_group(Enemy.GROUP)
 	enemy.set_physics_process(false)
@@ -237,6 +266,7 @@ func _remove(id: int) -> void:
 	var enemy: Enemy = enemies.get(id)
 	if enemy:
 		enemies.erase(id)
+		removed_version += 1
 		enemy.alive = false
 		enemy.remove_from_group(Enemy.GROUP)
 		enemy.queue_free()
@@ -287,6 +317,7 @@ func _died(id: int) -> void:
 	var enemy: Enemy = enemies.get(id)
 	if enemy:
 		enemies.erase(id)
+		removed_version += 1
 		enemy.die()
 
 
@@ -322,6 +353,53 @@ func _apply_hit(id: int, damage: float, point: Vector3, kind: String) -> void:
 	_hit_peer = 0
 
 
+## Any peer: one attack hit several enemies at once (a flamethrower cone check): ids[i] takes
+## damage at points[i]. One message to the host for the lot. The host applies each as request_hit
+## does, then the status a hit of this kind gives (an AmmoType of that kind with a status: the
+## flame's burning), so no second message is needed.
+func request_hits(ids: PackedInt32Array, damage: float, points: PackedVector3Array, kind := "rifle") -> void:
+	if ids.is_empty() or points.size() != ids.size():
+		return
+	for i in ids.size():
+		var enemy: Enemy = enemies.get(ids[i])
+		if enemy and enemy.alive:
+			local_hit.emit(enemy, points[i])
+	if multiplayer.is_server():
+		_apply_hits(ids, damage, points, kind)
+	else:
+		_request_hits.rpc_id(1, ids, damage, points, kind)
+
+
+@rpc("any_peer", "reliable")
+func _request_hits(ids: PackedInt32Array, damage: float, points: PackedVector3Array, kind: String) -> void:
+	if _from_level() and is_finite(damage) and points.size() == ids.size() and ids.size() <= MAX_ENEMIES:
+		for point in points:
+			if not point.is_finite():
+				return
+		_apply_hits(ids, damage, points, kind)
+
+
+func _apply_hits(ids: PackedInt32Array, damage: float, points: PackedVector3Array, kind: String) -> void:
+	var status := _status_of_kind(kind)
+	for i in ids.size():
+		_apply_hit(ids[i], damage, points[i], kind)
+		if status:
+			_apply_status(ids[i], status.status, status.status_seconds)
+
+
+## The AmmoType (with a status) whose hits are of damage kind, or null. Statuses come from the
+## host's own table, not the request.
+func _status_of_kind(kind: String) -> AmmoType:
+	if not _kind_status.has(kind):
+		var found: AmmoType = null
+		for type in AmmoType.all():
+			if type.kind == kind and type.status != "":
+				found = type
+				break
+		_kind_status[kind] = found
+	return _kind_status[kind]
+
+
 ## Host: damages enemy id directly (statuses, enemies fighting each other). from is where it came
 ## from, for knockback by kind (KNOCKBACK); fx is the hit flash and sound on every peer. Frozen
 ## enemies take more (Enemy.damage_taken), as they do from request_hit.
@@ -341,7 +419,9 @@ func _damage(enemy: Enemy, amount: float, point: Vector3, kind: String, zone: St
 	enemy.apply_hit(amount, push)
 	enemy._on_damaged(amount, kind, _hit_peer)
 	enemy_damaged.emit(enemy, amount, zone)
-	if fx:
+	var now := Time.get_ticks_msec()
+	if fx and now - enemy.last_hit_fx_msec >= int(HIT_FX_INTERVAL * 1000.0):
+		enemy.last_hit_fx_msec = now
 		_hit_fx(enemy.id, point)
 		for peer_id in _peers():
 			_hit_fx.rpc_id(peer_id, enemy.id, point)
@@ -556,6 +636,26 @@ func targets() -> Array[Player]:
 	return out
 
 
+## targets(), read once per frame and shared (don't modify it): for the per-enemy, per-tick
+## lookups (nearest_player, is_far, the kinds' own checks), at most a frame stale.
+func frame_targets() -> Array[Player]:
+	var frame := Engine.get_process_frames()
+	if _targets_frame != frame:
+		_targets_frame = frame
+		_targets = targets()
+	return _targets
+
+
+## Host: whether every target player is farther than meters from at (true with none). Enemy's
+## simulation LOD.
+func is_far(at: Vector3, meters: float) -> bool:
+	var limit := meters * meters
+	for player in frame_targets():
+		if is_instance_valid(player) and player.global_position.distance_squared_to(at) <= limit:
+			return false
+	return true
+
+
 ## Host: whether a request comes from a peer in the level (a joiner still loading, or a peer
 ## that has left, can't hit, status or spawn anything).
 func _from_level() -> bool:
@@ -566,7 +666,9 @@ func _from_level() -> bool:
 func nearest_player(at: Vector3) -> Player:
 	var best: Player = null
 	var best_distance := INF
-	for player in targets():
+	for player in frame_targets():
+		if not is_instance_valid(player):
+			continue
 		var distance := player.global_position.distance_squared_to(at)
 		if distance < best_distance:
 			best_distance = distance
@@ -639,9 +741,9 @@ func separation(enemy: Enemy) -> Vector3:
 	var at := enemy.global_position
 	var cx := floori(at.x / CROWD_CELL)
 	var cz := floori(at.z / CROWD_CELL)
-	for dz in [-1, 0, 1]:
-		for dx in [-1, 0, 1]:
-			for other: Variant in _crowd_cells.get(Vector2i(cx + dx, cz + dz), []):
+	for dz: int in _AROUND:
+		for dx: int in _AROUND:
+			for other: Variant in _crowd_cells.get(Vector2i(cx + dx, cz + dz), _NOBODY):
 				if not is_instance_valid(other) or other == enemy:
 					continue
 				var offset: Vector3 = at - (other as Enemy).global_position
@@ -675,7 +777,9 @@ func refresh_flow() -> void:
 	for player in targets():
 		points.append(player.global_position)
 	world.update_flow_field(points, FLOW_RANGE)
-	flow_reached = int(world.get_stats().get("flow_reached", 0)) if not points.is_empty() else 0
+	flow_reached = world.flow_reached if not points.is_empty() else 0
+	flow_msec = Time.get_ticks_msec()
+	flow_refreshed.emit()
 
 
 func _physics_process(delta: float) -> void:
@@ -691,15 +795,23 @@ func _physics_process(delta: float) -> void:
 	if _state_timer > 0.0 or peers.is_empty():
 		return
 	_state_timer = 1.0 / STATE_RATE
-	var ids := PackedInt32Array()
-	var positions := PackedVector3Array()
-	var yaws := PackedFloat32Array()
-	for enemy: Enemy in enemies.values():
-		ids.append(enemy.id)
-		positions.append(enemy.global_position)
-		yaws.append(enemy.rotation.y)
-	for peer_id in peers:
-		_states.rpc_id(peer_id, ids, positions, yaws)
+	# In packets of at most STATES_PER_PACKET enemies (see there).
+	var all: Array = enemies.values()
+	for start in range(0, all.size(), STATES_PER_PACKET):
+		var count := mini(STATES_PER_PACKET, all.size() - start)
+		var ids := PackedInt32Array()
+		var positions := PackedVector3Array()
+		var yaws := PackedFloat32Array()
+		ids.resize(count)
+		positions.resize(count)
+		yaws.resize(count)
+		for i in count:
+			var enemy: Enemy = all[start + i]
+			ids[i] = enemy.id
+			positions[i] = enemy.global_position
+			yaws[i] = enemy.rotation.y
+		for peer_id in peers:
+			_states.rpc_id(peer_id, ids, positions, yaws)
 
 
 @rpc("authority", "unreliable_ordered")

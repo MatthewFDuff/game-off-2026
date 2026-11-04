@@ -297,6 +297,9 @@ func muzzle_position() -> Vector3:
 
 func _fire_hitscan(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector3) -> void:
 	var ends := PackedVector3Array()
+	# Every pellet's wall hit goes out as one WorldSync.carve_spheres (one edit, one RPC per peer).
+	var centers := PackedVector3Array()
+	var normals := PackedVector3Array()
 	# enemy id -> [damage, point]
 	var damage := {}
 	for i in type.pellets:
@@ -310,7 +313,10 @@ func _fire_hitscan(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector
 			entry[0] += type.damage
 			damage[hit.enemy.id] = entry
 		elif type.carve_radius > 0.0 and world_sync:
-			world_sync.carve_sphere(hit.position, type.carve_radius, type.carve_power, hit.normal)
+			centers.append(hit.position)
+			normals.append(hit.normal)
+	if not centers.is_empty():
+		world_sync.carve_spheres(centers, type.carve_radius, type.carve_power, normals)
 	if enemies:
 		for id: int in damage:
 			enemies.request_hit(id, damage[id][0], damage[id][1], type.kind)
@@ -320,8 +326,11 @@ func _fire_hitscan(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector
 
 
 ## Flame: every enemy in the cone with a clear line from the camera gets a tick of damage and the
-## status (burning).
+## status (burning): one EnemyManager.request_hits for the whole check, which gives the status on
+## the host too.
 func _fire_cone(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector3) -> void:
+	var ids := PackedInt32Array()
+	var points := PackedVector3Array()
 	for enemy in Combat.enemies():
 		var center := enemy.get_center()
 		var to := center - origin
@@ -334,10 +343,10 @@ func _fire_cone(type: AmmoType, origin: Vector3, aim: Vector3, muzzle: Vector3) 
 		var sight: Dictionary = player.world.raycast(origin, to / maxf(distance, 0.01), distance)
 		if sight.hit and sight.distance < distance - radius:
 			continue
-		if enemies:
-			enemies.request_hit(enemy.id, type.damage, center - to.normalized() * radius, type.kind)
-			if type.status != "":
-				enemies.request_status(enemy.id, type.status, type.status_seconds)
+		ids.append(enemy.id)
+		points.append(center - to.normalized() * radius)
+	if enemies and not ids.is_empty():
+		enemies.request_hits(ids, type.damage, points, type.kind)
 	# Whatever the flame licks catches, a few checks a second (each is a request to the host).
 	_flame_ignites += 1
 	if type.ignite_radius > 0.0 and _flame_ignites % 3 == 0:

@@ -47,14 +47,33 @@ func synced_peers() -> Array[int]:
 
 # --- Gameplay edits ------------------------------------------------------------------------------
 
-## Carves a sphere everywhere. normal is the surface the hit came from, for debris.
+## Carves a sphere everywhere. normal is the surface the hit came from, for debris. The host only
+## replays it to the peers when it removed something here (the worlds are the same, so a carve that
+## removes nothing here removes nothing anywhere).
 func carve_sphere(center: Vector3, radius: float, max_hardness: int, normal := Vector3.UP) -> void:
 	if multiplayer.is_server():
-		_apply_carve(center, radius, max_hardness, normal)
+		if _apply_carve(center, radius, max_hardness, normal) == 0:
+			return
 		for peer_id in _synced:
 			_apply_carve.rpc_id(peer_id, center, radius, max_hardness, normal)
 	else:
 		_request_carve.rpc_id(1, center, radius, max_hardness, normal)
+
+
+## Carves a sphere of radius at every center as one edit (a shotgun's pellets): one world edit
+## (VoxelWorld.carve_spheres), one RPC per peer, and `carved` once per center that removed
+## something, with normals[i] (Vector3.UP when normals is short). Replayed only when it removed
+## something, like carve_sphere.
+func carve_spheres(centers: PackedVector3Array, radius: float, max_hardness: int, normals := PackedVector3Array()) -> void:
+	if centers.is_empty():
+		return
+	if multiplayer.is_server():
+		if _apply_carve_spheres(centers, radius, max_hardness, normals) == 0:
+			return
+		for peer_id in _synced:
+			_apply_carve_spheres.rpc_id(peer_id, centers, radius, max_hardness, normals)
+	else:
+		_request_carve_spheres.rpc_id(1, centers, radius, max_hardness, normals)
 
 
 ## Only from a peer that has the world (so the carve lands on both sides), within the caps.
@@ -67,12 +86,56 @@ func _request_carve(center: Vector3, radius: float, max_hardness: int, normal: V
 	carve_sphere(center, minf(radius, MAX_CARVE_RADIUS), mini(max_hardness, MAX_CARVE_POWER), normal)
 
 
+## Returns how many voxels it removed (the host uses it to skip replaying empty carves).
 @rpc("authority", "reliable")
-func _apply_carve(center: Vector3, radius: float, max_hardness: int, normal: Vector3) -> void:
+func _apply_carve(center: Vector3, radius: float, max_hardness: int, normal: Vector3) -> int:
 	var removed: Dictionary = world.carve_sphere(center, radius, max_hardness)
-	if not removed.is_empty():
-		last_carve_radius = radius
-		carved.emit(center, normal, removed)
+	if removed.is_empty():
+		return 0
+	last_carve_radius = radius
+	carved.emit(center, normal, removed)
+	return _count(removed)
+
+
+## Pellets per batch a peer may ask for.
+const MAX_CARVE_SPHERES := 32
+
+
+@rpc("any_peer", "reliable")
+func _request_carve_spheres(centers: PackedVector3Array, radius: float, max_hardness: int, normals: PackedVector3Array) -> void:
+	if not multiplayer.is_server() or multiplayer.get_remote_sender_id() not in _synced:
+		return
+	if centers.size() > MAX_CARVE_SPHERES or normals.size() > MAX_CARVE_SPHERES or not is_finite(radius):
+		return
+	for p in centers:
+		if not p.is_finite():
+			return
+	for n in normals:
+		if not n.is_finite():
+			return
+	carve_spheres(centers, minf(radius, MAX_CARVE_RADIUS), mini(max_hardness, MAX_CARVE_POWER), normals)
+
+
+## Returns how many voxels it removed in all.
+@rpc("authority", "reliable")
+func _apply_carve_spheres(centers: PackedVector3Array, radius: float, max_hardness: int, normals: PackedVector3Array) -> int:
+	var results: Array = world.carve_spheres(centers, radius, max_hardness)
+	var total := 0
+	last_carve_radius = radius
+	for i in results.size():
+		var removed: Dictionary = results[i]
+		if removed.is_empty():
+			continue
+		total += _count(removed)
+		carved.emit(centers[i], normals[i] if i < normals.size() else Vector3.UP, removed)
+	return total
+
+
+static func _count(removed: Dictionary) -> int:
+	var total := 0
+	for n: int in removed.values():
+		total += n
+	return total
 
 
 # --- Host edits ----------------------------------------------------------------------------------
@@ -261,15 +324,11 @@ func _sliced(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: in
 				_apply_slice.rpc_id(peer_id, part_origin, part_size, part, mode, whole)
 
 
+## whole is kept for the RPC's signature: edits only mark chunks now, and the world builds each
+## dirty chunk once per frame however many slices touched it.
 @rpc("authority", "reliable")
-func _apply_slice(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int, whole: bool) -> void:
-	if whole:
-		_apply_box(origin, size, voxels, mode)
-		return
-	var limit := world.immediate_remesh_limit
-	world.immediate_remesh_limit = 0
+func _apply_slice(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int, _whole: bool) -> void:
 	_apply_box(origin, size, voxels, mode)
-	world.immediate_remesh_limit = limit
 
 
 func _apply_box(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, mode: int) -> void:

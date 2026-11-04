@@ -42,6 +42,8 @@ const LIBRARY_DIR := "res://assets/vox/props/"
 ## Where prop models are read from. Tests point this at a scratch copy.
 static var library_dir := LIBRARY_DIR
 static var _library := {}
+## "name:facing" -> orient(load_prop(name), facing), turned once and shared (oriented()).
+static var _oriented := {}
 ## Names place() was asked for that have no .vox file, for tests and warnings.
 static var missing: Array[String] = []
 
@@ -55,10 +57,9 @@ var stamp_into_world := true
 ## Stamps the library prop `name` (assets/vox/props/<name>.vox) with its footprint's min corner at
 ## origin. Returns the footprint, or Vector2i.ZERO if the prop doesn't exist.
 func place(name: String, origin: Vector3i, facing := NORTH) -> Vector2i:
-	var model := load_prop(name)
-	if model.is_empty():
+	var turned := oriented(name, facing)
+	if turned.is_empty():
 		return Vector2i.ZERO
-	var turned := orient(model, facing)
 	if stamp_into_world:
 		world.stamp(origin, turned.size, turned.voxels, false)
 	placements.append({name = name, origin = origin, facing = facing})
@@ -80,6 +81,8 @@ static func reload_prop(name: String) -> Dictionary:
 	var fresh := VoxFile.load_model(path) if FileAccess.file_exists(path) else {}
 	if not fresh.is_empty():
 		_library[name] = fresh
+		for facing in 4:
+			_oriented.erase("%s:%d" % [name, facing])
 	return {old = old, new = fresh}
 
 
@@ -119,6 +122,23 @@ static func load_prop(name: String) -> Dictionary:
 ## Forgets loaded props so edited .vox files are read again.
 static func clear_library() -> void:
 	_library.clear()
+	_oriented.clear()
+
+
+## The library prop `name` turned to face `facing` (orient), cached by name and facing: a level's
+## props are turned once at load, not once per user (stamping, LevelPlay, InteractRules). {} if
+## there's no such prop. Shared: callers must not change what it returns (duplicate first).
+static func oriented(name: String, facing: int) -> Dictionary:
+	var key := "%s:%d" % [name, facing]
+	var turned: Dictionary = _oriented.get(key, {})
+	if not turned.is_empty():
+		return turned
+	var model := load_prop(name)
+	if model.is_empty():
+		return {}
+	turned = orient(model, facing)
+	_oriented[key] = turned
+	return turned
 
 
 ## Turns a model built facing north to face `facing`, the same way box() maps prop frames.
@@ -660,14 +680,15 @@ func shroom_pot(origin: Vector3i) -> void:
 	box(Vector3i(1, 5, 1), Vector3i(2, 6, 2), M.SHROOM_STEM)
 
 
-## Office plant (placeholder): a plastic pot, a stem and a blob of leaves.
+## Office plant (placeholder): a plastic pot, a stem and a blob of matte leaves (LEAF, not the
+## glowing Sample green).
 func fake_plant(origin: Vector3i) -> void:
 	_begin(origin, 4, 4, NORTH)
 	box(Vector3i(0, 0, 0), Vector3i(4, 3, 4), M.PLASTIC)
 	box(Vector3i(1, 2, 1), Vector3i(3, 3, 3), M.SUBSTRATE)
 	box(Vector3i(1, 3, 1), Vector3i(3, 5, 3), M.PLANK) # Stem.
-	box(Vector3i(0, 5, 0), Vector3i(4, 7, 4), M.LIQUID_GREEN) # Leaves.
-	box(Vector3i(1, 7, 1), Vector3i(3, 8, 3), M.LIQUID_GREEN)
+	box(Vector3i(0, 5, 0), Vector3i(4, 7, 4), M.LEAF) # Leaves.
+	box(Vector3i(1, 7, 1), Vector3i(3, 8, 3), M.LEAF)
 
 
 ## Rubber duck (placeholder): yellow body, head one voxel up at the front, a one-voxel bill.

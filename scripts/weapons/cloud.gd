@@ -192,6 +192,15 @@ const STAIN_STEP := 0.15
 const STAIN_LIFT := 0.01
 ## Instant clouds (freeze): their stain and cubes stay this long after the cloud itself is gone.
 const LINGER := 1.6
+## Lights: only the LIGHTS clouds nearest the camera glow (each light is a forward pass on every
+## chunk it touches), picked every LIGHT_REFRESH seconds. Spore and foam clouds never do (UNLIT).
+const LIGHTS := 3
+const LIGHT_REFRESH := 0.25
+const UNLIT := ["spore", "foam"]
+
+## Every cloud with a light, and when (msec) the nearest were last picked (_pick_lights).
+static var _lit_clouds: Array = []
+static var _lights_msec := -1000000
 
 
 func _build() -> void:
@@ -210,13 +219,17 @@ func _build() -> void:
 	add_child(_stain)
 	_set_stain_step(0)
 
-	_light = OmniLight3D.new()
-	_light.light_color = color
-	_light.light_energy = 0.0
-	_light.omni_range = radius * 2.0
-	_light.shadow_enabled = false
-	_light.position = Vector3(0.0, floor_offset + 0.6, 0.0)
-	add_child(_light)
+	if not type in UNLIT:
+		_light = OmniLight3D.new()
+		_light.light_color = color
+		_light.light_energy = 0.0
+		_light.omni_range = radius * 2.0
+		_light.shadow_enabled = false
+		_light.position = Vector3(0.0, floor_offset + 0.6, 0.0)
+		_light.visible = false
+		add_child(_light)
+		_lit_clouds.append(self)
+		_lights_msec = -1000000 # Pick again now that there's a new one.
 
 	_particles = _rising_cubes(color, instant)
 	_particles.name = "Particles"
@@ -234,7 +247,7 @@ func _build() -> void:
 		_fog = VoxelFx.alpha_particles(1.0, [Color(color, 0.22), Color(color.lightened(0.1), 0.3), Color(color, 0.22)], 0.7)
 		_fog.name = "Fog"
 		_fog.position = _particles.position + Vector3(0.0, 0.4, 0.0)
-		_fog.amount = 12
+		_fog.amount = 6 if OS.has_feature("web") else 12
 		_fog.lifetime = 4.0
 		_fog.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
 		_fog.emission_ring_axis = Vector3.UP
@@ -325,8 +338,36 @@ func _rising_cubes(color: Color, instant: bool) -> CPUParticles3D:
 			p.damping_min = 0.2
 			p.damping_max = 0.4
 	p.amount = 24 if instant else int(defs.get("particles", 40))
+	if OS.has_feature("web"):
+		p.amount = maxi(p.amount / 2, 8) # The web build runs every particle on its one thread.
 	p.one_shot = instant
 	return p
+
+
+func _exit_tree() -> void:
+	_lit_clouds.erase(self)
+
+
+## Every peer, every LIGHT_REFRESH: lights only the LIGHTS lit clouds nearest the camera.
+static func _pick_lights(viewport: Viewport) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _lights_msec < int(LIGHT_REFRESH * 1000.0):
+		return
+	_lights_msec = now
+	var camera := viewport.get_camera_3d() if viewport else null
+	var eye := camera.global_position if camera else Vector3.ZERO
+	var ranked: Array = []
+	for i in range(_lit_clouds.size() - 1, -1, -1):
+		var cloud: Variant = _lit_clouds[i]
+		if not is_instance_valid(cloud):
+			_lit_clouds.remove_at(i)
+			continue
+		var lit_cloud: Cloud = cloud
+		if lit_cloud._light:
+			ranked.append([lit_cloud.global_position.distance_squared_to(eye), lit_cloud])
+	ranked.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for i in ranked.size():
+		(ranked[i][1] as Cloud)._light.visible = i < LIGHTS
 
 
 ## The floor under the center: the first solid voxel straight down (within the cloud's reach),
@@ -378,9 +419,12 @@ func _process(_delta: float) -> void:
 	var left := count if instant else int(maxf(seconds - age, 0.0) / STAIN_STEP) + 1
 	_set_stain_step(mini(mini(grown, left), count) - 1)
 	_stain_material.set_shader_parameter("tint", _stain_color())
-	var fade := clampf((seconds - age) / minf(1.0, seconds), 0.0, 1.0)
-	var flicker := 1.0 + (sin(age * 23.0) * 0.15 if type == "fire" else 0.0)
-	_light.light_energy = 2.0 * fade * flicker
+	if _light:
+		_pick_lights(get_viewport())
+		if _light.visible:
+			var fade := clampf((seconds - age) / minf(1.0, seconds), 0.0, 1.0)
+			var flicker := 1.0 + (sin(age * 23.0) * 0.15 if type == "fire" else 0.0)
+			_light.light_energy = 2.0 * fade * flicker
 	match type:
 		"poison":
 			_particles.gravity = Vector3(sin(age * 1.6) * 0.9, 0.08, cos(age * 1.1) * 0.6)

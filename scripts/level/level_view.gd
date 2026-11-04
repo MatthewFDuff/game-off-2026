@@ -18,6 +18,16 @@ var mode := "play"
 var _nodes := {}
 ## id -> Light3D
 var _lights := {}
+## id -> what a light needs each frame, cached at _add_light: {light, base (energy), emergency,
+## flicker ("" / "subtle" / "broken"), at (voxel position, for the rooms holding it), phase_a /
+## phase_b (the flicker offsets), steady (its energy before flickering, for the cull), room_flicker
+## (a room's lights flicker over it), written (the energy last set)}.
+var _light_info := {}
+## Light infos that animate (a flicker field or a flickering room, and lit); the rest only change
+## when the power, the mode or the room lights do (_refresh_lights).
+var _animated: Array[Dictionary] = []
+## What _refresh_lights last saw: [mode, backup, play active, rules lights_version]; [] = stale.
+var _lights_state: Array = []
 ## The Compatibility renderer draws only a few dozen lights, so only the LIGHT_BUDGET nearest lit
 ## lights (by distance past their range, from the active camera) are visible, re-picked every
 ## LIGHT_CULL_INTERVAL seconds.
@@ -62,6 +72,9 @@ func rebuild() -> void:
 		node.queue_free()
 	_nodes.clear()
 	_lights.clear()
+	_light_info.clear()
+	_animated.clear()
+	_lights_state = []
 	_clear_mycelium()
 	_selection.visible = false
 	if lab.level == null:
@@ -108,10 +121,9 @@ func set_selected(id: String) -> void:
 func prop_mesh(prop_name: String, facing: int) -> ArrayMesh:
 	var key := "%s:%d" % [prop_name, facing]
 	if not _prop_meshes.has(key):
-		var model := Props.load_prop(prop_name)
-		if model.is_empty():
+		var turned := Props.oriented(prop_name, facing)
+		if turned.is_empty():
 			return null
-		var turned := Props.orient(model, facing)
 		_prop_meshes[key] = lab.world.build_model_mesh(turned.size, turned.voxels)
 	return _prop_meshes[key]
 
@@ -143,41 +155,80 @@ func _process(delta: float) -> void:
 		if shader:
 			shader.set_shader_parameter("facility_power", _lamp_power)
 	var rules: LevelPlay.Rules = lab.play.rules if mode == "play" and lab.play and lab.play.active else null
-	for light_id: String in _lights:
-		var light: Light3D = _lights[light_id]
-		var base: float = light.get_meta("energy")
-		var emergency: bool = light.get_meta("emergency")
-		var on := mode == "edit" or (backup == emergency)
-		var energy := base if on else 0.0
-		# A room's lights cut or flickering (breakers, `lights=`, sprinklers: InteractRules).
-		var cut: String = rules.light_mode(light_id) if rules else ""
-		if cut == "off":
-			energy = 0.0
-		elif cut == "flicker":
-			var f := _flicker_time * 9.0 + light.get_instance_id() % 53
+	# The steady energies change only with the mode, the power or the room lights.
+	var version: int = rules.lights_version if rules else -1
+	var state := [mode, backup, rules != null, version]
+	if state != _lights_state:
+		_lights_state = state
+		_refresh_lights(backup, rules)
+	# Then only the visible lights that flicker animate (the cull hides all but LIGHT_BUDGET).
+	for info: Dictionary in _animated:
+		var light: Light3D = info.light
+		if not light.visible:
+			continue
+		var energy: float = info.steady
+		# A room's lights flickering (sprinklers, `lights=...:flicker`: InteractRules).
+		if info.room_flicker:
+			var f: float = _flicker_time * 9.0 + info.phase_a
 			energy *= 0.0 if fmod(f, 2.3) < 0.5 or fmod(f * 1.3, 1.7) < 0.3 else 1.0
-		match light.get_meta("flicker"):
+		match info.flicker:
 			"subtle":
-				energy *= 0.92 + 0.08 * sin(_flicker_time * 13.0 + light.get_instance_id())
+				energy *= 0.92 + 0.08 * sin(_flicker_time * 13.0 + info.phase_c)
 			"broken":
-				var t := _flicker_time * 7.0 + light.get_instance_id() % 97
+				var t: float = _flicker_time * 7.0 + info.phase_b
 				energy *= 0.0 if fmod(t, 5.3) < 0.4 or fmod(t * 1.7, 3.1) < 0.15 else 1.0
-		light.light_energy = energy
+		if energy != info.written:
+			info.written = energy
+			light.light_energy = energy
 	_cull_time -= delta
 	if _cull_time <= 0.0:
 		_cull_time = LIGHT_CULL_INTERVAL
 		_cull_lights()
 
 
-## Keeps the nearest lit lights visible and hides the rest (see LIGHT_BUDGET).
+## Every light's steady energy (on or off by the power and mode, cut by its rooms' lights) and
+## whether it animates, written only where it changed. Runs when the mode, the power or
+## InteractRules.room_lights changes, not every frame.
+func _refresh_lights(backup: bool, rules: LevelPlay.Rules) -> void:
+	# The rooms with a lights mode, boxes made once (room_lights order: "off" wins, else the last).
+	var rooms: Array = []
+	if rules:
+		for room: String in rules.room_lights:
+			rooms.append([rules.room_box(room), str(rules.room_lights[room])])
+	_animated.clear()
+	for light_id: String in _light_info:
+		var info: Dictionary = _light_info[light_id]
+		var on: bool = mode == "edit" or (backup == info.emergency)
+		var energy: float = info.base if on else 0.0
+		var cut := ""
+		for entry: Array in rooms:
+			if (entry[0] as AABB).has_point(info.at):
+				if entry[1] == "off":
+					cut = "off"
+					break
+				cut = entry[1]
+		if cut == "off":
+			energy = 0.0
+		info.steady = energy
+		info.room_flicker = cut == "flicker"
+		if energy > 0.0 and (info.room_flicker or info.flicker == "subtle" or info.flicker == "broken"):
+			_animated.append(info)
+		if energy != info.written:
+			info.written = energy
+			(info.light as Light3D).light_energy = energy
+
+
+## Keeps the nearest lit lights visible and hides the rest (see LIGHT_BUDGET). Lit means its steady
+## energy, so a flickering light isn't dropped for catching it in an off beat.
 func _cull_lights() -> void:
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
 	var at := camera.global_position
 	var scored: Array = []
-	for light: Light3D in _lights.values():
-		if light.light_energy <= 0.0:
+	for info: Dictionary in _light_info.values():
+		var light: Light3D = info.light
+		if info.steady <= 0.0:
 			light.visible = false
 			continue
 		var offset := light.global_position - at
@@ -268,6 +319,8 @@ func _remove(id: String) -> void:
 		if node:
 			node.queue_free()
 			table.erase(id)
+	if _light_info.erase(id):
+		_lights_state = [] # _animated may hold it: rebuilt next frame.
 	_mycelium_ids.erase(id)
 
 
@@ -292,6 +345,12 @@ func _add_light(object: Dictionary) -> void:
 	light.position = to_world(object.position)
 	add_child(light)
 	_lights[object.id] = light
+	var id_hash := light.get_instance_id()
+	_light_info[object.id] = {light = light, base = float(object.energy), emergency = object.power == "emergency",
+			flicker = str(object.flicker), at = Vector3(object.position), phase_a = float(id_hash % 53),
+			phase_b = float(id_hash % 97), phase_c = float(id_hash), steady = 0.0, room_flicker = false,
+			written = light.light_energy}
+	_lights_state = [] # Its energy is worked out next frame.
 
 
 ## Editor marker: a see-through box (the trigger volume, or a small cube) with an outline and label.

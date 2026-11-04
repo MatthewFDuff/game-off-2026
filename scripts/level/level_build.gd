@@ -121,7 +121,10 @@ static func is_diagonal_ok(a: Vector3i, b: Vector3i) -> bool:
 
 ## The level's storeys object, or the default for one storey on the starter slab.
 static func storeys(objects: Dictionary) -> Dictionary:
-	return objects.get(STOREYS_ID, new_storeys(DEFAULT_SLAB))
+	# Not objects.get(id, default): the default would be built on every call.
+	if objects.has(STOREYS_ID):
+		return objects[STOREYS_ID]
+	return new_storeys(DEFAULT_SLAB)
 
 
 ## A storey's wall height (storeys past the list use the last one's, or the default).
@@ -324,10 +327,15 @@ static func box_of(object: Dictionary, objects: Dictionary) -> AABB:
 
 ## The wall whose cells hold a voxel ("" none): one on prefer_storey wins, then the newest id.
 static func wall_at(objects: Dictionary, voxel: Vector3i, prefer_storey := -1) -> String:
+	return wall_at_among(objects, objects.values(), voxel, prefer_storey)
+
+
+## wall_at over some of the level's objects (its walls, say: the editor keeps them by kind).
+static func wall_at_among(objects: Dictionary, among: Array, voxel: Vector3i, prefer_storey := -1) -> String:
 	var st := storeys(objects)
 	var best := ""
 	var best_rank := -1
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if object.kind != "wall" or not is_diagonal_ok(object.a, object.b):
 			continue
 		var y := wall_base(object, st)
@@ -342,9 +350,14 @@ static func wall_at(objects: Dictionary, voxel: Vector3i, prefer_storey := -1) -
 
 ## The opening in a wall that holds a voxel (its cut, a voxel past each face), "" none.
 static func opening_at(objects: Dictionary, voxel: Vector3i) -> String:
+	return opening_at_among(objects, objects.values(), voxel)
+
+
+## opening_at over some of the level's objects (in the level's order: the first match wins).
+static func opening_at_among(objects: Dictionary, among: Array, voxel: Vector3i) -> String:
 	var st := storeys(objects)
 	var c := Vector2(voxel.x + 0.5, voxel.z + 0.5)
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if object.kind != "opening" or str(object.get("wall", "")) == "":
 			continue
 		var wall: Dictionary = objects.get(object.wall, {})
@@ -360,8 +373,12 @@ static func opening_at(objects: Dictionary, voxel: Vector3i) -> String:
 
 ## The openings in a wall.
 static func openings_in(objects: Dictionary, wall_id: String) -> Array[Dictionary]:
+	return openings_in_among(objects.values(), wall_id)
+
+
+static func openings_in_among(among: Array, wall_id: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if object.kind == "opening" and str(object.get("wall", "")) == wall_id:
 			out.append(object)
 	return out
@@ -369,10 +386,14 @@ static func openings_in(objects: Dictionary, wall_id: String) -> Array[Dictionar
 
 ## Door props standing in a wall (their middle in its cells, on its storey).
 static func doors_in(objects: Dictionary, wall: Dictionary) -> Array[Dictionary]:
+	return doors_in_among(objects, objects.values(), wall)
+
+
+static func doors_in_among(objects: Dictionary, among: Array, wall: Dictionary) -> Array[Dictionary]:
 	var st := storeys(objects)
 	var y := wall_base(wall, st)
 	var out: Array[Dictionary] = []
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if not LevelSchema.is_door(object):
 			continue
 		var center := LevelSchema.prop_box(object).get_center()
@@ -383,8 +404,12 @@ static func doors_in(objects: Dictionary, wall: Dictionary) -> Array[Dictionary]
 
 ## A storey's walls (valid ones); storey -1: the rock level walls standing on base.
 static func walls_on(objects: Dictionary, storey: int, base := 0) -> Array[Dictionary]:
+	return walls_on_among(objects.values(), storey, base)
+
+
+static func walls_on_among(among: Array, storey: int, base := 0) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if object.kind != "wall" or not is_diagonal_ok(object.a, object.b):
 			continue
 		var on := int(object.storey) == storey if storey >= 0 else int(object.storey) < 0 and int(object.get("base", 0)) == base

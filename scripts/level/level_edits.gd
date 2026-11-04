@@ -17,6 +17,10 @@ signal locks_changed
 const MAX_HISTORY := 100
 ## Voxel edits bigger than this aren't recorded for undo (two copies of the box would be kept).
 const MAX_UNDO_VOXELS := 8_000_000
+## The most voxel bytes everyone's undo and redo history keep together (each voxel edit keeps its
+## box before and after); past it the oldest steps go. Less on the web, where memory is tight.
+const MAX_UNDO_BYTES := 256 * 1024 * 1024
+const MAX_UNDO_BYTES_WEB := 64 * 1024 * 1024
 
 @export var lab: Lab
 
@@ -26,10 +30,19 @@ var _history := {}
 var _redo := {}
 ## peer id -> the group being collected between begin_group and end_group.
 var _open := {}
+## Host only. The voxel bytes held in _history and _redo, and the groups holding any, oldest first
+## ({peer, group, bytes}; an entry whose group already went is skipped).
+var _undo_bytes := 0
+var _byte_groups: Array = []
+## The cap on _undo_bytes (MAX_UNDO_BYTES, or MAX_UNDO_BYTES_WEB on the web).
+var max_undo_bytes := MAX_UNDO_BYTES_WEB if OS.has_feature("web") else MAX_UNDO_BYTES
 ## Soft locks: object id -> the peer moving or resizing it (the host's table, on every peer). Others
 ## can't grab it and the host refuses their edits to it until it's let go; a peer's locks go when
 ## it disconnects.
 var locks := {}
+## Goes up on every object change, before object_set is emitted (on every peer), so a cache over
+## the level's objects can tell it's behind even from inside another object_set handler.
+var objects_version := 0
 
 
 func _ready() -> void:
@@ -228,7 +241,7 @@ func _do_puts(peer: int, puts: Array) -> void:
 	for change in changes:
 		_transition(change.before, change.after)
 		group.append({type = "object", before = change.before, after = change.after})
-	_redo.erase(peer)
+	_clear_redo(peer)
 	if _open.has(peer):
 		_open[peer].append_array(group)
 	else:
@@ -374,7 +387,7 @@ func _revert(record: Dictionary, undo: bool) -> void:
 
 
 func _record(peer: int, record: Dictionary) -> void:
-	_redo.erase(peer)
+	_clear_redo(peer)
 	if _open.has(peer):
 		_open[peer].append(record)
 	else:
@@ -385,7 +398,61 @@ func _push(peer: int, group: Array) -> void:
 	var history: Array = _history.get_or_add(peer, [])
 	history.append(group)
 	if history.size() > MAX_HISTORY:
-		history.pop_front()
+		_undo_bytes -= _bytes_of(history.pop_front())
+	var bytes := _bytes_of(group)
+	if bytes > 0:
+		_undo_bytes += bytes
+		_byte_groups.append({peer = peer, group = group, bytes = bytes})
+		_trim_undo(group)
+
+
+## The voxel bytes an undo group keeps.
+static func _bytes_of(group: Array) -> int:
+	var bytes := 0
+	for record: Dictionary in group:
+		if record.type == "voxels":
+			bytes += record.before.size() + record.after.size()
+	return bytes
+
+
+## Drops a peer's redo steps (a new edit makes them moot).
+func _clear_redo(peer: int) -> void:
+	for group: Array in _redo.get(peer, []):
+		_undo_bytes -= _bytes_of(group)
+	_redo.erase(peer)
+
+
+## Over the byte cap: drops the oldest undo (or redo) steps holding voxels, anyone's, until it fits,
+## never the one just pushed (keep).
+func _trim_undo(keep: Array) -> void:
+	while _undo_bytes > max_undo_bytes and not _byte_groups.is_empty():
+		var entry: Dictionary = _byte_groups[0]
+		if is_same(entry.group, keep):
+			break
+		_byte_groups.pop_front()
+		for stacks: Dictionary in [_history, _redo]:
+			var stack: Array = stacks.get(entry.peer, [])
+			var at := -1
+			for i in stack.size():
+				if is_same(stack[i], entry.group):
+					at = i
+					break
+			if at >= 0:
+				stack.remove_at(at)
+				_undo_bytes -= entry.bytes
+				break
+	# Entries for groups that went another way (history full, redo cleared) pile up: prune them.
+	if _byte_groups.size() > 4 * (MAX_HISTORY + 1):
+		_byte_groups = _byte_groups.filter(func(entry: Dictionary) -> bool:
+			return _holds(entry.peer, entry.group))
+
+
+func _holds(peer: int, group: Array) -> bool:
+	for stacks: Dictionary in [_history, _redo]:
+		for held: Array in stacks.get(peer, []):
+			if is_same(held, group):
+				return true
+	return false
 
 
 ## Host: object state from -> to, on every peer.
@@ -400,6 +467,7 @@ func _transition(from: Dictionary, to: Dictionary) -> void:
 @rpc("authority", "reliable")
 func _object_set(remove_id: String, object: Dictionary) -> void:
 	var level: LevelData = lab.level
+	objects_version += 1
 	if remove_id != "":
 		level.objects.erase(remove_id)
 	if not object.is_empty():

@@ -69,8 +69,6 @@ const CHECKPOINT_REACH := 3.0
 const POWER_STATES := ["facility", "backup", "restored"]
 ## Rounds an ammo bench gives per use.
 const STATION_AMMO := 20
-## Meters from a damaged asset within which a player sees its "-$" toast (everyone is billed).
-const DAMAGE_NOTE_RANGE := 15.0
 const Rules := preload("res://scripts/interact/interact_rules.gd")
 ## Dollars a forced door costs on the payroll.
 const FORCED_DOOR_FEE := 500
@@ -114,13 +112,24 @@ var _assets := {}
 var _usables := {}
 ## Host: glass case id -> {origin, size, voxels (its GLASS voxels only), intact}
 var _glass := {}
-## Trigger ids that already fired (one-shot ones) and peers inside each (for edge detection).
+## Trigger ids that already fired (one-shot ones). (_inside is unused now: each volume in _volumes
+## keeps the peers inside it, for edge detection.)
 var _fired := {}
 var _inside := {}
-## Host: damage not yet announced: id -> dollars. Announced in batches so a burst of fire is one
-## line, and only to players within DAMAGE_NOTE_RANGE of the asset.
-var _pending_notes := {}
-var _note_timer := 0.0
+## Host: the assets, glass cases and every non-door prop (by LevelSchema.prop_box) in chunk indexes,
+## so a voxel change or a shattered pane only tests what is in the chunks it touched. Built at start;
+## an asset that moves or changes size is put back with index_asset.
+var _asset_index := ChunkIndex.new()
+var _glass_index := ChunkIndex.new()
+var _prop_index := ChunkIndex.new()
+## Every peer: usable (non-door) props by voxel box, for Interactables (usables_near).
+var _usable_index := ChunkIndex.new()
+## Host: the clone vats, triggers and kill zones, with their world-space boxes, built at start, so
+## the physics tick doesn't walk every object in the level. Each is {object, vat: bool, kill: bool,
+## at (a vat's point), box (a volume's), inside: Array[int] (peers in it last tick)}.
+var _volumes: Array[Dictionary] = []
+## The spare peers-inside list a volume swaps with each tick (no allocation per tick).
+var _scratch_inside: Array[int] = []
 
 
 func _ready() -> void:
@@ -150,12 +159,15 @@ func start() -> void:
 	_assets.clear()
 	_usables.clear()
 	_glass.clear()
+	_asset_index.clear()
+	_glass_index.clear()
+	_prop_index.clear()
+	_usable_index.clear()
 	_fired.clear()
 	_inside.clear()
 	prop_state.clear()
 	keycards.clear()
 	armed = false
-	_pending_notes.clear()
 	purchases.clear()
 	forced_doors.clear()
 	checkpoint = ""
@@ -164,24 +176,33 @@ func start() -> void:
 	var start_power := str(lab.level.settings.get("start_power", "facility"))
 	power = start_power if start_power in POWER_STATES else "facility"
 	power_changed.emit(power)
+	var host := multiplayer.is_server()
+	_volumes = []
 	for object: Dictionary in lab.level.objects.values():
+		if object.kind == "marker":
+			if host:
+				_add_volume(object)
+			continue
 		if object.kind != "prop":
 			continue
-		var model := Props.load_prop(object.name)
-		if model.is_empty():
+		if host and not object.door:
+			_prop_index.insert(object.id, LevelSchema.prop_box(object))
+		var turned := Props.oriented(object.name, object.facing)
+		if turned.is_empty():
 			continue
-		var turned := Props.orient(model, object.facing)
 		if object.door:
 			_doors[object.id] = {object = object, model = turned, origin = object.origin, open = false, moving = false}
 			continue
 		if object.get("use", "none") != "none":
 			_usables[object.id] = AABB(lab.view.to_world(Vector3(object.origin)), Vector3(turned.size) * lab.world.voxel_size)
-		if not multiplayer.is_server():
+			_usable_index.insert(object.id, AABB(Vector3(object.origin), Vector3(turned.size)))
+		if not host:
 			continue
 		if object.value > 0:
 			var intact: int = lab.world.count_matching(object.origin, turned.size, turned.voxels)
 			_assets[object.id] = {origin = object.origin, size = turned.size, voxels = turned.voxels,
 					total = maxi(intact, 1), intact = intact, value = object.value, name = object.name}
+			index_asset(object.id)
 		if object.get("use") == "glass_case":
 			var glass: PackedByteArray = turned.voxels.duplicate()
 			for i in glass.size():
@@ -190,6 +211,7 @@ func start() -> void:
 			var intact_glass: int = lab.world.count_matching(object.origin, turned.size, glass)
 			if intact_glass > 0:
 				_glass[object.id] = {origin = object.origin, size = turned.size, voxels = glass, intact = intact_glass}
+				_glass_index.insert(object.id, AABB(Vector3(object.origin), Vector3(turned.size)))
 	if multiplayer.is_server() and not lab.world.voxels_changed.is_connected(_on_voxels_changed):
 		lab.world.voxels_changed.connect(_on_voxels_changed)
 	rules.start()
@@ -202,6 +224,11 @@ func stop() -> void:
 	_assets.clear()
 	_usables.clear()
 	_glass.clear()
+	_asset_index.clear()
+	_glass_index.clear()
+	_prop_index.clear()
+	_usable_index.clear()
+	_volumes = []
 	close_reading()
 	if lab.world.voxels_changed.is_connected(_on_voxels_changed):
 		lab.world.voxels_changed.disconnect(_on_voxels_changed)
@@ -215,6 +242,36 @@ func _peers() -> Array[int]:
 			if peer_id != 1:
 				out.append(peer_id)
 	return out
+
+
+## Host: a clone vat, trigger or kill zone marker joins _volumes (others are ignored).
+func _add_volume(object: Dictionary) -> void:
+	if object.type == "clone_vat":
+		_volumes.append({object = object, vat = true, kill = false, at = lab.view.to_world(object.position)})
+	elif object.type == "trigger" or object.type == "kill_zone":
+		var box := LevelSchema.marker_box(object)
+		var inside: Array[int] = []
+		_volumes.append({object = object, vat = false, kill = object.type == "kill_zone",
+				box = AABB(lab.view.to_world(box.position), box.size * lab.world.voxel_size), inside = inside})
+
+
+## Host: puts an asset's index entry where its record now says (call after it moves or changes
+## size; an id no longer in _assets is dropped).
+func index_asset(id: String) -> void:
+	var asset: Dictionary = _assets.get(id, {})
+	if asset.is_empty():
+		_asset_index.remove(id)
+	else:
+		_asset_index.insert(id, AABB(Vector3(asset.origin), Vector3(asset.size)))
+
+
+## Every peer: ids of the usable (non-door) props whose voxel box comes within reach meters of a
+## world point, for Interactables. In level order.
+func usables_near(at: Vector3, reach: float) -> Array:
+	var voxel := lab.world.voxel_size
+	var center := (at - lab.world.global_position) / voxel
+	var half := Vector3.ONE * (reach / voxel + 1.0)
+	return _usable_index.query(AABB(center - half, half * 2.0))
 
 
 # --- Doors ---------------------------------------------------------------------------------------
@@ -362,6 +419,7 @@ func _door_settled(id: String, origin: Vector3i, open: bool) -> void:
 	door.origin = origin
 	door.open = open
 	door.moving = false
+	rules.door_moved(id)
 
 
 # --- Using things (E) ---------------------------------------------------------------------------
@@ -758,12 +816,10 @@ func glass_shattered(voxels: Array, carved: int, at: Vector3) -> void:
 		lo = lo.min(p)
 		hi = hi.max(p)
 	var bounds := AABB(Vector3(lo), Vector3(hi - lo + Vector3i.ONE))
+	# The props near the pane (ChunkIndex, in level order), not every prop in the level.
 	var boxes := {}
-	for object: Dictionary in lab.level.objects.values():
-		if object.kind == "prop" and not object.door:
-			var box := LevelSchema.prop_box(object)
-			if box.intersects(bounds):
-				boxes[object.id] = box
+	for id: String in _prop_index.query(bounds):
+		boxes[id] = _prop_index.boxes[id]
 	var held := {}
 	var loose := 0
 	for p: Vector3i in voxels:
@@ -793,10 +849,6 @@ func bill(what: String, dollars: int, at: Vector3) -> void:
 	total_damage += dollars
 	damage_by_name[what] = int(damage_by_name.get(what, 0)) + dollars
 	asset_damaged.emit(what, dollars, total_damage)
-	for peer_id in lab.peers_in_level:
-		var player: Player = lab.players.get(peer_id)
-		if player and player.global_position.distance_to(at) <= DAMAGE_NOTE_RANGE:
-			lab.notify_peer(peer_id, "-$%d  %s" % [dollars, what.replace("_", " ")])
 
 
 ## Host: a prop whose glass shattered, by name: a spore tank vents its spores, a clone vat drains,
@@ -882,7 +934,6 @@ func charge(what: String, dollars: int, peer_id: int) -> void:
 	if dollars <= 0:
 		return
 	purchases[what] = int(purchases.get(what, 0)) + dollars
-	lab.notify_peer(peer_id, "-$%d  %s (billed to payroll)" % [dollars, what.replace("_", " ")])
 
 
 ## Host: a door was broken through (InteractRules): FORCED_DOOR_FEE on the payroll, once per door.
@@ -890,10 +941,6 @@ func force_door(id: String) -> void:
 	if id in forced_doors:
 		return
 	forced_doors.append(id)
-	for peer_id in lab.peers_in_level:
-		var player: Player = lab.players.get(peer_id)
-		if player and _doors.has(id) and player.global_position.distance_to(door_box(id).get_center()) <= DAMAGE_NOTE_RANGE:
-			lab.notify_peer(peer_id, "-$%d  door forced" % FORCED_DOOR_FEE)
 
 
 ## Host (story scripts too): the party has the spore shooter; every player is armed from now on,
@@ -1095,6 +1142,22 @@ func replace_world(voxels: PackedByteArray) -> bool:
 	return ok
 
 
+## Host, resuming a shift from a delta save (ShiftSave format 2), before any peer is in the level:
+## the saved chunks go over the world as just built for play (VoxelWorld.set_chunks_data, which
+## emits voxels_changed per chunk), with the voxel-change handler off as in replace_world. False if
+## the data was refused.
+func replace_chunks(slots: PackedInt32Array, data: PackedByteArray) -> bool:
+	if slots.is_empty():
+		return data.is_empty()
+	var counting := lab.world.voxels_changed.is_connected(_on_voxels_changed)
+	if counting:
+		lab.world.voxels_changed.disconnect(_on_voxels_changed)
+	var ok := lab.world.set_chunks_data(slots, data)
+	if counting:
+		lab.world.voxels_changed.connect(_on_voxels_changed)
+	return ok
+
+
 ## Host, resuming a shift (after replace_world and start): power (quietly), keycards, armed, prop
 ## states (applied with no sound), doors, the checkpoint, fired triggers and the ledger, then every
 ## asset's and glass case's intact voxels are counted again from the world as it now is.
@@ -1118,6 +1181,7 @@ func restore(record: Dictionary) -> void:
 		_doors[id].origin = Vector3i(int(at[0]), int(at[1]), int(at[2]))
 		_doors[id].open = bool(doors[id][1])
 		_doors[id].object.door_locked = bool(doors[id][2])
+		rules.door_moved(id)
 	# Doors saved mid-slide had no voxels in the saved world: stamp them where they stopped.
 	for id in record.get("doors_settle", []):
 		if _doors.has(str(id)):
@@ -1137,7 +1201,6 @@ func restore(record: Dictionary) -> void:
 	for what: String in bought:
 		purchases[what] = int(bought[what])
 	forced_doors.assign(Array(record.get("forced_doors", [])).map(func(door) -> String: return str(door)))
-	_pending_notes.clear()
 	for asset: Dictionary in _assets.values():
 		asset.intact = lab.world.count_matching(asset.origin, asset.size, asset.voxels)
 	for glass: Dictionary in _glass.values():
@@ -1199,39 +1262,50 @@ func _full_state(state: String, cards: Array, party_armed: bool, props: Dictiona
 func _physics_process(_delta: float) -> void:
 	if not active or not multiplayer.is_server():
 		return
-	for object: Dictionary in lab.level.objects.values():
-		if object.kind != "marker":
-			continue
-		if object.type == "clone_vat":
+	# The volumes start() listed (in level order, as the full walk had them), not every object.
+	var players := lab.players
+	var reach_squared := CHECKPOINT_REACH * CHECKPOINT_REACH
+	var volumes := _volumes # start() replaces the list, so a restart mid-loop can't upset this one.
+	for volume: Dictionary in volumes:
+		if not active:
+			return
+		var object: Dictionary = volume.object
+		if volume.vat:
 			if object.id != checkpoint:
-				var at := lab.view.to_world(object.position)
-				for player: Player in lab.players.values():
-					if not player.is_dead and player.global_position.distance_to(at) <= CHECKPOINT_REACH:
+				var at: Vector3 = volume.at
+				for peer_id: int in players:
+					var player: Player = players[peer_id]
+					if not player.is_dead and player.global_position.distance_squared_to(at) <= reach_squared:
 						set_checkpoint(object.id)
 						break
 			continue
-		if not object.type in ["trigger", "kill_zone"]:
-			continue
-		var box := LevelSchema.marker_box(object)
-		var world_box := AABB(lab.view.to_world(box.position), box.size * lab.world.voxel_size)
-		var inside: Array[int] = []
-		for peer_id: int in lab.players:
-			var player: Player = lab.players[peer_id]
+		var world_box: AABB = volume.box
+		var inside := _scratch_inside
+		inside.clear()
+		for peer_id: int in players:
+			var player: Player = players[peer_id]
 			if not player.is_dead and world_box.has_point(player.global_position + Vector3.UP * 0.5):
 				inside.append(peer_id)
-		var before: Array = _inside.get(object.id, [])
-		_inside[object.id] = inside
-		if object.type == "kill_zone":
+		var before: Array[int] = volume.inside
+		volume.inside = inside
+		_scratch_inside = before # Swapped: last tick's list is next volume's scratch.
+		if volume.kill:
 			for peer_id in inside:
 				killed_in_zone.emit(object.id, peer_id)
 			continue
-		var entered := inside.filter(func(id: int) -> bool: return id not in before)
-		if entered.is_empty() or (_fired.has(object.id) and not object.repeat):
+		# The last one in (in players order) who wasn't in last tick.
+		var entered := 0
+		var any_entered := false
+		for peer_id in inside:
+			if not before.has(peer_id):
+				entered = peer_id
+				any_entered = true
+		if not any_entered or (_fired.has(object.id) and not object.repeat):
 			continue
-		if object.who == "all" and inside.size() < lab.players.size():
+		if object.who == "all" and inside.size() < players.size():
 			continue
 		_fired[object.id] = true
-		triggered.emit(object.id, entered.back())
+		triggered.emit(object.id, entered)
 
 
 # --- Assets (host) -------------------------------------------------------------------------------
@@ -1239,17 +1313,19 @@ func _physics_process(_delta: float) -> void:
 func _on_voxels_changed(from: Vector3i, to: Vector3i) -> void:
 	var changed := AABB(Vector3(from), Vector3(to - from + Vector3i.ONE))
 	rules.voxels_changed(changed)
-	for id: String in _glass.keys():
-		var glass: Dictionary = _glass[id]
-		if not changed.intersects(AABB(Vector3(glass.origin), Vector3(glass.size))):
+	# Only the records whose box the change touches (ChunkIndex.query tests each box, as the full
+	# scans did; the indexes are kept current where records move: index_asset).
+	for id: String in _glass_index.query(changed):
+		var glass: Dictionary = _glass.get(id, {})
+		if glass.is_empty():
 			continue
 		var intact_glass: int = lab.world.count_matching(glass.origin, glass.size, glass.voxels)
 		if intact_glass < glass.intact:
 			glass.intact = intact_glass
 			_break_glass(id)
-	for id: String in _assets:
-		var asset: Dictionary = _assets[id]
-		if not changed.intersects(AABB(Vector3(asset.origin), Vector3(asset.size))):
+	for id: String in _asset_index.query(changed):
+		var asset: Dictionary = _assets.get(id, {})
+		if asset.is_empty():
 			continue
 		var intact: int = lab.world.count_matching(asset.origin, asset.size, asset.voxels)
 		if intact >= asset.intact:
@@ -1262,38 +1338,123 @@ func _on_voxels_changed(from: Vector3i, to: Vector3i) -> void:
 		total_damage += lost
 		damage_by_name[asset.name] = int(damage_by_name.get(asset.name, 0)) + lost
 		asset_damaged.emit(id, lost, total_damage)
-		_pending_notes[id] = _pending_notes.get(id, 0) + lost
 
 
 func _worth(asset: Dictionary, intact: int) -> int:
 	return roundi(float(asset.value) * intact / asset.total)
 
 
-func _process(delta: float) -> void:
-	if _pending_notes.is_empty():
-		return
-	_note_timer -= delta
-	if _note_timer > 0.0:
-		return
-	_note_timer = 0.6
-	var notes := _pending_notes
-	_pending_notes = {}
-	if not multiplayer.is_server() or not active:
-		return
-	for peer_id in lab.peers_in_level:
-		var player: Player = lab.players.get(peer_id)
-		if player == null:
-			continue
-		var lines: Array[String] = []
-		for id: String in notes:
-			if _assets.has(id) and _asset_distance(id, player.global_position) <= DAMAGE_NOTE_RANGE:
-				lines.append("-$%d  %s" % [notes[id], _assets[id].name.replace("_", " ")])
-		if not lines.is_empty():
-			lab.notify_peer(peer_id, "\n".join(lines))
+## A spatial hash of voxel-space boxes keyed by chunk (VoxelWorld's 32-voxel chunks), so a voxel
+## change only tests the records in the chunks it covers instead of every asset in the level. A
+## record goes into every chunk its box touches (a prop spans 1 to 4 usually). query() returns the
+## keys whose box strictly intersects the given one (AABB.intersects, as the full scans did), in
+## insertion order; a query covering more chunks than there are records just scans them all.
+class ChunkIndex extends RefCounted:
+	const SHIFT := 5 # 32 voxels a chunk.
 
+	## key -> AABB (voxel space). Insertion order is query order (insert moves a key to the end).
+	var boxes := {}
+	## Vector3i chunk -> Array of keys.
+	var _cells := {}
+	## key -> insertion number, for sorting a query's hits back into insertion order.
+	var _order := {}
+	var _next := 0
+	## The same entries as flat lists in insertion order, for a wide query's straight scan.
+	var _keys: Array = []
+	var _aabbs: Array[AABB] = []
 
-## Host: how far a point is from an asset's box (0 inside it), in meters.
-func _asset_distance(id: String, at: Vector3) -> float:
-	var asset: Dictionary = _assets[id]
-	var box := AABB(lab.view.to_world(Vector3(asset.origin)), Vector3(asset.size) * lab.world.voxel_size)
-	return at.clamp(box.position, box.end).distance_to(at)
+	func clear() -> void:
+		boxes.clear()
+		_cells.clear()
+		_order.clear()
+		_keys.clear()
+		_aabbs.clear()
+		_next = 0
+
+	func size() -> int:
+		return boxes.size()
+
+	func has(key: Variant) -> bool:
+		return boxes.has(key)
+
+	## Adds key with box, or moves it there if it's already in.
+	func insert(key: Variant, box: AABB) -> void:
+		if boxes.has(key):
+			remove(key)
+		boxes[key] = box
+		_order[key] = _next
+		_next += 1
+		_keys.append(key)
+		_aabbs.append(box)
+		var lo := _lo(box)
+		var hi := _hi(box)
+		for z in range(lo.z, hi.z + 1):
+			for y in range(lo.y, hi.y + 1):
+				for x in range(lo.x, hi.x + 1):
+					var cell := Vector3i(x, y, z)
+					var list: Array = _cells.get(cell, [])
+					if list.is_empty():
+						_cells[cell] = list
+					list.append(key)
+
+	func remove(key: Variant) -> void:
+		if not boxes.has(key):
+			return
+		var box: AABB = boxes[key]
+		boxes.erase(key)
+		_order.erase(key)
+		var at := _keys.find(key) # Rare (a record moved), so a linear find is fine.
+		_keys.remove_at(at)
+		_aabbs.remove_at(at)
+		var lo := _lo(box)
+		var hi := _hi(box)
+		for z in range(lo.z, hi.z + 1):
+			for y in range(lo.y, hi.y + 1):
+				for x in range(lo.x, hi.x + 1):
+					var cell := Vector3i(x, y, z)
+					var list: Array = _cells.get(cell, [])
+					list.erase(key)
+					if list.is_empty():
+						_cells.erase(cell)
+
+	## Keys whose box intersects box, in insertion order.
+	func query(box: AABB) -> Array:
+		var out: Array = []
+		if boxes.is_empty():
+			return out
+		var lo := _lo(box)
+		var hi := _hi(box)
+		var cells := (hi.x - lo.x + 1) * (hi.y - lo.y + 1) * (hi.z - lo.z + 1)
+		# Wide (a scattered batch's union box): one straight pass over the flat lists beats walking
+		# the cells and deduplicating.
+		if cells * 2 > _aabbs.size():
+			var aabbs := _aabbs
+			for i in aabbs.size():
+				if box.intersects(aabbs[i]):
+					out.append(_keys[i])
+			return out
+		var seen := {}
+		for z in range(lo.z, hi.z + 1):
+			for y in range(lo.y, hi.y + 1):
+				for x in range(lo.x, hi.x + 1):
+					var list: Array = _cells.get(Vector3i(x, y, z), [])
+					for key: Variant in list:
+						if seen.has(key):
+							continue
+						seen[key] = true
+						if box.intersects(boxes[key]):
+							out.append(key)
+		if out.size() > 1:
+			var order := _order
+			out.sort_custom(func(a: Variant, b: Variant) -> bool: return order[a] < order[b])
+		return out
+
+	static func _lo(box: AABB) -> Vector3i:
+		var p := box.position.floor()
+		return Vector3i(int(p.x) >> SHIFT, int(p.y) >> SHIFT, int(p.z) >> SHIFT)
+
+	## The last chunk the box reaches (its end is exclusive; a flat box stays in its first chunk).
+	static func _hi(box: AABB) -> Vector3i:
+		var p := box.position.floor()
+		var e := (box.end - Vector3.ONE * 0.001).floor().max(p)
+		return Vector3i(int(e.x) >> SHIFT, int(e.y) >> SHIFT, int(e.z) >> SHIFT)

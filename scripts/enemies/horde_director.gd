@@ -131,6 +131,10 @@ var _finale_bursts := 0
 var _finale_sync_timer := 0.0
 ## spawner id -> active before the finale.
 var _saved_active := {}
+## EnemyManager.removed_version when the spawners' alive lists were last pruned.
+var _removed_seen := -1
+## player_factor() for this physics frame.
+var _factor := 1.0
 
 
 func _ready() -> void:
@@ -140,6 +144,7 @@ func _ready() -> void:
 		else:
 			stop())
 	lab.play.triggered.connect(_on_triggered)
+	enemies.flow_refreshed.connect(_on_flow_refreshed)
 
 
 ## Host, when play begins: reads the spawners from the level.
@@ -154,7 +159,8 @@ func start() -> void:
 	for object: Dictionary in lab.level.objects.values():
 		if object.kind == "marker" and object.type == "horde":
 			spawners[object.id] = {object = object, active = bool(object.get("active", true)), budget = 0.0, alive = [],
-					rate_mult = 1.0, alive_mult = 1.0, finale = false, spawned = false, dead_fired = false}
+					rate_mult = 1.0, alive_mult = 1.0, finale = false, spawned = false, dead_fired = false, walk = -1.0}
+	_removed_seen = -1
 	_set_state("calm")
 
 
@@ -259,7 +265,7 @@ func finale(duration: float) -> void:
 	var reach := wake_range * finale_range_factor
 	for id: String in spawners:
 		var spawner: Dictionary = spawners[id]
-		var near := wake_range <= 0.0 or walk_distance(spawner.object) <= reach
+		var near := wake_range <= 0.0 or _walk_of(spawner) <= reach
 		spawner.finale = near or id.begins_with(FINALE_PREFIX)
 		if not spawner.finale:
 			continue
@@ -373,14 +379,19 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not running or not enemies.simulating:
 		return
+	_factor = player_factor()
+	# The alive lists only shrink when an enemy leaves EnemyManager.enemies (removed_version).
+	var prune := _removed_seen != enemies.removed_version
+	_removed_seen = enemies.removed_version
 	for id: String in spawners:
 		var spawner: Dictionary = spawners[id]
-		var had: bool = not spawner.alive.is_empty()
-		spawner.alive = spawner.alive.filter(func(e: int) -> bool: return enemies.enemies.has(e))
-		if had and spawner.alive.is_empty():
-			_on_spawner_empty(id, spawner)
+		if prune and not spawner.alive.is_empty():
+			_prune(spawner.alive)
+			if spawner.alive.is_empty():
+				_on_spawner_empty(id, spawner)
 		_trickle(id, spawner, delta)
-	_horde_ids.assign(_horde_ids.filter(func(e: int) -> bool: return enemies.enemies.has(e)))
+	if prune:
+		_prune(_horde_ids)
 
 	_burst_timer -= delta
 	while _burst_timer <= 0.0 and not _queue.is_empty():
@@ -428,6 +439,29 @@ func _tick_finale(delta: float) -> void:
 		_end_finale("survived")
 
 
+## Drops the ids no longer in EnemyManager.enemies, in place.
+func _prune(ids: Array) -> void:
+	for i in range(ids.size() - 1, -1, -1):
+		if not enemies.enemies.has(ids[i]):
+			ids.remove_at(i)
+
+
+## Host, every flow field refresh (EnemyManager.flow_refreshed, 5 Hz): each spawner's walk_distance,
+## kept for the wake range checks between refreshes.
+func _on_flow_refreshed() -> void:
+	if not running:
+		return
+	for spawner: Dictionary in spawners.values():
+		spawner.walk = walk_distance(spawner.object)
+
+
+## A spawner's walk_distance as of the last flow refresh (worked out now if there wasn't one yet).
+func _walk_of(spawner: Dictionary) -> float:
+	if float(spawner.get("walk", -1.0)) < 0.0:
+		spawner.walk = walk_distance(spawner.object)
+	return float(spawner.walk)
+
+
 ## Host: a spawner's last enemy went. Fires its `on_dead` trigger once if it's a placed boss
 ## (inactive, rate 0 or max_alive 1), not a trickle that will just spawn another.
 func _on_spawner_empty(id: String, spawner: Dictionary) -> void:
@@ -452,11 +486,11 @@ func player_factor() -> float:
 
 ## A spawner's cap right now: max_alive x finale multiplier x player factor, never below 1 when
 ## it has any.
-func alive_cap(spawner: Dictionary) -> int:
+func alive_cap(spawner: Dictionary, factor := -1.0) -> int:
 	var base := int(spawner.object.get("max_alive", 4))
 	if base <= 0:
 		return 0
-	return maxi(1, roundi(base * float(spawner.alive_mult) * player_factor()))
+	return maxi(1, roundi(base * float(spawner.alive_mult) * (factor if factor >= 0.0 else player_factor())))
 
 
 ## Players are in the level and none of them is alive.
@@ -472,16 +506,18 @@ func _everyone_dead() -> bool:
 
 ## Calm spawning: rate per minute while active, never more than max_alive of its own at once.
 func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
-	var object: Dictionary = spawner.object
-	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * player_factor()
-	if dormant or not spawner.active or rate <= 0.0:
+	if dormant or not spawner.active:
 		return
-	if not spawner.finale and wake_range > 0.0 and walk_distance(object) > wake_range:
+	var object: Dictionary = spawner.object
+	var rate: float = float(object.get("rate", 6.0)) * float(spawner.rate_mult) * _factor
+	if rate <= 0.0:
+		return
+	if not spawner.finale and wake_range > 0.0 and _walk_of(spawner) > wake_range:
 		return
 	if float(spawner.get("retry", 0.0)) > 0.0:
 		spawner.retry = float(spawner.retry) - delta
 	spawner.budget = minf(spawner.budget + rate / 60.0 * delta, 1.0)
-	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner) or float(spawner.get("retry", 0.0)) > 0.0:
+	if spawner.budget < 1.0 or spawner.alive.size() >= alive_cap(spawner, _factor) or float(spawner.get("retry", 0.0)) > 0.0:
 		return
 	if _spawn_from(id) == null and spawner.get("deferred", false):
 		# No fair spot (every one near or in view of a player): keep the budget, look again soon.

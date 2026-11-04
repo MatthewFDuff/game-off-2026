@@ -16,6 +16,7 @@ const CORNER_REACH := 3.0
 const LINE_REACH := 2.0
 ## _on_segment: off the segment.
 const OFF := Vector2i(-1073741824, 0)
+const EditorIndex := preload("res://scripts/editor/editor_index.gd")
 
 var world: VoxelWorld
 var view: LevelView
@@ -38,6 +39,8 @@ var snapped := Vector2i.ZERO
 var snapped_to := ""
 ## The drag: active, its start corner, erasing, and the column pressed (for a click's fill).
 var dragging := false
+## A wall left out of the snapping (WallHandles: the wall whose end is being dragged).
+var ignore_wall := ""
 var start := Vector2i.ZERO
 var erase := false
 var _pressed_column := Vector2i.ZERO
@@ -70,7 +73,9 @@ func aim_at(point: Vector2, objects: Dictionary, grid: int) -> void:
 func snap_point(p: Vector2, objects: Dictionary, grid: int) -> Dictionary:
 	var corners: Array[Vector2i] = []
 	var lines: Array = [] # [a, b] (Vector2i) segments
-	for wall in LevelBuild.walls_on(objects, storey, base):
+	for wall in EditorIndex.walls_on_of(objects, storey, base):
+		if wall.id == ignore_wall:
+			continue
 		var a := Vector2i(wall.a.x, wall.a.z)
 		var b := Vector2i(wall.b.x, wall.b.z)
 		corners.append_array([a, b])

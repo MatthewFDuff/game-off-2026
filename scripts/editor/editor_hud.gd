@@ -86,8 +86,23 @@ var _icons := {}
 ## The level check's last results (props floating or inside walls), shown with nothing selected.
 var _problems: Array[Dictionary] = []
 var _problems_checked := false
-## prop name -> its catalog tile, for thumbnails that finish rendering later.
+## prop name -> its catalog tile. Prop tiles are made once and kept (the catalog filters them by
+## hiding the rest); thumbnails that finish rendering later go onto them.
 var _prop_tiles := {}
+var _prop_group := ButtonGroup.new()
+## The prop library's names (listed once; again when the Prop tool is picked).
+var _prop_names_cache := PackedStringArray()
+var _drawer_scroll: ScrollContainer
+## Typing in the search box refilters after a pause (SEARCH_DELAY).
+var _search_timer := Timer.new()
+const SEARCH_DELAY := 0.15
+## Frames until the visible prop tiles' thumbnails are asked for again (_want_visible_thumbnails).
+var _thumbnail_check := 0
+## What the per-frame panel state was last drawn from (_process skips it when nothing changed).
+var _shown_state := []
+var _shown_storey := []
+var _shown_hint := []
+var _described := {}
 
 
 func _ready() -> void:
@@ -156,27 +171,48 @@ func _process(delta: float) -> void:
 			label.text = "" if seen.is_empty() else ("builder" if seen.get("builder", false) else "walk")
 	if tool.tools() != _rail_tools:
 		_fill_rail(tool.tools())
-	for i in _tool_buttons.size():
-		_tool_buttons[i].set_pressed_no_signal(_rail_tools[i] == tool.tool)
-	for i in _grid_buttons.size():
-		_grid_buttons[i].set_pressed_no_signal(i == tool.snap_index)
-	_free_cursor_button.set_pressed_no_signal(tool.free_cursor)
-	_free_cursor_button.visible = not tool.builder
-	for i in _view_buttons.size():
-		_view_buttons[i].set_pressed_no_signal((i == 0) == tool.builder)
-	_cut_row.visible = tool.builder
-	for i in _cut_buttons.size():
-		_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
-	_walls_button.set_pressed_no_signal(tool.camera.walls_down)
-	_hidden_row.visible = tool.builder
-	_hidden_button.set_pressed_no_signal(not tool.edit_hidden)
-	_hidden_button.text = "Editable" if tool.edit_hidden else "Locked"
-	_storey_row.visible = tool.builder and tool.is_build_level()
+		_shown_state = []
+	# The buttons and rows only change with what they show.
+	var state := [tool.tool, tool.snap_index, tool.free_cursor, tool.builder, tool.camera.cut_mode, tool.camera.walls_down,
+			tool.edit_hidden, tool.is_build_level()]
+	if state != _shown_state:
+		_shown_state = state
+		for i in _tool_buttons.size():
+			_tool_buttons[i].set_pressed_no_signal(_rail_tools[i] == tool.tool)
+		for i in _grid_buttons.size():
+			_grid_buttons[i].set_pressed_no_signal(i == tool.snap_index)
+		_free_cursor_button.set_pressed_no_signal(tool.free_cursor)
+		_free_cursor_button.visible = not tool.builder
+		for i in _view_buttons.size():
+			_view_buttons[i].set_pressed_no_signal((i == 0) == tool.builder)
+		_cut_row.visible = tool.builder
+		for i in _cut_buttons.size():
+			_cut_buttons[i].set_pressed_no_signal(i == tool.camera.cut_mode)
+		_walls_button.set_pressed_no_signal(tool.camera.walls_down)
+		_hidden_row.visible = tool.builder
+		_hidden_button.set_pressed_no_signal(not tool.edit_hidden)
+		_hidden_button.text = "Editable" if tool.edit_hidden else "Locked"
+		_storey_row.visible = tool.builder and tool.is_build_level()
 	if _storey_row.visible:
 		var st := LevelBuild.storeys(lab.level.objects)
-		_storey_label.text = "%d / %d" % [tool.storey + 1, maxi(st.heights.size(), 1)]
+		var storey_state := [tool.storey, st.heights.size()]
+		if storey_state != _shown_storey:
+			_shown_storey = storey_state
+			_storey_label.text = "%d / %d" % [tool.storey + 1, maxi(st.heights.size(), 1)]
 		_storey_height.set_value_quietly(LevelBuild.storey_height(st, tool.storey) * lab.world.voxel_size)
-	_hint_label.text = _hint_text()
+	else:
+		_shown_storey = []
+	var hint_state := _hint_state()
+	if hint_state != _shown_hint:
+		_shown_hint = hint_state
+		var hint := _hint_text()
+		if hint != _hint_label.text:
+			_hint_label.text = hint
+	if _thumbnail_check > 0:
+		_thumbnail_check -= 1
+	elif _drawer.visible and tool.tool == EditorTool.Tool.PROP and thumbnails.pending() > 0:
+		_thumbnail_check = 6
+		_want_visible_thumbnails()
 	var readout := tool.volume_readout()
 	_readout.visible = readout != ""
 	if readout != _readout_label.text:
@@ -189,8 +225,22 @@ func _process(delta: float) -> void:
 		_refresh()
 
 
+## What the hint line says depends on (_hint_text), so it's only worked out when that changes.
+func _hint_state() -> Array:
+	return [tool.volume.is_active(), tool.volume.step, tool.wall.dragging, tool.wall.rect_mode, tool.builder, tool.tool, tool.snap(),
+			tool.is_rock_level(), tool.is_build_level(), tool.storey, tool.camera.is_cutting(), tool.camera.cut_layer, tool.camera.cut_mode,
+			InputSetup.is_playing(), tool.player.fly_speed, tool.player.flying, tool.free_cursor, tool.free_distance]
+
+
+## InputSetup.describe, kept (the editor's keys are constants).
+func _describe(action: String) -> String:
+	if not _described.has(action):
+		_described[action] = InputSetup.describe(action)
+	return _described[action]
+
+
 func _hint_text() -> String:
-	var view := InputSetup.describe("editor_view")
+	var view := _describe("editor_view")
 	if tool.volume.is_active():
 		if tool.volume.step == VolumeSteps.Step.FLOOR:
 			return "Click the far corner of the floor  ·  wheel: size, Shift+wheel: the other side  ·  type a size (2.5 m, 25v)  ·  Tab: next size  ·  RMB / Backspace: back"
@@ -212,9 +262,9 @@ func _hint_text() -> String:
 		parts.append("%s: walk" % view)
 		return "  ·  ".join(parts)
 	if not InputSetup.is_playing():
-		return "Click the world to walk and aim  ·  %s: builder view  ·  Esc: menu  ·  %s: help" % [view, InputSetup.describe("editor_help")]
+		return "Click the world to walk and aim  ·  %s: builder view  ·  Esc: menu  ·  %s: help" % [view, _describe("editor_help")]
 	var parts: Array[String] = [EditorTool.TOOL_HINTS[tool.tool], "Grid %d" % tool.snap(),
-			("Fly %.0f (wheel)" % tool.player.fly_speed) if tool.player.flying else "Walking (%s flies)" % InputSetup.describe("editor_fly")]
+			("Fly %.0f (wheel)" % tool.player.fly_speed) if tool.player.flying else "Walking (%s flies)" % _describe("editor_fly")]
 	if tool.free_cursor:
 		parts.append("Free cursor %.1f m (Ctrl+wheel)" % tool.free_distance)
 	parts.append("%s: builder view" % view)
@@ -552,7 +602,11 @@ func _build_drawer() -> void:
 	_search.placeholder_text = "Search"
 	_search.custom_minimum_size.x = 120
 	_search.clear_button_enabled = true
-	_search.text_changed.connect(func(_text: String) -> void: _fill_drawer())
+	_search_timer.one_shot = true
+	_search_timer.wait_time = SEARCH_DELAY
+	_search_timer.timeout.connect(_fill_drawer)
+	add_child(_search_timer)
+	_search.text_changed.connect(func(_text: String) -> void: _search_timer.start())
 	_search.set_meta("revert", func() -> void: pass)
 	_drawer_header.add_child(_search)
 	_drawer_header.add_child(_button("Hide", "ChipButton", "Hide the catalog (%s)" % InputSetup.describe("editor_catalog"),
@@ -571,6 +625,8 @@ func _build_drawer() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	column.add_child(scroll)
+	_drawer_scroll = scroll
+	scroll.get_v_scroll_bar().value_changed.connect(func(_v: float) -> void: _thumbnail_check = 0)
 	_drawer_tiles.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_drawer_tiles.add_theme_constant_override("h_separation", 4)
 	_drawer_tiles.add_theme_constant_override("v_separation", 4)
@@ -905,6 +961,9 @@ func _refresh() -> void:
 	if tool_changed:
 		_category = "All"
 		_search.text = ""
+		_search_timer.stop()
+		if tool.tool == EditorTool.Tool.PROP:
+			_prop_names_cache = PackedStringArray() # Listed again: a prop may have been added.
 		_fill_drawer()
 	else:
 		_sync_drawer()
@@ -1164,11 +1223,14 @@ func _inspector_has_focus() -> bool:
 
 ## Rebuilds the catalog's tabs and tiles for the current tool.
 func _fill_drawer() -> void:
+	_search_timer.stop()
 	for parent: Control in [_drawer_tabs, _drawer_tiles]:
 		for child in parent.get_children():
+			if child.has_meta("prop_tile"):
+				child.visible = false # Kept: shown again by the Prop tool's filter.
+				continue
 			parent.remove_child(child)
 			child.queue_free()
-	_prop_tiles.clear()
 	if tool == null:
 		return
 	var filter := _search.text.strip_edges().to_lower()
@@ -1224,17 +1286,13 @@ func _fill_drawer() -> void:
 				tab.button_group = tabs
 				tab.button_pressed = category == _category
 				_drawer_tabs.add_child(tab)
+			_make_prop_tiles(names)
 			for prop_name in names:
-				if _category != "All" and PropCatalog.category_of(prop_name) != _category:
-					continue
-				if filter != "" and not prop_name.contains(filter.replace(" ", "_")):
-					continue
-				var tile := _tile(prop_name.replace("_", " "), thumbnails.get_texture(prop_name), group, prop_name)
-				tile.set_meta("value", prop_name)
-				tile.pressed.connect(func() -> void:
-					tool.prop_name = prop_name
-					_refresh())
-				_prop_tiles[prop_name] = tile
+				var tile: Button = _prop_tiles[prop_name]
+				tile.visible = (_category == "All" or PropCatalog.category_of(prop_name) == _category) \
+						and (filter == "" or prop_name.contains(filter.replace(" ", "_")))
+			_drawer_scroll.scroll_vertical = 0
+			_thumbnail_check = 0
 		EditorTool.Tool.MARKER:
 			_drawer_tabs.add_child(_label("Markers", "Label", 12))
 			for type: String in LevelSchema.MARKERS:
@@ -1306,8 +1364,9 @@ func _sync_drawer() -> void:
 			current = tool.prop_name
 		EditorTool.Tool.MARKER:
 			current = tool.marker_type
+	var props := tool.tool == EditorTool.Tool.PROP
 	for tile in _drawer_tiles.get_children():
-		if tile is Button and tile.has_meta("value"):
+		if tile is Button and tile.has_meta("value") and tile.has_meta("prop_tile") == props:
 			tile.set_pressed_no_signal(tile.get_meta("value") == current)
 
 
@@ -1365,12 +1424,53 @@ func _swatch(color: Color) -> Texture2D:
 
 
 func _prop_names() -> PackedStringArray:
+	if not _prop_names_cache.is_empty():
+		return _prop_names_cache
 	var names := PackedStringArray()
 	for file in DirAccess.get_files_at(Props.library_dir):
 		if file.get_extension() == "vox":
 			names.append(file.get_basename())
 	names.sort()
+	_prop_names_cache = names
 	return names
+
+
+## Makes the prop tiles that don't exist yet (kept for the session, in the names' order), and drops
+## those of props that are gone.
+func _make_prop_tiles(names: PackedStringArray) -> void:
+	for prop_name: String in _prop_tiles.keys():
+		if not prop_name in names or not is_instance_valid(_prop_tiles[prop_name]):
+			var gone = _prop_tiles[prop_name]
+			_prop_tiles.erase(prop_name)
+			if is_instance_valid(gone):
+				gone.queue_free()
+	var added := false
+	for prop_name in names:
+		if _prop_tiles.has(prop_name):
+			continue
+		var tile := _tile(prop_name.replace("_", " "), thumbnails.get_texture(prop_name, false), _prop_group, prop_name)
+		tile.set_meta("value", prop_name)
+		tile.set_meta("prop_tile", true)
+		tile.pressed.connect(func() -> void:
+			tool.prop_name = prop_name
+			_refresh())
+		_prop_tiles[prop_name] = tile
+		added = true
+	if added:
+		# In the names' order, ahead of the other tools' tiles.
+		for i in names.size():
+			_drawer_tiles.move_child(_prop_tiles[names[i]], i)
+
+
+## Asks for the thumbnails of the prop tiles in view first (the rest render slowly behind them).
+func _want_visible_thumbnails() -> void:
+	var view := _drawer_scroll.get_global_rect()
+	var wanted: Array[String] = []
+	for prop_name: String in _prop_tiles:
+		var tile: Button = _prop_tiles[prop_name]
+		if is_instance_valid(tile) and tile.visible and tile.icon == null and tile.get_global_rect().intersects(view):
+			wanted.append(prop_name)
+	thumbnails.want_now(wanted)
 
 
 func _on_thumbnail(prop_name: String, texture: Texture2D) -> void:

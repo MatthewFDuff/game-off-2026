@@ -18,6 +18,7 @@ const DRAG_PIXELS := 4.0
 const SIZE_PIXELS := 10.0
 const COLOR := Color(1.0, 0.85, 0.3)
 const HOVER_COLOR := Color(1.0, 1.0, 1.0)
+const EditorIndex := preload("res://scripts/editor/editor_index.gd")
 
 var world: VoxelWorld
 ## The wall as it is (selected), {} when none, and the level's objects (set by update).
@@ -199,9 +200,8 @@ func _change(origin: Vector3, direction: Vector3, grid: int) -> Dictionary:
 		moved += _nudge * grid
 		var offset := side * moved
 		return reshape(objects, wall, e[0] + offset, e[1] + offset, offset, true)
-	var others := objects.duplicate()
-	others.erase(wall.id)
-	_aimer.update_aim(origin, direction, others, grid)
+	_aimer.ignore_wall = str(wall.id) # It snaps to the other walls, not to itself.
+	_aimer.update_aim(origin, direction, objects, grid)
 	_aimer.update_end(grid)
 	var point := _aimer.end + _aimer.direction * (_nudge * grid)
 	if active == Handle.END_A:
@@ -239,7 +239,7 @@ static func reshape(objects: Dictionary, wall: Dictionary, a: Vector2i, b: Vecto
 		moves[old_ends[1]] = b
 	var walls := [[wall, changed]]
 	if follow_joined and not moves.is_empty():
-		for other in LevelBuild.walls_with(objects, wall):
+		for other in EditorIndex.walls_with_of(objects, wall):
 			if other.id == wall.id:
 				continue
 			var other_ends := LevelBuild.ends(other)
@@ -260,7 +260,7 @@ static func reshape(objects: Dictionary, wall: Dictionary, a: Vector2i, b: Vecto
 			out.puts.append([pair[0].id, pair[1]])
 			out.puts.append_array(_reattach(objects, pair[0], pair[1]))
 	if carry != Vector2i.ZERO:
-		for door in LevelBuild.doors_in(objects, wall):
+		for door in EditorIndex.doors_in_of(objects, wall):
 			var moved := door.duplicate()
 			moved.origin += Vector3i(carry.x, 0, carry.y)
 			out.puts.append([door.id, moved])
@@ -274,7 +274,7 @@ static func _reattach(objects: Dictionary, before: Dictionary, after: Dictionary
 	var a0 := Vector2(before.a.x, before.a.z)
 	var u0 := LevelBuild.wall_unit(before)
 	var length := LevelBuild.wall_length(after)
-	for opening in LevelBuild.openings_in(objects, before.id):
+	for opening in EditorIndex.openings_in_of(objects, before.id):
 		var start := a0 + u0 * int(opening.along)
 		var along := roundi(LevelBuild.along_of(after, start))
 		if u0.dot(LevelBuild.wall_unit(after)) < 0.0:

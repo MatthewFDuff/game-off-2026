@@ -21,6 +21,8 @@ signal impacted(projectile: Projectile, position: Vector3, normal: Vector3, enem
 const MAX_STEPS := 8
 ## Small distance off a surface after a bounce, so the next cast doesn't start inside it.
 const SURFACE_OFFSET := 0.02
+## Homing: seconds between picks of the enemy to steer for (it turns toward the pick every tick).
+const RETARGET := 0.1
 
 var id := 0
 var ammo: AmmoType
@@ -37,9 +39,13 @@ var pierced: Array = []
 var _model: Node3D
 ## Shots: cubes left behind in flight.
 var _trail: CPUParticles3D
+## Homing: the enemy it steers for, and the time to the next re-check for a nearer one.
+var _homing_target: Variant = null
+var _retarget := 0.0
+## Only explosive and homing shots carry a light (lit), made in _ready; null on the rest.
+var _light: OmniLight3D
 
 @onready var _mesh: MeshInstance3D = $Mesh
-@onready var _light: OmniLight3D = $Light
 
 
 func setup(projectile_id: int, type: AmmoType, voxel_world: VoxelWorld, from: Vector3, start_velocity: Vector3, is_shooter: bool) -> void:
@@ -55,19 +61,25 @@ func setup(projectile_id: int, type: AmmoType, voxel_world: VoxelWorld, from: Ve
 func _ready() -> void:
 	# A grid-snapped cube (VoxelFx) that hops along in voxel steps, dropping a trail of smaller cubes.
 	var color := ammo.color.lightened(0.3) if ammo else Color.WHITE
-	_mesh.material_override = VoxelFx.material((_mesh.mesh as BoxMesh).size.x, true, color)
-	if ammo:
+	_mesh.material_override = VoxelFx.shared_material((_mesh.mesh as BoxMesh).size.x, true, color)
+	# Lights are a forward pass on every chunk they touch: only the shots that read as glowing get one.
+	if lit(ammo):
+		_light = OmniLight3D.new()
+		_light.name = "Light"
+		_light.light_energy = 1.5
+		_light.omni_range = 2.5
+		_light.omni_attenuation = 1.5
 		_light.light_color = ammo.color
+		add_child(_light)
 	if ammo and ammo.flask and world:
 		var item := GearModels.item(ammo.name)
 		_model = GearModels.build(world, item, ammo.color, 0.03, Vector3(item.get("size", Vector3i.ZERO)) * 0.5)
 		add_child(_model)
 		_mesh.visible = false
-		_light.light_energy = 0.6
 	elif ammo:
 		_trail = VoxelFx.particles(0.05, [color, ammo.color, ammo.color.darkened(0.5)], 0.3)
 		_trail.name = "Trail"
-		_trail.amount = 10
+		_trail.amount = 5 if OS.has_feature("web") else 10
 		_trail.lifetime = 0.25
 		_trail.spread = 180.0
 		_trail.initial_velocity_max = 0.3
@@ -75,6 +87,11 @@ func _ready() -> void:
 		_trail.emitting = true
 	global_position = position
 	_face()
+
+
+## Whether shots of a type carry a light: explosive ("blast" impacts) and homing ones.
+static func lit(type: AmmoType) -> bool:
+	return type != null and not type.flask and (type.impact == "blast" or type.homing_angle > 0.0)
 
 
 func _process(delta: float) -> void:
@@ -136,22 +153,36 @@ func _cast(from: Vector3, direction: Vector3, distance: float) -> Dictionary:
 	return {hit = false}
 
 
-## Homing: turn toward the nearest enemy within homing_angle of the heading.
+## Homing: turn toward the nearest enemy within homing_angle of the heading. With no target it
+## looks every tick; a target it has is kept, re-checked for a nearer one every RETARGET seconds (or
+## dropped at once when it dies or leaves the cone).
 func _steer(delta: float) -> void:
 	var speed := velocity.length()
 	if speed < 0.001:
 		return
 	var heading := velocity / speed
-	var best: Enemy = null
-	var best_distance := INF
 	var cone := cos(deg_to_rad(ammo.homing_angle))
-	for enemy in Combat.enemies():
-		var to := enemy.get_center() - global_position
-		var distance := to.length()
-		if distance < 0.01 or distance > best_distance or heading.dot(to / distance) < cone:
-			continue
-		best = enemy
-		best_distance = distance
+	_retarget -= delta
+	var best: Enemy = null
+	if _homing_target != null and Combat._hittable(_homing_target) and _in_cone(_homing_target, heading, cone):
+		best = _homing_target
+	# No target (none yet, or it died or left the cone): look every tick, as before. Only a target
+	# it already has is re-checked for a nearer one at RETARGET.
+	if best == null or _retarget <= 0.0:
+		_retarget = RETARGET
+		best = null
+		var best_distance := INF
+		for node: Variant in Combat._live():
+			if not Combat._hittable(node):
+				continue
+			var enemy: Enemy = node
+			var to := enemy.get_center() - global_position
+			var distance := to.length()
+			if distance < 0.01 or distance > best_distance or heading.dot(to / distance) < cone:
+				continue
+			best = enemy
+			best_distance = distance
+	_homing_target = best
 	if best == null:
 		return
 	var wanted := (best.get_center() - global_position).normalized()
@@ -159,6 +190,12 @@ func _steer(delta: float) -> void:
 	if angle < 0.0001:
 		return
 	velocity = heading.slerp(wanted, minf(1.0, ammo.homing_turn * delta / angle)) * speed
+
+
+func _in_cone(enemy: Enemy, heading: Vector3, cone: float) -> bool:
+	var to := enemy.get_center() - global_position
+	var distance := to.length()
+	return distance >= 0.01 and heading.dot(to / distance) >= cone
 
 
 ## Shooter: stops and reports. Copies only hide and wait for the shooter's impact.

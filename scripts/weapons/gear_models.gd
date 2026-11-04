@@ -28,6 +28,8 @@ const WEAPON_LAYER := 1 << 19
 
 ## path -> model, loaded once and dropped on live reload.
 static var _cache := {}
+## Glow tint (already lightened) -> its unshaded material, shared by every model in that color.
+static var _glow_materials := {}
 
 
 static func weapon(weapon_name: String) -> Dictionary:
@@ -74,12 +76,43 @@ static func _load(path: String, model_name: String) -> Dictionary:
 ## Builds a model as a Node3D: the body in the world's voxel material, GLOW voxels in tint
 ## (meshes "Body" and "Glow"; recolor with set_tint). voxel is the drawn size of one voxel in
 ## meters; the node's origin is the model's min corner unless centered on offset (in voxels).
+## The body and glow meshes are built once per model (and world) and shared: they're kept on the
+## model itself (`_meshes`), so a live reload's forget drops them with it.
 static func build(world: VoxelWorld, model: Dictionary, tint: Color, voxel: float, offset := Vector3.ZERO) -> Node3D:
 	var root := Node3D.new()
 	if model.is_empty() or world == null:
 		return root
 	var scale := voxel / world.voxel_size
 	root.scale = Vector3.ONE * scale
+	var meshes := _meshes_of(world, model)
+	var shift := -offset * world.voxel_size
+	var body_mesh := MeshInstance3D.new()
+	body_mesh.name = "Body"
+	body_mesh.mesh = meshes[0]
+	body_mesh.material_override = world.material
+	body_mesh.position = shift
+	if model.get("weapon", false):
+		body_mesh.layers = WEAPON_LAYER
+	root.add_child(body_mesh)
+	if meshes[1] != null:
+		var glow_mesh := MeshInstance3D.new()
+		glow_mesh.name = "Glow"
+		glow_mesh.mesh = meshes[1]
+		glow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		glow_mesh.position = shift
+		root.add_child(glow_mesh)
+	set_tint(root, tint)
+	return root
+
+
+## [body mesh, glow mesh or null] of a model, built once and kept on the model (for the latest
+## world it was built in).
+static func _meshes_of(world: VoxelWorld, model: Dictionary) -> Array:
+	var key := world.get_instance_id()
+	var built: Dictionary = model.get("_meshes", {})
+	if built.has(key):
+		return built[key]
+	built = {}
 	var body := PackedByteArray(model.voxels)
 	var glow := PackedByteArray()
 	glow.resize(body.size())
@@ -89,35 +122,28 @@ static func build(world: VoxelWorld, model: Dictionary, tint: Color, voxel: floa
 			glow[i] = M.GLOW
 			body[i] = M.AIR
 			any_glow = true
-	var shift := -offset * world.voxel_size
-	var body_mesh := MeshInstance3D.new()
-	body_mesh.name = "Body"
-	body_mesh.mesh = world.build_model_mesh(model.size, body)
-	body_mesh.material_override = world.material
-	body_mesh.position = shift
-	if model.get("weapon", false):
-		body_mesh.layers = WEAPON_LAYER
-	root.add_child(body_mesh)
-	if any_glow:
-		var glow_mesh := MeshInstance3D.new()
-		glow_mesh.name = "Glow"
-		glow_mesh.mesh = world.build_model_mesh(model.size, glow)
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.disable_fog = true
-		glow_mesh.material_override = material
-		glow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		glow_mesh.position = shift
-		root.add_child(glow_mesh)
-	set_tint(root, tint)
-	return root
+	var meshes := [world.build_model_mesh(model.size, body), world.build_model_mesh(model.size, glow) if any_glow else null]
+	built[key] = meshes
+	model["_meshes"] = built
+	return meshes
 
 
-## Recolors a built model's GLOW voxels.
+## Recolors a built model's GLOW voxels (a shared material per color).
 static func set_tint(root: Node3D, tint: Color) -> void:
 	var glow := root.get_node_or_null("Glow") as MeshInstance3D
 	if glow:
-		(glow.material_override as StandardMaterial3D).albedo_color = tint.lightened(0.15)
+		glow.material_override = glow_material(tint.lightened(0.15))
+
+
+## The unshaded GLOW material in a color, shared by every model tinted that color.
+static func glow_material(color: Color) -> StandardMaterial3D:
+	if not _glow_materials.has(color):
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.disable_fog = true
+		material.albedo_color = color
+		_glow_materials[color] = material
+	return _glow_materials[color]
 
 
 ## Muzzle of a weapon model, in voxels: the middle of its front-most voxels.

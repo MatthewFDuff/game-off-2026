@@ -20,23 +20,34 @@ func in_view(camera: Camera3D) -> String:
 	var direction := -camera.global_basis.z
 	var best := ""
 	var best_distance := LevelPlay.DOOR_REACH
-	# Every frame over every usable in the level (over a thousand in the laboratory), so the boxes
-	# out of reach are dropped on a distance check before any ray test, and the doors and usables
-	# are walked in place rather than copied into one list.
-	for table: Dictionary in [play._doors, play._usables]:
-		for id: String in table:
-			var box := play.box_of(id)
-			if from.clamp(box.position, box.end).distance_to(from) > LevelPlay.DOOR_REACH:
+	# Every frame: every door (a few dozen, and they move), but only the usables in the chunks within
+	# reach (LevelPlay.usables_near), and boxes out of reach are dropped before any ray test.
+	for id: String in play._doors:
+		var box := play.door_box(id)
+		if from.clamp(box.position, box.end).distance_to(from) > LevelPlay.DOOR_REACH:
+			continue
+		var distance := 0.0
+		if not box.has_point(from):
+			var hit = box.intersects_ray(from, direction)
+			if hit == null:
 				continue
-			var distance := 0.0
-			if not box.has_point(from):
-				var hit = box.intersects_ray(from, direction)
-				if hit == null:
-					continue
-				distance = from.distance_to(hit)
-			if distance < best_distance:
-				best_distance = distance
-				best = id
+			distance = from.distance_to(hit)
+		if distance < best_distance:
+			best_distance = distance
+			best = id
+	for id: String in play.usables_near(from, LevelPlay.DOOR_REACH):
+		var box: AABB = play._usables.get(id, AABB())
+		if box.size == Vector3.ZERO or from.clamp(box.position, box.end).distance_to(from) > LevelPlay.DOOR_REACH:
+			continue
+		var distance := 0.0
+		if not box.has_point(from):
+			var hit = box.intersects_ray(from, direction)
+			if hit == null:
+				continue
+			distance = from.distance_to(hit)
+		if distance < best_distance:
+			best_distance = distance
+			best = id
 	if best == "":
 		return ""
 	# Something solid in front of the box (a wall between the player and the prop) blocks it.

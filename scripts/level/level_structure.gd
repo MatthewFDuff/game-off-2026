@@ -71,10 +71,15 @@ static func _from_height(box: AABB, low: int) -> AABB:
 
 ## The newest room whose lining (or inside) holds the box's center, or "".
 static func room_at(objects: Dictionary, box: AABB) -> String:
+	return room_at_among(objects.values(), box)
+
+
+## room_at over some of the level's objects (its rooms, say).
+static func room_at_among(among: Array, box: AABB) -> String:
 	var center := box.get_center()
 	var best := ""
 	var best_order := -1
-	for object: Dictionary in objects.values():
+	for object: Dictionary in among:
 		if object.kind == "room" and LevelSchema.room_outer(object).has_point(center) and int(object.order) > best_order:
 			best = object.id
 			best_order = int(object.order)

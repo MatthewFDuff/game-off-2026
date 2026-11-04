@@ -2,10 +2,13 @@ extends SceneTree
 ## Headless checks for the cubicle, the game's menu (scripts/story/cubicle.gd, docs/cubicle-menu.md):
 ##   godot --headless --path . --script res://tests/cubicle_test.gd
 ## Builds the cubicle into a scratch folder and plays it with the pauses shrunk: the player spawns
-## standing in air beside the chair, unarmed and offline, aimed at the monitor; walking into the
-## opening freezes them, says the first line and sets them back inside, and the second attempt says
-## the second line; the notes read and the plant talks; E on the computer zooms onto the screen and
-## shows SPLASH; SHIFT with no name shows SIGN IN; typing a name and Enter reaches MAIN; NEW GAME
+## standing in air beside the chair, unarmed and offline, aimed at the monitor (and at the duck when
+## they look at it, though it stands inside the desk's box); a step into the hallway is allowed but
+## walking on freezes them under the red light, says the first line and sets them back inside, the
+## second attempt says the second line and sidling along the hallway is stopped too; the notes read
+## and the plant talks; E on the computer zooms onto the screen and shows SPLASH; SHIFT with no name
+## shows SIGN IN; typing a name and Enter reaches MAIN; Settings' Name row reopens the field;
+## Backspace backs out like Esc; APPLY FOR JOB
 ## starts orientation on the LOG page, where the old intro's checks run (SHIFT while thinking, the
 ## email after line 4, Decline to death and the go-back prompt, Yes back to the email, Accept
 ## finishes); F9 finishes at once; No goes back to MAIN; Esc from SPLASH zooms out; the duck opens
@@ -68,21 +71,41 @@ func _run() -> void:
 	_check("facing the monitor", cubicle.aimed() == "monitor", cubicle.aimed())
 	_check("the prompt names it", cubicle._use_prompt.visible and cubicle._use_prompt.text == "[E] Use computer", cubicle._use_prompt.text)
 
-	# Leaving: walk south into the opening.
+	# The duck stands inside the computer desk's box: aiming at it picks the duck, not the desk.
+	var duck_center: Vector3 = (LevelSchema.prop_box(cubicle.level.objects.duck) as AABB).get_center() * vs
+	var head_pitch: float = player.head.rotation.x
+	player.teleport(Vector3(duck_center.x, feet.y, duck_center.z + 0.9))
+	player.rotation.y = 0.0
+	var duck_eye: Vector3 = player.global_position + Vector3.UP * (player.standing_height - player.eye_offset)
+	var toward := duck_center - duck_eye
+	player.head.rotation.x = atan2(toward.y, Vector2(toward.x, toward.z).length())
+	await _frames(1)
+	_check("aiming at the duck on the desk picks the duck", cubicle.aimed() == "duck", cubicle.aimed())
+	player.head.rotation.x = head_pitch
+
+	# Leaving: through the opening and into the hallway. A step out is allowed; further is not.
 	var box: AABB = cubicle._leave_box
-	player.teleport(Vector3(box.get_center().x, box.position.y, box.position.z - 0.5))
+	player.teleport(Vector3(box.get_center().x, box.position.y, box.end.z + 0.3))
 	player.rotation.y = PI
+	await _frames(5)
+	_check("a step into the hallway is allowed", cubicle.state == cubicle.State.ROOM and cubicle.exits == 0, str(cubicle.state))
 	Input.action_press("move_forward")
 	var frozen := await _wait_until(func() -> bool: return cubicle.state == cubicle.State.FROZEN, 3.0)
 	Input.action_release("move_forward")
-	_check("walking into the opening freezes the player", frozen and player.process_mode == Node.PROCESS_MODE_DISABLED and cubicle.exits == 1)
+	_check("walking on into the hallway freezes the player", frozen and player.process_mode == Node.PROCESS_MODE_DISABLED and cubicle.exits == 1)
 	_check("and says the first line", cubicle.subtitle_text().contains(cubicle.LEAVE_LINES[0]), cubicle.subtitle_text())
-	var back := await _wait_until(func() -> bool: return cubicle.state == cubicle.State.ROOM, 2.0)
+	_check("under the red light", cubicle._hall_light.is_inside_tree() and cubicle._hall_light.light_energy > 0.0, str(cubicle._hall_light.light_energy))
+	var back := await _wait_until(func() -> bool: return cubicle.state == cubicle.State.ROOM, 2.5)
 	_check("then sets them back inside", back and player.global_position.z < box.position.z - 0.3 and player.process_mode != Node.PROCESS_MODE_DISABLED, str(player.global_position))
-	player.teleport(box.get_center() - Vector3(0, box.size.y * 0.5 - 0.01, 0))
+	_check("the light off again", is_zero_approx(cubicle._hall_light.light_energy))
+	player.teleport(Vector3(box.get_center().x, box.position.y, box.end.z + cubicle.HALL_DEPTH + 0.1))
 	frozen = await _wait_until(func() -> bool: return cubicle.state == cubicle.State.FROZEN, 2.0)
 	_check("the second attempt says the second line", frozen and cubicle.exits == 2 and cubicle.subtitle_text().contains(cubicle.LEAVE_LINES[1]), cubicle.subtitle_text())
-	await _wait_until(func() -> bool: return cubicle.state == cubicle.State.ROOM, 2.0)
+	await _wait_until(func() -> bool: return cubicle.state == cubicle.State.ROOM, 2.5)
+	player.teleport(Vector3(box.position.x - cubicle.HALL_SIDE - 0.2, box.position.y, box.end.z + 0.3))
+	frozen = await _wait_until(func() -> bool: return cubicle.state == cubicle.State.FROZEN, 2.0)
+	_check("sidling along the hallway is stopped too", frozen and cubicle.exits == 3)
+	await _wait_until(func() -> bool: return cubicle.state == cubicle.State.ROOM, 2.5)
 
 	# The notes and the plant.
 	cubicle.interact("sticky")
@@ -113,19 +136,32 @@ func _run() -> void:
 	cubicle.handle_key(_key(KEY_DOWN))
 	cubicle.handle_key(_key(KEY_SHIFT))
 	_check("SETTINGS shows the settings menu", cubicle.page == cubicle.Page.SETTINGS and cubicle._settings_menu != null and cubicle._settings_menu.is_inside_tree())
+	cubicle.handle_key(_key(KEY_UP)) # Wraps to the last row: Name.
+	cubicle.handle_key(_key(KEY_ENTER))
+	_check("Enter on the Name row opens the name field, filled in", cubicle.page == cubicle.Page.SIGN_IN and cubicle._name_field == "Zack 9" and cubicle._header.text.contains("CHANGE NAME"), cubicle._header.text)
+	cubicle.handle_key(_key(KEY_ENTER))
+	_check("Enter keeps the name and returns to SETTINGS", cubicle.page == cubicle.Page.SETTINGS and settings.get_value("name") == "Zack 9")
+	cubicle.handle_key(_key(KEY_BACKSPACE))
+	_check("Backspace from SETTINGS goes back to MAIN", cubicle.page == cubicle.Page.MAIN)
+	cubicle.handle_key(_key(KEY_DOWN))
+	cubicle.handle_key(_key(KEY_DOWN))
+	cubicle.handle_key(_key(KEY_SHIFT))
 	cubicle.handle_key(_key(KEY_ESCAPE))
 	_check("Esc from SETTINGS goes back to MAIN", cubicle.page == cubicle.Page.MAIN)
 	cubicle.handle_key(_key(KEY_SHIFT))
-	_check("SINGLEPLAYER, the caret past the dim CONTINUE on NEW GAME", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle._current_item().text == "NEW GAME")
+	_check("SINGLEPLAYER, the caret past the dim CONTINUE on APPLY FOR JOB", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle._current_item().text == cubicle.NEW_GAME)
+	cubicle.handle_key(_key(KEY_BACKSPACE))
+	_check("Backspace is Esc outside a field: back to MAIN", cubicle.page == cubicle.Page.MAIN)
+	cubicle.handle_key(_key(KEY_SHIFT))
 	cubicle.handle_key(_key(KEY_UP))
 	_check("CONTINUE comes first", cubicle._current_item().text == "CONTINUE")
 	cubicle.handle_key(_key(KEY_ENTER))
-	_check("CONTINUE is dimmed: no clone on file", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle.status == cubicle.NO_CLONE)
+	_check("CONTINUE is dimmed: no record on file", cubicle.page == cubicle.Page.SINGLEPLAYER and cubicle.status == cubicle.NO_CLONE)
 	cubicle.handle_key(_key(KEY_DOWN))
 	var result := []
 	cubicle.finished.connect(func(accepted: bool) -> void: result.append(accepted))
 	cubicle.handle_key(_key(KEY_ENTER))
-	_check("NEW GAME begins orientation on the LOG page", cubicle.page == cubicle.Page.LOG and cubicle.state == cubicle.State.LOG and cubicle._header.text == cubicle.SESSION_STARTED)
+	_check("APPLY FOR JOB begins orientation on the LOG page", cubicle.page == cubicle.Page.LOG and cubicle.state == cubicle.State.LOG and cubicle._header.text == cubicle.SESSION_STARTED)
 
 	# The thought log, as the intro had it.
 	cubicle._pause_left = 10.0 # Still thinking, whatever the frame timing.
@@ -163,13 +199,17 @@ func _run() -> void:
 	_check("and finishes accepted", done and result == [true], str(result))
 	cubicle.free()
 
-	# Signed in: SHIFT on the splash goes straight to MAIN; F9 accepts at once.
+	# A name on file: nobody is signed in yet, SHIFT offers the name and Enter signs in; F9 accepts
+	# at once.
 	var second = _new_cubicle()
 	await _frames(2)
 	second.use_monitor()
 	await _wait_until(func() -> bool: return second.state == second.State.SCREEN, 2.0)
+	_check("a name on file: the splash is not signed in", not second._signed_in() and second._items().filter(func(line: Dictionary) -> bool: return str(line.get("text", "")).begins_with("signed in")).is_empty())
 	second.press_shift()
-	_check("signed in: SHIFT on the splash reaches MAIN", second.page == second.Page.MAIN)
+	_check("SHIFT on the splash shows SIGN IN with the name filled in", second.page == second.Page.SIGN_IN and second._name_field == "Zack 9", second._name_field)
+	second.press_enter()
+	_check("Enter signs in and reaches MAIN", second.page == second.Page.MAIN and second._signed_in())
 	second.open_page(second.Page.SINGLEPLAYER)
 	second.press_enter()
 	var dev := []
@@ -185,6 +225,7 @@ func _run() -> void:
 	third.use_monitor()
 	await _wait_until(func() -> bool: return third.state == third.State.SCREEN, 2.0)
 	third.press_shift()
+	third.press_enter()
 	third.open_page(third.Page.SINGLEPLAYER)
 	third.press_enter()
 	var refused := []
@@ -227,9 +268,12 @@ func _run() -> void:
 	var rolled := await _wait_until(func() -> bool: return fourth._statement == "done", 4.0)
 	_check("using the computer rolls it", rolled and fourth._statement_rows.size() == 3)
 	_check("and clears it", net.pending_statement.is_empty() and net.pending_total == 0)
-	_check("the nameplate's numbers move", settings.get_value("shifts_worked") == 3 and settings.get_value("balance_owed") == 4920 and str(fourth.level.objects.nameplate.text).contains("$4920"), str(fourth.level.objects.nameplate.text))
+	var plate := str(fourth.level.objects.nameplate.text)
+	_check("the balance is kept and the shifts counted, the nameplate shows no money", settings.get_value("shifts_worked") == 3 and settings.get_value("balance_owed") == 4920 and plate == "Zack 9\nLLM Operator\nShifts worked: 3", plate)
 	fourth.press_shift()
-	_check("then SHIFT signs in", fourth.page == fourth.Page.MAIN)
+	_check("then SHIFT offers the sign-in", fourth.page == fourth.Page.SIGN_IN and fourth._name_field == "Zack 9")
+	fourth.press_enter()
+	_check("and Enter reaches MAIN", fourth.page == fourth.Page.MAIN)
 	fourth.free()
 
 	# A shift on file (docs/shift-save.md): CONTINUE lit, DISCARD, the layout note, CONTINUE SHIFT,
@@ -245,18 +289,18 @@ func _run() -> void:
 	fifth.open_page(fifth.Page.SINGLEPLAYER)
 	var item: Dictionary = fifth._current_item()
 	_check("a save on file: CONTINUE is first and lit", item.text == "CONTINUE" and not item.get("dim", false) and ShiftSave.summary().get("layout_ok", false), str(item))
-	_check("with its note", item.get("detail", "") == "clone held at Compute stair lobby, 1:02 on shift, $11200 owed", str(item.get("detail", "")))
+	_check("with its note, no money in it", item.get("detail", "") == "clone held at Compute stair lobby, 1:02 on shift", str(item.get("detail", "")))
 	fifth.handle_key(_key(KEY_ENTER))
 	_check("Enter on CONTINUE resumes, no orientation", started == [[true, "continue"]] and fifth.page != fifth.Page.LOG, str(started))
 	fifth._done = false
 	fifth.handle_key(_key(KEY_DOWN))
 	fifth.handle_key(_key(KEY_ENTER))
-	_check("NEW GAME with a save opens DISCARD", fifth.page == fifth.Page.DISCARD and fifth._current_item().text == "KEEP IT")
+	_check("APPLY FOR JOB with a save opens DISCARD", fifth.page == fifth.Page.DISCARD and fifth._current_item().text == "KEEP IT")
 	var warning := ""
 	for line in fifth._items():
 		if line.kind == "text":
 			warning += line.text
-	_check("DISCARD names the room and the owed", warning.contains("held at the Compute stair lobby") and warning.contains("$11200") and warning.contains("does not refund clones"), warning)
+	_check("DISCARD names the room, not the owed", warning.contains("held at the Compute stair lobby") and not warning.contains("$") and warning.contains("does not refund clones"), warning)
 	fifth.handle_key(_key(KEY_ENTER))
 	_check("KEEP IT returns, the save kept", fifth.page == fifth.Page.SINGLEPLAYER and ShiftSave.exists())
 	fifth.handle_key(_key(KEY_DOWN))

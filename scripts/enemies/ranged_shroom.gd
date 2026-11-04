@@ -39,6 +39,8 @@ var _backing := false
 
 static var _spit_type: AmmoType
 static var _blob_material: StandardMaterial3D
+## Shared by every glob.
+static var _blob_mesh: BoxMesh
 
 
 ## The kind's stats. Set in _ready (before the base), since instancing the scene resets exports
@@ -84,7 +86,7 @@ func _think(delta: float) -> Dictionary:
 	out.facing = flat_to
 	if flat > FAR:
 		var goal := target.global_position
-		var flow: Dictionary = world.get_flow(global_position)
+		var flow := flow_here()
 		if flow.valid and not flow.at_target:
 			goal = flow.next
 			out.breach = flow.breach
@@ -144,7 +146,7 @@ func _physics_process(delta: float) -> void:
 	if not alive or manager == null or not manager.simulating or spits.is_empty():
 		return
 	# Globs move after this (children tick after their parent), so this sweeps last tick's step.
-	var players := manager.targets()
+	var players := manager.frame_targets()
 	for shot: Projectile in spits.values():
 		if not is_instance_valid(shot) or shot.done:
 			continue
@@ -194,9 +196,10 @@ func _spawn_spit(spit_id: int, from: Vector3, velocity: Vector3, host: bool) -> 
 	(shot.get_node("Mesh") as MeshInstance3D).visible = false
 	var blob := MeshInstance3D.new()
 	blob.name = "Blob"
-	var cube := BoxMesh.new()
-	cube.size = Vector3.ONE * 0.15
-	blob.mesh = cube
+	if _blob_mesh == null:
+		_blob_mesh = BoxMesh.new()
+		_blob_mesh.size = Vector3.ONE * 0.15
+	blob.mesh = _blob_mesh
 	if _blob_material == null:
 		_blob_material = StandardMaterial3D.new()
 		_blob_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -229,7 +232,7 @@ func splat(at: Vector3, normal: Vector3) -> void:
 	var disc := MeshInstance3D.new()
 	# A ragged patch of voxel squares (VoxelFx.splat) that stays opaque, then shrinks away.
 	disc.mesh = VoxelFx.splat(randf_range(0.2, 0.32))
-	disc.material_override = VoxelFx.material(1.0, false, SPLAT_COLOR)
+	disc.material_override = VoxelFx.shared_material(1.0, false, SPLAT_COLOR)
 	disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	manager.add_child(disc)
 	var up := normal.normalized()

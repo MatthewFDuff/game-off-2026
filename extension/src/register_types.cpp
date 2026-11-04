@@ -16,6 +16,9 @@ static void initialize_voxelcore(ModuleInitializationLevel p_level) {
 }
 
 static void uninitialize_voxelcore(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+		voxel::free_keys();
+	}
 }
 
 extern "C" {

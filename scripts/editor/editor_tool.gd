@@ -66,6 +66,7 @@ const ROCK_CEILING_REACH := 200
 ## How far the cursor reaches, in meters.
 const REACH := 80.0
 const DAB_INTERVAL := 0.06
+const EditorIndex := preload("res://scripts/editor/editor_index.gd")
 
 var lab: Lab
 var player: Player
@@ -136,6 +137,14 @@ var _last_height := {Tool.ROOM: 30, Tool.BOX: 10, Tool.REPLACE: 10}
 var _aim_from := Vector3.ZERO
 var _aim_direction := Vector3.FORWARD
 var _hit_point := Vector3.ZERO
+## The level's objects indexed for picking (boxes, kinds, a grid), kept in step with its edits.
+var index := EditorIndex.new()
+## Goes up on every voxel change: the cursor's ray hits voxels.
+var _world_version := 0
+## What the cursor was last worked out from, and what it came to: the same inputs give the same
+## cursor, so _update_cursor skips the work (EditorTool._pick_key).
+var _pick_inputs := []
+var _pick_outputs := []
 ## Object being moved / duplicated (a copy with the pending changes), its original id ("" = new),
 ## and for a duplicate, the id it was copied from.
 var _grab := {}
@@ -263,6 +272,10 @@ func _ready() -> void:
 		node.visible = false
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		lab.view.add_child.call_deferred(node)
+	index.lab = lab
+	index.attach()
+	EditorIndex.current = index
+	lab.world.voxels_changed.connect(func(_from: Vector3i, _to: Vector3i) -> void: _world_version += 1)
 	camera.name = "EditorCamera"
 	camera.lab = lab
 	camera.right_clicked.connect(_on_right_click)
@@ -288,6 +301,7 @@ func _exit_tree() -> void:
 			node.queue_free()
 	handles.free_meshes()
 	wall_handles.free_meshes()
+	index.detach()
 
 
 func is_active() -> bool:
@@ -433,6 +447,7 @@ func _process(delta: float) -> void:
 		for node in [_cursor_lines, _volume, _ghost, _volume_lines, _grid, _bounds, _ground, _wall_fill, _wall_lines] + _size_labels:
 			node.visible = false
 		return
+	index.sync()
 	if not selected.is_empty() and not lab.level.objects.has(selected):
 		select("") # Removed by someone else (or undone).
 	camera.cut_step = snap()
@@ -477,24 +492,39 @@ func _update_cursor() -> void:
 		direction = ray[1]
 	_aim_from = from
 	_aim_direction = direction
+	var aiming := is_aiming()
+	# Nothing it depends on changed (aim, tool, view, cut, storey, objects, voxels) and nothing else
+	# moved the cursor: it's where it was.
+	var inputs := _pick_key(from, direction, aiming)
+	if inputs == _pick_inputs and _cursor_state() == _pick_outputs:
+		return
+	_pick_inputs = inputs
+	_work_out_cursor(from, direction, aiming)
+	_pick_outputs = _cursor_state()
+
+
+## What the cursor depends on, besides the aim ray (see _update_cursor).
+func _pick_key(from: Vector3, direction: Vector3, aiming: bool) -> Array:
+	return [from, direction, aiming, tool, _grab_id, builder, free_cursor, free_distance, storey, is_build_level(),
+			lab.level.get_instance_id() if lab.level else 0, index.version, _world_version, camera.pick_state(),
+			lab.world.global_position]
+
+
+func _cursor_state() -> Array:
+	return [has_cursor, cell, solid_cell, cursor_normal, cursor_on_cap, object_under, _hit_point]
+
+
+func _work_out_cursor(from: Vector3, direction: Vector3, aiming: bool) -> void:
 	var world := lab.world
 	object_under = ""
 	cursor_on_cap = false
-	if not is_aiming():
+	if not aiming:
 		has_cursor = false
 		return
-	var object_distance := INF
-	var cutting := camera.is_cutting()
-	for object: Dictionary in lab.level.objects.values():
-		if object.id == _grab_id or object.kind == "room" or (object.kind == "opening" and tool != Tool.SELECT) or LevelBuild.is_build(object):
-			continue
-		var box := LevelSchema.box_of(object)
-		if cutting and box.position.y >= camera.cut_layer:
-			continue # Cut away with the voxels above the cut.
-		var hit = AABB(lab.view.to_world(box.position), box.size * world.voxel_size).intersects_ray(from, direction)
-		if hit != null and from.distance_to(hit) < object_distance:
-			object_distance = from.distance_to(hit)
-			object_under = object.id
+	# Cut away with the voxels above the cut.
+	var picked := index.pick(from, direction, _grab_id, tool == Tool.SELECT, camera.cut_layer if camera.is_cutting() else -1)
+	var object_distance: float = picked.distance
+	object_under = picked.id
 
 	if free_cursor and not builder:
 		has_cursor = true
@@ -520,7 +550,7 @@ func _update_cursor() -> void:
 	# Props and markers aren't voxels while editing; placing on one uses the face of its box.
 	if object_under != "" and (not hit.hit or object_distance < hit.distance) and tool in [Tool.PROP, Tool.MARKER, Tool.SELECT]:
 		var point := from + direction * object_distance
-		var object_box := LevelSchema.box_of(lab.level.objects[object_under])
+		var object_box := index.box(object_under)
 		cursor_normal = _face_normal(AABB(lab.view.to_world(object_box.position), object_box.size * world.voxel_size), point)
 		cell = world.world_to_voxel(point + Vector3(cursor_normal) * 0.05)
 		solid_cell = world.world_to_voxel(point - Vector3(cursor_normal) * 0.05)
@@ -645,7 +675,7 @@ func _ceiling_over(column: Vector2i, top: int, reach := ROCK_CEILING_REACH, skip
 		var voxel := Vector3i(column.x, y, column.y)
 		if lab.world.get_voxel(voxel) == 0:
 			continue
-		if skip_walls and LevelBuild.wall_at(objects, voxel) != "":
+		if skip_walls and EditorIndex.wall_at_of(objects, voxel) != "":
 			continue
 		return y
 	return -1
@@ -836,9 +866,8 @@ func room_under() -> String:
 	var lining_order := -1
 	var air := Vector3(cell) + Vector3.ONE * 0.5
 	var wall := Vector3(solid_cell) + Vector3.ONE * 0.5
-	for object: Dictionary in lab.level.objects.values():
-		if object.kind != "room":
-			continue
+	index.sync()
+	for object: Dictionary in index.of_kind("room").values():
 		var order := int(object.order)
 		if LevelSchema.box_of(object).has_point(air) and order > inside_order:
 			inside_best = object.id
@@ -853,10 +882,10 @@ func room_under() -> String:
 func build_under() -> String:
 	var objects: Dictionary = lab.level.objects
 	for voxel in [cell, solid_cell]:
-		var id := LevelBuild.opening_at(objects, voxel)
+		var id := EditorIndex.opening_at_of(objects, voxel)
 		if id != "":
 			return id
-	return LevelBuild.wall_at(objects, solid_cell, _prefer_storey())
+	return EditorIndex.wall_at_of(objects, solid_cell, _prefer_storey())
 
 
 ## A cell snapped down to the grid.
@@ -1421,7 +1450,7 @@ func _pick() -> void:
 ## Whether a voxel is on the inner (left) face of a build wall that has one, in that face's material.
 func _on_inner_face(voxel: Vector3i, picked: int) -> bool:
 	var objects: Dictionary = lab.level.objects
-	var id := LevelBuild.wall_at(objects, voxel, _prefer_storey())
+	var id := EditorIndex.wall_at_of(objects, voxel, _prefer_storey())
 	if id == "":
 		return false
 	var wall_object: Dictionary = objects[id]
@@ -1614,7 +1643,7 @@ func opening_at_cursor() -> Dictionary:
 	var on_wall := wall_opening_at_cursor()
 	if not on_wall.is_empty():
 		return on_wall
-	var room_id := LevelStructure.room_at(objects, AABB(Vector3(solid_cell) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
+	var room_id := EditorIndex.room_at_of(objects, AABB(Vector3(solid_cell) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
 	var bottom := RoomTools.floor_under(lab.world, cell) if room_id == "" else int(objects[room_id].from.y)
 	match opening_type:
 		"window":
@@ -1644,7 +1673,7 @@ func _place_opening() -> void:
 ## on a wall; with `reason` when it doesn't fit.
 func wall_opening_at_cursor() -> Dictionary:
 	var objects: Dictionary = lab.level.objects
-	var wall_id := LevelBuild.wall_at(objects, solid_cell, _prefer_storey())
+	var wall_id := EditorIndex.wall_at_of(objects, solid_cell, _prefer_storey())
 	if wall_id == "":
 		return {}
 	var on: Dictionary = objects[wall_id]
@@ -1677,7 +1706,7 @@ func prop_spot(name: String, rotation: int, ignore: String) -> Dictionary:
 		_spot = PropPlacement.place(lab.world, lab.level.objects, name, rotation, cell, solid_cell, cursor_normal, snap(), ignore)
 		# A sliding door needs a straight wall; in a 45° one its panel would cut across the steps.
 		if _spot.valid and _spot.mount == "door":
-			var wall_id := LevelBuild.wall_at(lab.level.objects, solid_cell, _prefer_storey())
+			var wall_id := EditorIndex.wall_at_of(lab.level.objects, solid_cell, _prefer_storey())
 			if wall_id != "":
 				var step := LevelBuild.ends(lab.level.objects[wall_id])
 				if step[0].x != step[1].x and step[0].y != step[1].y:

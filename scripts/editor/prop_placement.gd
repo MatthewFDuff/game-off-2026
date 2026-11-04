@@ -17,6 +17,7 @@ class_name PropPlacement
 ## a desk ends up on it).
 
 const P := preload("res://scripts/world/props.gd")
+const EditorIndex := preload("res://scripts/editor/editor_index.gd")
 
 ## Outward normals of each facing (a prop's front points that way).
 const FACING_NORMALS: Array[Vector3i] = [Vector3i(0, 0, -1), Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(-1, 0, 0)]
@@ -97,7 +98,7 @@ static func _door(world: VoxelWorld, objects: Dictionary, out: Dictionary, solid
 	while depth < MAX_WALL and world.get_voxel(solid - normal * depth) != 0:
 		depth += 1
 	if depth >= MAX_WALL:
-		var room_id := LevelStructure.room_at(objects, AABB(Vector3(solid) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
+		var room_id := EditorIndex.room_at_of(objects, AABB(Vector3(solid) + Vector3.ONE * 0.25, Vector3.ONE * 0.5))
 		depth = int(objects[room_id].thickness) if room_id != "" else 3
 	var thickness: int = size[n]
 	if depth < thickness:
@@ -135,6 +136,10 @@ static func overlaps(world: VoxelWorld, objects: Dictionary, box: AABB, ignore :
 
 
 static func _hits_prop(objects: Dictionary, box: AABB, ignore: String) -> bool:
+	# The editor's index (cached boxes in a grid) when these are the level's objects.
+	var indexed: Variant = EditorIndex.hits_prop_of(objects, box, ignore)
+	if indexed != null:
+		return indexed
 	for object: Dictionary in objects.values():
 		if object.kind == "prop" and object.id != ignore and LevelSchema.prop_box(object).intersects(box):
 			return true

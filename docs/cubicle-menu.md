@@ -19,8 +19,10 @@ The cubicle as built by `scripts/tools/build_cubicle.gd`, extended:
 - New on the desk: a **fake plant** (`fake_plant`) and a **rubber duck** (`rubber_duck`), both
   standing on the desk top. New on the floor behind the chair, along the south partition: a
   **sleeping bag** (`sleeping_bag`). A **nameplate** (a `corkboard_small` note on the partition by
-  the opening) whose text the scene rewrites: the employee's name, "LLM Operator", and the balance
-  owed to Fung AI.
+  the opening) whose text the scene rewrites: the employee's name, "LLM Operator" and the shifts
+  worked. The balance owed is kept (`GameSettings.balance_owed`) but never shown before the
+  statement: no money anywhere in the cubicle or during the shift (no "-$" toasts in the lab), so
+  the ending's bill is the first the player hears of it (decided 2026-11-04).
 - The south partition has a 1 m **opening** onto a **hallway** 2 m wide running east to west, with
   three more cubicles on its far side (desk, monitor off, chair; dark, one dim ceiling light every
   other bay). The hallway ends in partitions both ways. The world grows to fit (about 19 x 6 x 13 m).
@@ -44,17 +46,22 @@ Props are placeholders (`PropCatalog` entries, exported by `export_vox.gd` to
 `Net.MENU_SCENE`. It loads the level into a `VoxelWorld` the way the intro did, and spawns the
 ordinary first-person `Player` (`scenes/player.tscn`) at the spawn marker: walking, gravity, crouch,
 flashlight, unarmed, no HUD, no networking (`net_peers` stays empty). The mouse is captured on the
-first click ("Click to look around" on the first frame), released by Esc, as in the lab.
+first click ("Click to look around" on the first frame), released by Esc, as in the lab, and
+captured again by itself whenever the room is the player's again (stepping away from the computer,
+N or Esc on the clock-out prompt, closing a note, being set back from the hallway): no second
+click.
 
 **Interacting.** E (or a click) with the mouse captured casts from the camera against the boxes of
 the interactable props within 2.5 m; a prompt at the bottom center names what the player is aiming
 at: `[E] Use computer`, `[E] Rubber duck`, `[E] Sleeping bag`, `[E] Read`. The poster and sticky
 note read as notes (the reader panel style). The plant says "It is plastic. It is Fung AI property."
 
-**Leaving.** When the player's feet enter `t_leave`: an error buzz, the player is frozen for 0.8 s
-(`process_mode` disabled), a subtitle in the intercom's style says the line, then the player is
-set back one step inside the opening. The lines escalate with each attempt and the count is kept
-for the shift (`Cubicle.exits`):
+**Leaving.** `t_leave` marks the opening. The player may step through it and a little way into
+the hallway (`HALL_DEPTH`, 1.2 m straight out; `HALL_SIDE`, 0.5 m to either side of the opening);
+past that: an error buzz, a red light over the hallway side of the opening flashes, the player is
+frozen for 1.5 s (`process_mode` disabled), a subtitle in the intercom's style says the line, then
+the player is set back one step inside the opening. The lines escalate with each attempt and the
+count is kept for the shift (`Cubicle.exits`):
 
 1. "You must remain in your cubicle during your shift."
 2. "Fung AI reminds you: the hallway is not your cubicle."
@@ -83,21 +90,26 @@ computer rolls the statement line by line with the register tick, then Guy Fung'
 The console is drawn on the monitor's screen voxels as today: a `SubViewport` (240 x 160, raise to
 320 x 200 if the pages need it) on a quad, the pixel font at 1x (one font pixel per screen texel),
 green on near-black, the header line and its rule. Every page is keyboard-driven: arrows move,
-Enter / SHIFT choose, Esc backs out, typed characters fill a field. Mouse clicks on a line are
+Enter / SHIFT select, Esc backs out (Backspace too, anywhere but in a field, where it erases),
+typed characters fill a field. Mouse clicks on a line are
 welcome if cheap (project the mouse onto the quad and push the event into the viewport) but not
 required. The chosen line carries an amber `>` caret.
 
 Pages:
 
-- **SPLASH**: `FUNG AI` at 3x, under it "Press SHIFT to sign in" blinking. SHIFT: to MAIN if a name
-  is on file ("signed in: Matthew"), else to SIGN IN.
+- **SPLASH**: `FUNG AI` at 3x, under it "Press SHIFT to sign in" blinking. Nobody is signed in
+  when the game opens, even with a name on file: SHIFT always goes to SIGN IN, where the name on
+  file is already typed, so Enter confirms it. MAIN then shows "signed in: Matthew".
 - **SIGN IN**: "Employee name:" and a typed field with a block cursor (letters, digits, space, up
-  to 20). Enter saves it (`GameSettings.name`, `Net.player_name`) and goes to MAIN.
+  to 20). Enter saves it (`GameSettings.name`, `Net.player_name`) and goes to MAIN (or back to
+  SETTINGS when its Name row opened the field, titled CHANGE NAME).
 - **MAIN**: SINGLEPLAYER / MULTIPLAYER / SETTINGS / SIGN OUT. Sign out returns to SPLASH. On the
   web build MULTIPLAYER is dimmed with "needs the desktop build".
-- **SINGLEPLAYER**: NEW GAME / CONTINUE / BACK. CONTINUE is dimmed with "no clone on file" until
-  the save system exists (the brainstorm in the prototype; not in this plan).
-- **NEW GAME**: orientation (section 4), then `Net.start_solo("laboratory", "play")`.
+- **SINGLEPLAYER**: CONTINUE / APPLY FOR JOB / BACK. CONTINUE is dimmed with "no record on file"
+  when there is no shift on file (`docs/shift-save.md`); lit, its note names the room and the
+  time on shift, never the money.
+- **APPLY FOR JOB** (the new game): orientation (section 4), then
+  `Net.start_solo("laboratory", "play")`.
 - **MULTIPLAYER**: HOST A SHIFT / JOIN A SHIFT / BACK.
 - **HOST**: `Net.open_session(port, "waiting_room", "play")`. Shows the port, the LAN addresses
   (as `LabHud.hosting_info` lists them), "friends outside your network join your public IP
@@ -171,10 +183,13 @@ menu wrote; keep its `player/name`, `player/address`, `player/level` keys so nam
 `set_value` saves and applies at once and emits `changed(key)`. `apply_all()` runs at startup.
 
 `SettingsMenu` (`scripts/ui/settings_menu.gd`, `extends Control`, `static func create(scale: int)`)
-draws the rows (Orientation, Fullscreen, Mouse sensitivity, Field of view, Master, Effects, Music)
-in the pixel font at `8 * scale` px, labels left and values right, the chosen row with the amber
-caret; `handle_key(event) -> bool` moves (up / down), adjusts (left / right, Enter toggles two-state
-rows) and backs out (Esc emits `closed`). The console embeds it at 1x; the pause panel at 2x.
+draws the rows (Orientation, Fullscreen, Mouse sensitivity, Field of view, Master, Effects, Music,
+and on the console only a Name row showing the name on file) in the pixel font at `8 * scale` px,
+labels left and values right, the chosen row with the amber caret; `handle_key(event) -> bool`
+moves (up / down), adjusts (left / right, Enter toggles two-state rows; Enter on Name emits
+`rename`, and the console opens the sign-in field, returning to SETTINGS) and backs out (Esc or
+Backspace emits `closed`). The console embeds it at 1x (`create(1, color, true)`); the pause panel
+at 2x without the Name row.
 
 **Pause menu** (`LabHud`): "SHIFT PAUSED", Resume, Settings (the menu in place of the buttons; Esc
 returns), Invite (the hosting info, host only), Leave shift (the old End session / Leave to menu).

@@ -68,7 +68,7 @@ func _think(delta: float) -> Dictionary:
 func _try_grab() -> void:
 	var best: Player = null
 	var best_distance := REACH
-	for player in manager.targets():
+	for player in manager.frame_targets():
 		if player.is_held() or (player == _released and Time.get_ticks_msec() < _released_until):
 			continue
 		var offset := player.global_position - global_position

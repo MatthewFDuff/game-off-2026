@@ -17,10 +17,15 @@ const FORMAT := 1
 ## until one is picked up; LevelPlay.armed) and spawns_dormant (nothing spawns until a trigger's
 ## `wake` action; HordeDirector.dormant). Missing keys take defaults.
 
-## Keys whose values are vectors / colors; JSON stores them as arrays / hex strings.
-const VECTOR3I_KEYS := ["origin", "size", "door_offset", "size_in_chunks", "from", "to", "a", "b"]
-const VECTOR3_KEYS := ["position"]
-const COLOR_KEYS := ["color", "ambient_color", "fog_color"]
+## Keys whose values are vectors / colors; JSON stores them as arrays / hex strings. Sets (key ->
+## true), so `key in` is a hash lookup for every key of every object at load.
+const VECTOR3I_KEYS := {"origin": true, "size": true, "door_offset": true, "size_in_chunks": true, "from": true,
+		"to": true, "a": true, "b": true}
+const VECTOR3_KEYS := {"position": true}
+const COLOR_KEYS := {"color": true, "ambient_color": true, "fog_color": true}
+## Number keys JSON brings back as floats that are ints.
+const INT_KEYS := {"facing": true, "value": true, "index": true, "room_floor": true, "room_wall": true,
+		"room_ceiling": true, "room_thickness": true}
 
 ## Tests point this at a scratch folder so they never write over real levels.
 static var save_dir_override := ""
@@ -188,6 +193,23 @@ static func from_json(text: String) -> LevelData:
 	return level
 
 
+## encode_info_cached's bytes; empty when stale (invalidate_info).
+var _info_cache := PackedByteArray()
+
+
+## encode_info, kept until invalidate_info: joiners in play get the same bytes without the host
+## encoding and compressing every object again. Whoever changes settings or objects must call
+## invalidate_info (Lab does on LevelEdits.object_set and mode changes).
+func encode_info_cached() -> PackedByteArray:
+	if _info_cache.is_empty():
+		_info_cache = encode_info()
+	return _info_cache
+
+
+func invalidate_info() -> void:
+	_info_cache = PackedByteArray()
+
+
 ## Settings and objects (not voxels) as compressed bytes, for sending to peers.
 func encode_info() -> PackedByteArray:
 	var text := to_json().to_utf8_buffer()
@@ -251,7 +273,7 @@ static func _decode(dict: Dictionary) -> Dictionary:
 			out[key] = Vector3(value[0], value[1], value[2])
 		elif key in COLOR_KEYS and value is String:
 			out[key] = Color.html(value)
-		elif value is float and value == floorf(value) and key in ["facing", "value", "index", "room_floor", "room_wall", "room_ceiling", "room_thickness"]:
+		elif value is float and value == floorf(value) and key in INT_KEYS:
 			out[key] = int(value) # JSON numbers come back as floats.
 		else:
 			out[key] = value

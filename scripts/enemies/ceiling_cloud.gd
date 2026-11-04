@@ -97,7 +97,7 @@ func attach() -> bool:
 
 
 func _player_below() -> bool:
-	for player in manager.targets():
+	for player in manager.frame_targets():
 		var offset: Vector3 = player.global_position - global_position
 		if offset.y < 0.0 and offset.y > -TRIGGER_DEPTH and Vector2(offset.x, offset.z).length() < TRIGGER_RANGE \
 				and Combat.sees_player(world, get_center(), player):

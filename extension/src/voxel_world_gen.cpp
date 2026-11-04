@@ -148,6 +148,7 @@ void VoxelWorld::fill_layers(const Vector3i &from, const Vector3i &to, const Pac
 						}
 					}
 				}
+				c.changed = true;
 				nav_rebuild_chunk(slot);
 			}
 		}

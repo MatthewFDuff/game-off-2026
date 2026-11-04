@@ -48,6 +48,9 @@ void VoxelWorld::nav_allocate() {
 	nav_span_count.assign(columns, 0);
 	nav_flow.assign(columns * NAV_MAX_SPANS, UNREACHED);
 	nav_flow_target = -1;
+	nav_flow_stale = true;
+	last_flow_nodes.clear();
+	last_flow_reached = 0;
 }
 
 void VoxelWorld::nav_rebuild_chunk(int slot) {
@@ -204,23 +207,22 @@ int VoxelWorld::nav_target_node(const Vector3 &target) const {
 void VoxelWorld::update_flow_field(const Variant &targets, float max_distance) {
 	const uint64_t start = Time::get_singleton()->get_ticks_usec();
 
+	bool changed = nav_flow_stale;
 	if (nav_hardness_stale) {
 		for (int slot = 0; slot < int(chunks.size()); slot++) {
 			nav_rebuild_chunk(slot);
 		}
 		nav_hardness_stale = false;
+		changed = true;
 	}
 	const int columns = nav_columns_x * nav_columns_z;
 	for (int column = 0; column < columns; column++) {
 		if (nav_column_dirty[column]) {
 			nav_rebuild_spans(column);
 			nav_column_dirty[column] = 0;
+			changed = true;
 		}
 	}
-
-	std::fill(nav_flow.begin(), nav_flow.end(), UNREACHED);
-	nav_flow_target = -1;
-	last_flow_reached = 0;
 
 	std::vector<Vector3> points;
 	switch (targets.get_type()) {
@@ -246,17 +248,37 @@ void VoxelWorld::update_flow_field(const Variant &targets, float max_distance) {
 			break;
 	}
 
+	// The floor node under each target, first seen first.
+	std::vector<int> nodes;
+	for (const Vector3 &point : points) {
+		const int node = nav_target_node(point);
+		if (node >= 0 && std::find(nodes.begin(), nodes.end(), node) == nodes.end()) {
+			nodes.push_back(node);
+		}
+	}
+	// Same floors, same range, nothing rebuilt: the field would come out the same.
+	if (!changed && nodes == last_flow_nodes && max_distance == last_flow_max_distance) {
+		flow_skips++;
+		last_flow_usec = double(Time::get_singleton()->get_ticks_usec() - start);
+		return;
+	}
+	nav_flow_stale = false;
+	last_flow_nodes = nodes;
+	last_flow_max_distance = max_distance;
+	flow_rebuilds++;
+
+	std::fill(nav_flow.begin(), nav_flow.end(), UNREACHED);
+	nav_flow_target = -1;
+	last_flow_reached = 0;
+
 	// Every target's floor starts at cost 0, so the search finds each span's nearest target.
 	using Entry = std::pair<uint32_t, int>;
 	std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> open;
-	for (const Vector3 &point : points) {
-		const int node = nav_target_node(point);
-		if (node >= 0 && nav_flow[node] != 0) {
-			nav_flow[node] = 0;
-			open.push({ 0, node });
-			if (nav_flow_target < 0) {
-				nav_flow_target = node;
-			}
+	for (const int node : nodes) {
+		nav_flow[node] = 0;
+		open.push({ 0, node });
+		if (nav_flow_target < 0) {
+			nav_flow_target = node;
 		}
 	}
 
@@ -300,8 +322,9 @@ void VoxelWorld::update_flow_field(const Variant &targets, float max_distance) {
 }
 
 Dictionary VoxelWorld::get_flow(const Vector3 &feet) const {
+	const voxel::Keys &K = voxel::keys();
 	Dictionary result;
-	result["valid"] = false;
+	result[K.valid] = false;
 	if (nav_flow_target < 0) {
 		return result;
 	}
@@ -321,12 +344,12 @@ Dictionary VoxelWorld::get_flow(const Vector3 &feet) const {
 		return result;
 	}
 
-	result["distance"] = float(nav_flow[node]) / STRAIGHT_COST * NAV_COLUMN * voxel_size;
+	result[K.distance] = float(nav_flow[node]) / STRAIGHT_COST * NAV_COLUMN * voxel_size;
 	if (nav_flow[node] == 0) { // Every step costs something, so only targets' floors are 0.
-		result["valid"] = true;
-		result["at_target"] = true;
-		result["breach"] = false;
-		result["next"] = nav_span_world(column, k);
+		result[K.valid] = true;
+		result[K.at_target] = true;
+		result[K.breach] = false;
+		result[K.next] = nav_span_world(column, k);
 		return result;
 	}
 
@@ -355,9 +378,9 @@ Dictionary VoxelWorld::get_flow(const Vector3 &feet) const {
 	if (best_column < 0) {
 		return result;
 	}
-	result["valid"] = true;
-	result["at_target"] = false;
-	result["breach"] = nav_span_breach[size_t(best_column) * NAV_MAX_SPANS + best_k] != 0;
-	result["next"] = nav_span_world(best_column, best_k);
+	result[K.valid] = true;
+	result[K.at_target] = false;
+	result[K.breach] = nav_span_breach[size_t(best_column) * NAV_MAX_SPANS + best_k] != 0;
+	result[K.next] = nav_span_world(best_column, best_k);
 	return result;
 }

@@ -194,14 +194,16 @@ func _update_ammo(me: Player, delta: float) -> void:
 	_ammo_box.visible = true
 	var type := weapon.ammo
 	_ammo_name.text = type.label.to_upper()
-	_ammo_name.label_settings.font_color = type.color
+	if _ammo_name.label_settings.font_color != type.color:
+		_ammo_name.label_settings.font_color = type.color
 	var rounds: int = me.inventory.count(type.name) if me.inventory else -1
 	_ammo_count.text = "∞" if rounds < 0 else str(rounds)
 	var next := weapon.next_ammo()
 	_ammo_next.text = "" if next == type.name else "SHIFT: %s" % AmmoType.by_name(next).label
 	if _last_ammo != "" and _last_ammo != type.name:
 		_ammo_toast.text = type.label
-		_ammo_toast.label_settings.font_color = type.color
+		if _ammo_toast.label_settings.font_color != type.color:
+			_ammo_toast.label_settings.font_color = type.color
 		_ammo_toast_time = AMMO_TOAST_TIME
 	_last_ammo = type.name
 	_ammo_toast_time = maxf(0.0, _ammo_toast_time - delta)
@@ -217,7 +219,8 @@ func _update_flask(me: Player) -> void:
 	if not _flask_box.visible:
 		return
 	_flask_name.text = "%s FLASK" % type.label.to_upper()
-	_flask_name.label_settings.font_color = type.color
+	if _flask_name.label_settings.font_color != type.color:
+		_flask_name.label_settings.font_color = type.color
 	_flask_count.text = "x%d" % me.inventory.flask_count(weapon.flask)
 
 

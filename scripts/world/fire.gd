@@ -63,6 +63,9 @@ var cells := {}
 
 ## Host: key -> [seconds left, material it was, Vector3i].
 var _fuel := {}
+## Host: _fuel's keys by coarse cell (_cell_of), cell -> {key: true}, so douse only visits the
+## cells it overlaps. Kept by _add_fuel / _drop_fuel.
+var _fuel_cells := {}
 ## Host: edits for the next batch, key -> [Vector3i, material].
 var _pending := {}
 ## Host: keys left to visit this round.
@@ -151,6 +154,7 @@ func clear() -> void:
 	burning.clear()
 	cells.clear()
 	_fuel.clear()
+	_fuel_cells.clear()
 	_pending.clear()
 	_round.clear()
 	_react_wait.clear()
@@ -193,7 +197,7 @@ func _light(p: Vector3i, material: int) -> void:
 	var key := key_of(p)
 	if _fuel.has(key) or _pending.has(key) or burning.has(key) or _fuel.size() >= MAX_BURNING:
 		return
-	_fuel[key] = [_burn[material] * _rng.randf_range(0.7, 1.3), material, p]
+	_add_fuel(key, [_burn[material] * _rng.randf_range(0.7, 1.3), material, p])
 	_pending[key] = [p, VoxelMaterials.EMBER if _rng.randf() < 0.6 else VoxelMaterials.EMBER_DEEP]
 
 
@@ -217,15 +221,44 @@ func _from_level() -> bool:
 
 
 func _douse(at: Vector3, radius: float) -> void:
-	if not _simulating():
+	if not _simulating() or _fuel.is_empty():
 		return
 	var center := world.world_to_voxel(at)
 	var r := radius / world.voxel_size
-	for key: int in _fuel.keys():
-		var p: Vector3i = _fuel[key][2]
-		if Vector3(p - center).length() <= r:
-			_fuel.erase(key)
-			_pending[key] = [p, VoxelMaterials.CHAR]
+	var reach := Vector3i.ONE * ceili(r)
+	var low := _cell_of(center - reach)
+	var high := _cell_of(center + reach)
+	for cx in range(low.x, high.x + 1):
+		for cy in range(low.y, high.y + 1):
+			for cz in range(low.z, high.z + 1):
+				var bucket: Dictionary = _fuel_cells.get(Vector3i(cx, cy, cz), {})
+				for key: int in bucket.keys():
+					var p: Vector3i = _fuel[key][2]
+					if Vector3(p - center).length() <= r:
+						_drop_fuel(key)
+						_pending[key] = [p, VoxelMaterials.CHAR]
+
+
+## Host: a voxel starts burning (_fuel and its cell's bucket).
+func _add_fuel(key: int, entry: Array) -> void:
+	_fuel[key] = entry
+	var cell := _cell_of(entry[2])
+	if not _fuel_cells.has(cell):
+		_fuel_cells[cell] = {}
+	_fuel_cells[cell][key] = true
+
+
+## Host: a voxel stops burning (out of _fuel and its cell's bucket).
+func _drop_fuel(key: int) -> void:
+	var entry: Array = _fuel.get(key, [])
+	if entry.is_empty():
+		return
+	_fuel.erase(key)
+	var cell := _cell_of(entry[2])
+	var bucket: Dictionary = _fuel_cells.get(cell, {})
+	bucket.erase(key)
+	if bucket.is_empty():
+		_fuel_cells.erase(cell)
 
 
 # --- Burning (host) ------------------------------------------------------------------------------
@@ -262,7 +295,7 @@ func _visit(key: int) -> void:
 	var here := world.get_voxel(p)
 	if not is_ember(here):
 		# Shot or blown away (or replaced) since it caught. The batch tells the peers.
-		_fuel.erase(key)
+		_drop_fuel(key)
 		_pending[key] = [p, here]
 		return
 	fuel[0] -= TICK
@@ -279,7 +312,7 @@ func _visit(key: int) -> void:
 			elif _reacts.has(next) and _rng.randf() < BOIL * TICK:
 				_boil(q, _reacts[next])
 	if fuel[0] <= 0.0 or doused:
-		_fuel.erase(key)
+		_drop_fuel(key)
 		var left := VoxelMaterials.CHAR if doused or _rng.randf() < _ash[fuel[1]] else VoxelMaterials.AIR
 		_pending[key] = [p, left]
 
@@ -490,7 +523,7 @@ func _build_fx() -> void:
 		var flames := VoxelFx.particles(0.1, steps, 0.5)
 		flames.name = "Flames%d" % i
 		flames.top_level = true
-		flames.amount = 20
+		flames.amount = 10 if OS.has_feature("web") else 20
 		flames.lifetime = 1.2
 		flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 		flames.emission_box_extents = Vector3.ONE * CELL * 0.5 * world.voxel_size

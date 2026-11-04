@@ -10,12 +10,17 @@ const VARIANTS := {basic = ShroomModels.VARIANTS,
 		fast = 3, exploding = 2, alarm = 2, giant = 2, ranged = 2,
 		mommy = 1, spore = 2, ceiling_cloud = 2, tentacle = 2}
 
-## path -> model ({size, voxels}), loaded once and dropped on live reload.
+## path -> model ({size, voxels, key}), loaded once and dropped on live reload.
 static var _cache := {}
+## kind -> its sorted .vox paths (paths), read once and dropped on live reload (forget).
+static var _paths := {}
 
 
-## The .vox paths for a kind, sorted, so every peer picks the same variant for the same id.
+## The .vox paths for a kind, sorted, so every peer picks the same variant for the same id. Read
+## from the directory once per kind (until forget).
 static func paths(kind: String) -> PackedStringArray:
+	if _paths.has(kind):
+		return _paths[kind]
 	var found := PackedStringArray()
 	for file in DirAccess.get_files_at(DIR):
 		if file.get_extension() != "vox":
@@ -24,27 +29,37 @@ static func paths(kind: String) -> PackedStringArray:
 		if base == kind or (base.begins_with(kind + "_") and base.trim_prefix(kind + "_").is_valid_int()):
 			found.append(DIR + file)
 	found.sort()
+	_paths[kind] = found
 	return found
 
 
-## The model for an enemy of this kind: variant picks among its files (wrapping).
+## The model for an enemy of this kind: variant picks among its files (wrapping). The model's `key`
+## names it stably (its file path, or "generated:<kind>:<n>"), whatever the variant number, so
+## meshes and counts built from it can be shared by every enemy wearing it (Enemy.build_body).
 static func model(kind: String, variant: int) -> Dictionary:
 	var files := paths(kind)
 	if files.is_empty():
-		var key := "generated:%s:%d" % [kind, variant]
+		var n := posmod(variant, int(VARIANTS.get(kind, 1)))
+		var key := "generated:%s:%d" % [kind, n]
 		if not _cache.has(key):
-			_cache[key] = generate(kind, variant % VARIANTS.get(kind, 1))
+			var made := generate(kind, n)
+			made.key = key
+			_cache[key] = made
 		return _cache[key]
 	var path := files[posmod(variant, files.size())]
 	if not _cache.has(path):
 		var loaded := VoxFile.load_model(path)
-		_cache[path] = loaded if not loaded.is_empty() else generate(kind, variant)
+		var made := loaded if not loaded.is_empty() else generate(kind, variant)
+		made.key = path
+		_cache[path] = made
 	return _cache[path]
 
 
-## Live reload: forget a file so the next model() reads it again. Returns the kind it belongs to.
+## Live reload: forget a file so the next model() reads it again (and the directory, in case the
+## file is new or gone). Returns the kind it belongs to.
 static func forget(path: String) -> String:
 	_cache.erase(path)
+	_paths.clear()
 	var base := path.get_file().get_basename()
 	var suffix := base.get_slice("_", base.get_slice_count("_") - 1)
 	return base.trim_suffix("_" + suffix) if suffix.is_valid_int() else base

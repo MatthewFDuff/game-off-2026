@@ -59,14 +59,24 @@ const FORCED_SHARE := 0.1
 const RADIO_DB := -6.0
 const RADIO_RANGE := 30.0
 
+## Every peer: room_lights changed (a room's lights cut, back on or flickering; start / stop).
+signal lights_changed
+
 var play: LevelPlay
 ## Every peer (the host decides): room or trigger id -> "off" or "flicker" (lights=, sprinklers).
+## Change it through _room_lights (or bump lights_version), so LevelView sees the change.
 var room_lights := {}
+## Every peer: counts changes to room_lights, so LevelView recomputes its lights only then.
+var lights_version := 0
 
 ## Host: reactive prop id -> {kind: "foam" | "gas", origin, size, voxels, total, intact, vented}.
 var _reactive := {}
 ## Host: door id -> its voxels when whole.
 var _door_total := {}
+## Host: the reactive props and the doors in chunk indexes (LevelPlay.ChunkIndex), so a voxel change
+## only tests the ones near it. Moved ones are put back (_skid, door_moved).
+var _reactive_index := LevelPlay.ChunkIndex.new()
+var _door_index := LevelPlay.ChunkIndex.new()
 ## Host: room id -> seconds of sprinkling left; and the lights mode it had before.
 var _sprinkling := {}
 var _sprinkle_before := {}
@@ -88,8 +98,11 @@ func _ready() -> void:
 ## Every peer, from LevelPlay.start (after its tables are built).
 func start() -> void:
 	room_lights.clear()
+	_lights_changed()
 	_reactive.clear()
 	_door_total.clear()
+	_reactive_index.clear()
+	_door_index.clear()
 	_sprinkling.clear()
 	_sprinkle_before.clear()
 	_clear_looks()
@@ -102,27 +115,45 @@ func start() -> void:
 		var kind := reactive_kind(str(object.name))
 		if kind == "":
 			continue
-		var model := Props.load_prop(object.name)
-		if model.is_empty():
+		var turned := Props.oriented(object.name, object.facing)
+		if turned.is_empty():
 			continue
-		var turned := Props.orient(model, object.facing)
 		var intact: int = lab.world.count_matching(object.origin, turned.size, turned.voxels)
 		_reactive[object.id] = {kind = kind, origin = object.origin, size = turned.size, voxels = turned.voxels,
 				total = maxi(intact, 1), intact = intact, vented = false}
+		_reactive_index.insert(object.id, AABB(Vector3(object.origin), Vector3(turned.size)))
 	for id: String in play._doors:
 		var door: Dictionary = play._doors[id]
 		_door_total[id] = lab.world.count_matching(door.origin, door.model.size, door.model.voxels)
+		door_moved(id)
 	if not lab.world.fragments_detached.is_connected(_on_fragments):
 		lab.world.fragments_detached.connect(_on_fragments)
 
 
 func stop() -> void:
 	room_lights.clear()
+	_lights_changed()
 	_reactive.clear()
+	_reactive_index.clear()
+	_door_index.clear()
 	_sprinkling.clear()
 	_clear_looks()
 	if play.lab.world.fragments_detached.is_connected(_on_fragments):
 		play.lab.world.fragments_detached.disconnect(_on_fragments)
+
+
+## Host: a door stopped somewhere new (LevelPlay._door_settled, restore): its index entry follows.
+func door_moved(id: String) -> void:
+	var door: Dictionary = play._doors.get(id, {})
+	if door.is_empty() or not _door_total.has(id):
+		_door_index.remove(id)
+		return
+	_door_index.insert(id, AABB(Vector3(door.origin), Vector3(door.model.size)))
+
+
+func _lights_changed() -> void:
+	lights_version += 1
+	lights_changed.emit()
 
 
 ## The reaction a prop has by name: "foam" (fire extinguishers), "gas" (gas cylinders) or "".
@@ -366,8 +397,9 @@ func _take_away(id: String, object: Dictionary) -> void:
 	var model := Props.load_prop(object.name)
 	if model.is_empty():
 		return
-	var turned := Props.orient(model, object.facing)
+	var turned := Props.oriented(object.name, object.facing)
 	_reactive.erase(id)
+	_reactive_index.remove(id)
 	var asset: Variant = play._assets.get(id)
 	play._assets.erase(id)
 	var origin: Vector3i = object.origin
@@ -384,8 +416,8 @@ func _flip(id: String, object: Dictionary) -> bool:
 	var twin := str(object.name) + "_flipped"
 	if not FileAccess.file_exists(Props.library_dir + twin + ".vox"):
 		return false
-	var before := Props.orient(Props.load_prop(object.name), object.facing)
-	var after := Props.orient(Props.load_prop(twin), object.facing)
+	var before := Props.oriented(object.name, object.facing)
+	var after := Props.oriented(twin, object.facing)
 	if before.is_empty() or after.is_empty():
 		return false
 	var origin: Vector3i = object.origin
@@ -400,6 +432,7 @@ func _flip(id: String, object: Dictionary) -> bool:
 		asset.intact = play.lab.world.count_matching(origin, after.size, after.voxels)
 		asset.total = maxi(asset.intact, 1)
 		play._assets[id] = asset
+		play.index_asset(id)
 	return true
 
 
@@ -408,11 +441,10 @@ func _flip(id: String, object: Dictionary) -> bool:
 ## Host, from LevelPlay._on_voxels_changed: reactive props that lost voxels go off, doors that lost
 ## enough are forced.
 func voxels_changed(changed: AABB) -> void:
-	for id: String in _reactive.keys():
+	# Only the ones in the chunks the change covers (ChunkIndex), each still tested against its box.
+	for id: String in _reactive_index.query(changed):
 		var rec: Dictionary = _reactive.get(id, {})
 		if rec.is_empty() or rec.get("moving", false):
-			continue
-		if not changed.intersects(AABB(Vector3(rec.origin), Vector3(rec.size))):
 			continue
 		var intact: int = play.lab.world.count_matching(rec.origin, rec.size, rec.voxels)
 		if intact >= rec.intact:
@@ -420,11 +452,9 @@ func voxels_changed(changed: AABB) -> void:
 		var lost: int = rec.intact - intact
 		rec.intact = intact
 		_set_off(id, rec, lost >= int(rec.total) * BLAST_SHARE)
-	for id: String in _door_total:
+	for id: String in _door_index.query(changed):
 		var door: Dictionary = play._doors.get(id, {})
 		if door.is_empty() or door.moving or id in play.forced_doors:
-			continue
-		if not changed.intersects(AABB(Vector3(door.origin), Vector3(door.model.size))):
 			continue
 		var intact: int = play.lab.world.count_matching(door.origin, door.model.size, door.model.voxels)
 		if intact < int(_door_total[id]) * (1.0 - FORCED_SHARE):
@@ -492,10 +522,12 @@ func _skid(id: String, rec: Dictionary, object: Dictionary) -> void:
 	rec.origin = target
 	rec.intact = lab.world.count_matching(target, size, rec.voxels)
 	rec.moving = false
+	_reactive_index.insert(id, AABB(Vector3(target), Vector3(size)))
 	if asset != null:
 		asset.origin = target
 		asset.intact = rec.intact
 		play._assets[id] = asset
+		play.index_asset(id)
 
 
 static func _distance_to_segment(point: Vector3, a: Vector3, b: Vector3) -> float:
@@ -687,6 +719,7 @@ func _room_lights(room: String, mode: String, sound: bool) -> void:
 		room_lights.erase(room)
 	else:
 		room_lights[room] = mode
+	_lights_changed()
 	if sound:
 		Sfx.play_at("power_down" if mode == "off" else "power_up", play.lab.view.to_world(room_box(room).get_center()), -6.0)
 

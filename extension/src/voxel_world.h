@@ -6,14 +6,48 @@
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/node3d.hpp>
+#include <godot_cpp/classes/shader.hpp>
 #include <godot_cpp/variant/aabb.hpp>
+#include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
+#include <godot_cpp/variant/string_name.hpp>
 #include <godot_cpp/variant/vector3i.hpp>
 
 #include <cstdint>
 #include <vector>
+
+namespace voxel {
+
+// Dictionary keys and shader parameter names, made once (StringName construction hashes the
+// string). Created on first use, freed when the extension unloads (free_keys from register_types).
+struct Keys {
+	godot::StringName hit = "hit";
+	godot::StringName position = "position";
+	godot::StringName normal = "normal";
+	godot::StringName voxel = "voxel";
+	godot::StringName material = "material";
+	godot::StringName distance = "distance";
+	godot::StringName on_floor = "on_floor";
+	godot::StringName hit_ceiling = "hit_ceiling";
+	godot::StringName hit_wall = "hit_wall";
+	godot::StringName step_up = "step_up";
+	godot::StringName valid = "valid";
+	godot::StringName at_target = "at_target";
+	godot::StringName breach = "breach";
+	godot::StringName next = "next";
+	godot::StringName voxels_changed = "voxels_changed";
+	godot::StringName cut_height = "cut_height";
+	godot::StringName walls_down_dir = "walls_down_dir";
+	godot::StringName walls_down_height = "walls_down_height";
+};
+const Keys &keys();
+void free_keys();
+
+} // namespace voxel
 
 namespace godot {
 
@@ -32,7 +66,13 @@ private:
 		std::vector<uint8_t> data;
 		uint8_t uniform_value = 0;
 		bool dirty = false;
+		// Dirty from an edit since the last flush (in pending_edits).
+		bool pending = false;
+		// Written since load (set_data / fill_all) or clear_changed_chunks().
+		bool changed = false;
 		MeshInstance3D *mesh_instance = nullptr;
+		// Reused across rebuilds: only its surface is replaced.
+		Ref<ArrayMesh> mesh;
 		int triangle_count = 0;
 	};
 
@@ -42,7 +82,16 @@ private:
 	Ref<Material> material;
 	PackedByteArray material_hardness;
 	float remesh_budget_ms = 4.0f;
-	int immediate_remesh_limit = 24;
+	// Of the chunks edits dirtied since the last flush, how many (nearest the camera first) are
+	// rebuilt in the flush before the frame is drawn; the rest go through the budgeted queue.
+	int immediate_remesh_limit = 3;
+	// 0: swap the terrain material between the play and editor shaders by its cutaway uniforms;
+	// 1: always the play shader; 2: always the editor shader. See update_terrain_shader.
+	int terrain_shader_mode = 0;
+	bool terrain_shaders_loaded = false;
+	Ref<Shader> play_shader;
+	Ref<Shader> editor_shader;
+	bool frame_hook_connected = false;
 	bool detach_floating = true;
 	int max_fragment_voxels = 6000;
 
@@ -75,9 +124,21 @@ private:
 	int nav_flow_target = -1; // A span under one of the targets, or -1 when the field is empty.
 	double last_flow_usec = 0.0;
 	int last_flow_reached = 0;
+	// update_flow_field skips the search when the target nodes and range are the same as last time
+	// and no nav column changed. Anything else that changes costs sets nav_flow_stale.
+	bool nav_flow_stale = true;
+	std::vector<int> last_flow_nodes;
+	float last_flow_max_distance = -1.0f;
+	int flow_rebuilds = 0;
+	int flow_skips = 0;
 
 	std::vector<Chunk> chunks;
 	std::vector<int> dirty_queue;
+	// Chunks dirtied by edits since the last flush, for flush_pending.
+	std::vector<int> pending_edits;
+	// Per chunk: touch_epoch when last added to a touched list (dedupe without a set).
+	std::vector<uint32_t> touch_mark;
+	uint32_t touch_epoch = 0;
 	voxel::MeshBuffers mesh_buffers;
 	std::vector<uint8_t> padded;
 
@@ -116,15 +177,32 @@ private:
 
 	int hardness_of(uint8_t material_id) const;
 
-	// Marks every chunk whose mesh can see the voxel range [from, to] (inclusive) dirty, then
-	// remeshes them right away if there are few enough, nearest the camera first.
+	// Marks every chunk whose mesh can see the voxel range [from, to] (inclusive) dirty and pending
+	// (built in the next flush, see flush_pending), then emits voxels_changed(from, to).
 	void finish_edit(const Vector3i &from, const Vector3i &to);
+	// Starts a touched list: adds the chunks whose meshes can see [from, to] (one voxel out) once.
+	void begin_touch();
+	void touch_range(const Vector3i &from, const Vector3i &to, std::vector<int> &touched);
+	// Compresses, marks dirty and pending every touched chunk.
+	void commit_touched(const std::vector<int> &touched);
+	// voxels_changed once per chunk holding any of points, with the bounds of the points in it.
+	void emit_per_chunk(const std::vector<Vector3i> &points);
 	void mark_dirty(int slot);
+	void mark_pending(int slot);
+	// Builds up to max_chunks of the pending chunks (nearest the camera first; < 0: all). The rest
+	// stay in dirty_queue for _process. Returns how many were built.
+	int flush_pending(int max_chunks);
+	void on_frame_pre_draw();
+	void update_terrain_shader();
 	bool chunk_needs_mesh(int slot) const;
 	// True when every voxel in the chunk is solid (uniform solid, or expanded with no air).
 	bool chunk_fully_solid(int slot) const;
 	Ref<ArrayMesh> arrays_to_mesh(const voxel::MeshBuffers &buffers) const;
+	// Replaces mesh's surfaces with the buffers (none when they are empty).
+	void fill_mesh(const Ref<ArrayMesh> &mesh, const voxel::MeshBuffers &buffers) const;
 	void build_host_table(const PackedByteArray &hosts, bool table[256]) const;
+	// The chunk plus its one-voxel apron into padded, a row at a time.
+	void copy_padded(int slot);
 	void build_chunk_mesh(int slot);
 	Vector3 camera_position_in_voxels() const;
 	void sort_by_camera_distance(std::vector<int> &slots) const;
@@ -132,7 +210,8 @@ private:
 	// Flood-fills from solid voxels next to the removed ones. Any connected piece that reaches no
 	// unbreakable voxel within max_fragment_voxels is floating: it is removed, the edit bounds grow
 	// to cover it, and it is reported through fragments_detached.
-	void detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to);
+	// detached, when given, gets every voxel removed this way.
+	void detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to, std::vector<Vector3i> *detached = nullptr);
 	// Shared tail of the carve functions: detach loose pieces, remesh, and report counts.
 	Dictionary finish_carve(const int removed[256], const std::vector<Vector3i> &removed_voxels, const Vector3i &from, const Vector3i &to);
 
@@ -168,6 +247,8 @@ public:
 	~VoxelWorld();
 
 	void _ready() override;
+	void _enter_tree() override;
+	void _exit_tree() override;
 	void _process(double delta) override;
 
 	void set_size_in_chunks(const Vector3i &value);
@@ -179,9 +260,24 @@ public:
 	void set_material(const Ref<Material> &value);
 	Ref<Material> get_material() const { return material; }
 	void set_material_hardness(const PackedByteArray &value) {
+		if (value == material_hardness) {
+			return;
+		}
 		material_hardness = value;
 		nav_hardness_stale = true;
 	}
+	void set_terrain_shader_mode(int value) { terrain_shader_mode = CLAMP(value, 0, 2); }
+	int get_terrain_shader_mode() const { return terrain_shader_mode; }
+	void set_play_shader(const Ref<Shader> &value) {
+		play_shader = value;
+		terrain_shaders_loaded = false;
+	}
+	Ref<Shader> get_play_shader() const { return play_shader; }
+	void set_editor_shader(const Ref<Shader> &value) {
+		editor_shader = value;
+		terrain_shaders_loaded = false;
+	}
+	Ref<Shader> get_editor_shader() const { return editor_shader; }
 	PackedByteArray get_material_hardness() const { return material_hardness; }
 	void set_remesh_budget_ms(float value) { remesh_budget_ms = value; }
 	float get_remesh_budget_ms() const { return remesh_budget_ms; }
@@ -205,11 +301,27 @@ public:
 	// and returns false (leaving the world alone) if the bytes aren't valid.
 	PackedByteArray get_data() const;
 	bool set_data(const PackedByteArray &data);
+	// Chunk slots (cx + cz * size.x + cy * size.x * size.z) written since the last set_data /
+	// fill_all / resize, or since clear_changed_chunks(), ascending. For delta saves and snapshots.
+	PackedInt32Array get_changed_chunks() const;
+	void clear_changed_chunks();
+	// CHUNK_VOLUME (32768) raw bytes per slot, concatenated in the order given (uniform chunks
+	// expanded; indexed x + z * 32 + y * 1024). Empty on a bad slot.
+	PackedByteArray get_chunks_data(const PackedInt32Array &slots) const;
+	// Writes get_chunks_data's bytes back to those slots: compresses uniform chunks, rebuilds their
+	// nav, marks them (and the neighbours whose faces they touch) for remeshing, marks them changed,
+	// and emits voxels_changed once per chunk. Returns false (writing nothing) on bad input.
+	bool set_chunks_data(const PackedInt32Array &slots, const PackedByteArray &data);
 	// Voxel-space box, from inclusive, to exclusive.
 	int fill_box(const Vector3i &from, const Vector3i &to, int material_id, bool only_air);
 	int fill_sphere(const Vector3 &center, float radius, int material_id, bool only_air);
 	// Removes voxels whose hardness <= max_hardness. Returns {material_id: voxels_removed}.
 	Dictionary carve_sphere(const Vector3 &center, float radius, int max_hardness);
+	// carve_sphere at every center in turn (a shotgun's pellets) as one edit: one loose-piece pass
+	// over everything removed, voxels_changed once per touched chunk, one remesh per chunk.
+	// Returns one {material_id: voxels_removed} per center, in order (empty where it hit nothing;
+	// a voxel two spheres share counts for the first).
+	Array carve_spheres(const PackedVector3Array &centers, float radius, int max_hardness);
 	// Same as carve_sphere, for every voxel whose center lies inside the world-space box.
 	Dictionary carve_box(const AABB &box, int max_hardness);
 
@@ -220,7 +332,8 @@ public:
 
 	// Many single voxels in one edit (fire): points holds x, y, z per voxel and materials one id
 	// each. Voxels turned to air drop any loose pieces, like a carve. Only the chunks around the
-	// points are remeshed, however far apart they are. Returns {material_id: voxels_removed}.
+	// points are remeshed, however far apart they are, and voxels_changed is emitted once per chunk
+	// written (see the signal). Returns {material_id: voxels_removed}.
 	Dictionary set_voxels(const PackedInt32Array &points, const PackedByteArray &materials);
 	// Voxels inside the sphere whose material is in hosts, as x, y, z per voxel, nearest the center
 	// first, at most max_count. exposed_only keeps those with air on at least one face.
@@ -279,20 +392,34 @@ public:
 		nav_hardness_stale = true;
 	}
 	int get_nav_breach_hardness() const { return nav_breach_hardness; }
-	void set_nav_breach_cost(int value) { nav_breach_cost = MAX(0, value); }
+	void set_nav_breach_cost(int value) {
+		if (MAX(0, value) != nav_breach_cost) {
+			nav_flow_stale = true;
+		}
+		nav_breach_cost = MAX(0, value);
+	}
+	// Spans the last flow field reached (the same as get_stats().flow_reached).
+	int get_flow_reached() const { return last_flow_reached; }
 	int get_nav_breach_cost() const { return nav_breach_cost; }
 
 	// Rebuilds the path costs from every walkable floor within max_distance (meters of walking) to
 	// the floor under the nearest target. targets is one Vector3, or an Array / PackedVector3Array
 	// of them (multi-source Dijkstra: one field leads every agent to whichever target is closest).
-	// Cheap enough to call a few times a second.
+	// Cheap enough to call a few times a second. When the targets stand on the same floor cells as
+	// last call, max_distance is the same and no voxel under any nav column changed, the field is
+	// kept as it is and the search is skipped.
 	void update_flow_field(const Variant &targets, float max_distance);
 	// Next step for an agent standing at feet. Returns {valid, next: Vector3 (world feet position of
 	// the next floor cell), distance: float (meters to target), breach: bool (next cell is through a
 	// barricade), at_target: bool (standing on a target's floor)}. valid is false when the agent isn't on a floor reached by the field.
 	Dictionary get_flow(const Vector3 &feet) const;
 
+	// Builds every dirty chunk now (load, snapshots).
 	void remesh_all_now();
+	// Builds the chunks edits dirtied since the last flush now, nearest the camera first; at most
+	// max_chunks of them when >= 0. Edits otherwise only mark chunks, and the world builds them
+	// once per frame (before drawing, immediate_remesh_limit of them, the rest over frames).
+	int flush_edits(int max_chunks);
 	Dictionary get_stats() const;
 };
 

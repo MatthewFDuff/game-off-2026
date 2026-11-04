@@ -14,6 +14,7 @@ const READ_WIDTH := 520.0
 const SCROLL_STEP := 40.0
 
 var lab: Lab
+var _fit_key := ""
 
 var _prompt := Label.new()
 var _panel := PanelContainer.new()
@@ -103,8 +104,12 @@ func reader_rect() -> Rect2:
 
 ## Keeps the reader on screen: its width fits the viewport and the text area is capped at a share of
 ## the viewport's height, scrolling past that.
-func _fit_reader() -> void:
+func _fit_reader(force := false) -> void:
 	var viewport := get_viewport_rect().size
+	var key := "%s|%s" % [_text.text, viewport]
+	if key == _fit_key and not force:
+		return
+	_fit_key = key
 	var width := minf(READ_WIDTH, viewport.x - 40.0)
 	_panel.custom_minimum_size.x = width
 	_scroll.custom_minimum_size.x = width - 36.0
@@ -155,7 +160,7 @@ func _on_reading_changed(id: String) -> void:
 	_text.text = text if text != "" else "(blank)"
 	var same := id == _reading
 	_reading = id
-	_fit_reader()
+	_fit_reader(true)
 	# A fresh note starts at the top; an experiment that just printed a line shows its end.
 	_scroll.scroll_vertical = 100000 if same else 0
 

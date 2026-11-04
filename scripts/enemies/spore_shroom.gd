@@ -34,7 +34,7 @@ func _think(delta: float) -> Dictionary:
 
 ## Host: a living player within RELEASE_RANGE that it can see (not through a floor or wall).
 func _player_in_sight() -> bool:
-	for player in manager.targets():
+	for player in manager.frame_targets():
 		if player.global_position.distance_to(global_position) < RELEASE_RANGE and Combat.sees_player(world, get_center(), player):
 			return true
 	return false

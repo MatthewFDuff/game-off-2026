@@ -91,12 +91,12 @@ If `ShiftSave.load()` fails or the layout hash differs, the host falls back to a
 ## 4. The cubicle's computer
 
 - **SINGLEPLAYER**: CONTINUE comes first and is lit when `ShiftSave.exists()` and the layout
-  matches, with its note: "clone held at <room>, <h:mm> on shift, $<owed> owed". Dim with "no clone
-  on file" when there is none, or "recorded against an older site layout" when the hash differs.
-  Enter starts the resume (solo). NEW GAME with a save on file opens **DISCARD**: "A shift is in
-  progress. Your clone held at the <room> and the $<owed> recorded against you will be discarded.
-  Fung AI does not refund clones." with DISCARD AND CLOCK IN (clears the save, then orientation as
-  usual) and KEEP IT (back).
+  matches, with its note: "clone held at <room>, <h:mm> on shift" (the owed total is in the record
+  but never shown before the statement). Dim with "no record on file" when there is none, or
+  "recorded against an older site layout" when the hash differs. Enter starts the resume (solo).
+  APPLY FOR JOB (the new game) with a save on file opens **DISCARD**: "A shift is in progress. Your
+  clone held at the <room> will be discarded. Fung AI does not refund clones." with DISCARD AND
+  CLOCK IN (clears the save, then orientation as usual) and KEEP IT (back).
 - **HOST A SHIFT**: a CONTINUE SHIFT item above BEGIN ORIENTATION when a save is on file and the
   layout matches (same note). It opens the session with `shift` and `resume`, level `laboratory`,
   and enters the level at once (no orientation, no waiting room). The roster and addresses show as

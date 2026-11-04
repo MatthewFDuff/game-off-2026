@@ -106,7 +106,11 @@ func _run() -> void:
 	_check("the summary has the clock and the party", is_equal_approx(float(summary.get("elapsed", 0.0)), 125.0) and summary.get("party", []).size() == 1,
 			str(summary))
 	_check("the record has every key", ShiftSave.load().has_all(["level", "level_hash", "saved_at", "elapsed", "checkpoint", "power", "keycards",
-			"armed", "prop_state", "doors", "fired", "damage_by_name", "total_damage", "deaths", "director", "items_taken", "party", "voxels"]))
+			"armed", "prop_state", "doors", "fired", "damage_by_name", "total_damage", "deaths", "director", "items_taken", "party",
+			"chunk_slots", "chunk_data"]))
+	_check("the save is a delta of changed chunks", ShiftSave.load().get("format") == ShiftSave.FORMAT
+			and ShiftSave.load().chunk_slots.size() > 0 and ShiftSave.load().chunk_slots.size() < _lab.world.get_stats().get("chunks", 3072),
+			str(ShiftSave.load().get("chunk_slots", PackedInt32Array()).size()))
 
 	# The finale blocks saving.
 	director.finale_active = true
@@ -134,6 +138,15 @@ func _run() -> void:
 	_check("the story counts the saved clone", _lab.story.deaths == 1, str(_lab.story.deaths))
 	_check("the seal is still locked", play.is_door_locked("d_m1_stair") and not play.is_door_open("d_m1_stair"))
 	_check("no damage counted by the world swap", play.total_damage == expect.total_damage, str(play.total_damage))
+
+	# --- An older whole-world save (format 1) still resumes --------------------------------------------
+	var full_record := ShiftSave.load()
+	var full_world: PackedByteArray = _lab.world.get_data()
+	ShiftSave.write(full_record, full_world)
+	var third = _lab
+	net.start_solo("laboratory", "play", {shift = true, resume = true})
+	await _enter_lab(third)
+	_check("a format 1 (whole-world) save resumes", _lab.resumed and _hash(_lab.world.get_data()) == _hash(full_world))
 
 	# --- A save from an older layout -----------------------------------------------------------------
 	var path := SCRATCH.path_join("shift.json")

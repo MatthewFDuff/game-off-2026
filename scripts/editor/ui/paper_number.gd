@@ -45,7 +45,9 @@ func _ready() -> void:
 func set_value_quietly(new_value: float) -> void:
 	value = clampf(new_value, min_value, max_value)
 	if not has_focus():
-		text = _format(value)
+		var shown := _format(value)
+		if text != shown: # Called every frame by some panels: setting text redraws the field.
+			text = shown
 
 
 func _gui_input(event: InputEvent) -> void:

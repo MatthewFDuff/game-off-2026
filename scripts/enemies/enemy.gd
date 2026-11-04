@@ -61,6 +61,19 @@ const STATUS_TINTS := {
 }
 ## Speed multiplier while slowed (foam).
 const FOAM_SLOW := 0.5
+## Simulation LOD (host): an enemy farther than this many meters from every target player thinks
+## and moves every LOD_STRIDE physics frames, with the skipped time added on (positions only reach
+## peers at EnemyManager.STATE_RATE anyway).
+const LOD_RANGE := 25.0
+const LOD_STRIDE := 2
+## Host: seconds a flow field lookup (world.get_flow) is reused while it stays in the same nav
+## column; the field itself refreshes at EnemyManager.FLOW_RATE.
+const FLOW_CACHE := 0.1
+## Breaching: when a dig finds nothing it can remove, the next try waits twice as long, up to this.
+const BREACH_BACKOFF_MAX := 4.8
+## A _think result for standing still, and a ray_test miss (both shared, never modified).
+const _IDLE := {direction = Vector3.ZERO, facing = Vector3.ZERO, breach = false}
+const _NO_HIT := {}
 
 @export var kind := "basic"
 @export var max_health := 30.0
@@ -141,9 +154,27 @@ var _move_speed := 0.0
 var _status_total := {}
 var _status_tick := 0.0
 var _embers: CPUParticles3D
+## Host, simulation LOD: physics time skipped since it last ran.
+var _lod_time := 0.0
+## Host: the last world.get_flow result, when (msec) and in which nav column it was looked up.
+var _flow: Dictionary = {}
+var _flow_msec := -1000000
+var _flow_column := Vector3i(-999999, 0, 0)
+## Host: how long the next breach waits (doubles while digs find nothing, see _breach).
+var _breach_wait := -1.0
+## msec of the last hit flash and sound (EnemyManager rate-limits them per enemy).
+var last_hit_fx_msec := -1000000
+## The body's bounding sphere radius around get_center() (ray_test's quick reject).
+var _bound_radius := 1.0
 
-## "kind:variant" -> ArrayMesh, shared by every enemy wearing that model.
+## "<kind>:<model key>" -> ArrayMesh (EnemyModels.model's key: its file), shared by every enemy
+## wearing that model. Bounded by the number of model files.
 static var _meshes := {}
+## The same keys -> material id -> voxel count of the body (the death burst).
+static var _debris := {}
+## Breach power -> PackedByteArray of the material ids it can dig (world.find_in_sphere hosts).
+static var _breach_hosts := {}
+static var _breach_hardness := PackedByteArray()
 static var _flash_material: StandardMaterial3D
 ## status -> overlay material, shared.
 static var _tint_materials := {}
@@ -151,6 +182,7 @@ static var _tint_materials := {}
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	Combat.invalidate()
 	health = max_health
 	_visual = get_node_or_null("Visual")
 	if _visual == null:
@@ -168,7 +200,7 @@ func build_body() -> void:
 	var model := EnemyModels.model(kind, variant)
 	if model.is_empty():
 		return
-	var key := "%s:%d" % [kind, variant]
+	var key := mesh_key(model)
 	if not _meshes.has(key):
 		_meshes[key] = world.build_model_mesh(model.size, model.voxels)
 	if _mesh == null:
@@ -179,8 +211,14 @@ func build_body() -> void:
 	var size := Vector3(model.size) * world.voxel_size
 	_mesh.position = Vector3(-size.x * 0.5, 0.0, -size.z * 0.5)
 	bounds = AABB(_mesh.position, size)
+	_bound_radius = maxf(bounds.size.length() * 0.5, 0.05)
 	hit_zones.clear()
 	_setup_hit_zones(model)
+
+
+## The cache key of a model of this enemy's kind (_meshes, _debris): "<kind>:<model key>".
+func mesh_key(model: Dictionary) -> String:
+	return "%s:%s" % [kind, model.get("key", str(variant))]
 
 
 ## Live reload: drop the cached meshes so build_body reads the new files.
@@ -188,6 +226,9 @@ static func forget_meshes(of_kind: String) -> void:
 	for key: String in _meshes.keys():
 		if key.begins_with(of_kind + ":"):
 			_meshes.erase(key)
+	for key: String in _debris.keys():
+		if key.begins_with(of_kind + ":"):
+			_debris.erase(key)
 
 
 ## Subclasses add named hit zones here (crit spots), sized from the model.
@@ -251,28 +292,44 @@ func world_bounds() -> AABB:
 
 
 ## Where a ray (normalized direction) first meets this enemy: {distance, position, normal, zone,
-## crit}, or {} on a miss. Named zones win over the body.
-func ray_test(from: Vector3, direction: Vector3) -> Dictionary:
+## crit}, or an empty shared Dictionary on a miss (don't modify it). Named zones win over the body.
+## A hit farther than max_distance may be reported as a miss (the bounding-sphere reject).
+func ray_test(from: Vector3, direction: Vector3, max_distance := INF) -> Dictionary:
+	if not ray_could_hit(from, direction, max_distance):
+		return _NO_HIT
 	var inverse := global_transform.affine_inverse()
 	var local_from := inverse * from
 	var local_dir := (inverse.basis * direction).normalized()
-	var body := _ray_box(bounds, local_from, local_dir)
-	if body.is_empty():
-		return {}
-	var best := {}
+	var best := _slab(bounds, local_from, local_dir)
+	if best.x < 0.0:
+		return _NO_HIT
+	var best_zone := "body"
+	var best_crit := 1.0
+	var zoned := false
 	for zone_name: String in hit_zones:
 		var zone: Dictionary = hit_zones[zone_name]
-		var hit := _ray_box(zone.box, local_from, local_dir)
-		if not hit.is_empty() and (best.is_empty() or hit.t < best.t):
+		var hit := _slab(zone.box, local_from, local_dir)
+		if hit.x >= 0.0 and (not zoned or hit.x < best.x):
 			best = hit
-			best.zone = zone_name
-			best.crit = zone.get("crit", 1.0)
-	if best.is_empty():
-		best = body
-		best.zone = "body"
-		best.crit = 1.0
-	return {distance = best.t, position = global_transform * (local_from + local_dir * best.t),
-			normal = (global_basis * best.normal).normalized(), zone = best.zone, crit = best.crit}
+			best_zone = zone_name
+			best_crit = zone.get("crit", 1.0)
+			zoned = true
+	return {distance = best.x, position = global_transform * (local_from + local_dir * best.x),
+			normal = (global_basis * Vector3(best.y, best.z, best.w)).normalized(), zone = best_zone, crit = best_crit}
+
+
+## Whether a ray (normalized direction) could meet the body within max_distance: a test against its
+## bounding sphere around the middle of its bounds. Cheap: no transform inverse.
+func ray_could_hit(from: Vector3, direction: Vector3, max_distance := INF) -> bool:
+	var to := global_position + Vector3.UP * (bounds.position.y + bounds.size.y * 0.5) - from
+	var r2 := _bound_radius * _bound_radius
+	var d2 := to.length_squared()
+	if d2 <= r2:
+		return true # Starts inside the sphere.
+	var along := to.dot(direction)
+	if along < 0.0 or along - _bound_radius > max_distance:
+		return false
+	return d2 - along * along <= r2
 
 
 ## The zone containing a world point (where a shot landed), "body" if none.
@@ -286,6 +343,14 @@ func zone_at(point: Vector3) -> String:
 
 ## Slab test: {t, normal} where the ray enters the box (t = 0 when it starts inside), or {}.
 static func _ray_box(box: AABB, from: Vector3, dir: Vector3) -> Dictionary:
+	var hit := _slab(box, from, dir)
+	if hit.x < 0.0:
+		return {}
+	return {t = hit.x, normal = Vector3(hit.y, hit.z, hit.w)}
+
+
+## _ray_box without a Dictionary: Vector4(t, normal.x, normal.y, normal.z), t = -1 on a miss.
+static func _slab(box: AABB, from: Vector3, dir: Vector3) -> Vector4:
 	var t_near := -INF
 	var t_far := INF
 	var normal := Vector3.ZERO
@@ -294,7 +359,7 @@ static func _ray_box(box: AABB, from: Vector3, dir: Vector3) -> Dictionary:
 		var high: float = box.end[axis]
 		if absf(dir[axis]) < 0.000001:
 			if from[axis] < low or from[axis] > high:
-				return {}
+				return Vector4(-1.0, 0.0, 0.0, 0.0)
 			continue
 		var t1: float = (low - from[axis]) / dir[axis]
 		var t2: float = (high - from[axis]) / dir[axis]
@@ -308,10 +373,10 @@ static func _ray_box(box: AABB, from: Vector3, dir: Vector3) -> Dictionary:
 			normal[axis] = -signf(dir[axis])
 		t_far = minf(t_far, t2)
 		if t_near > t_far or t_far < 0.0:
-			return {}
+			return Vector4(-1.0, 0.0, 0.0, 0.0)
 	if t_near < 0.0:
-		return {t = 0.0, normal = -dir}
-	return {t = t_near, normal = normal}
+		return Vector4(0.0, -dir.x, -dir.y, -dir.z)
+	return Vector4(t_near, normal.x, normal.y, normal.z)
 
 
 # --- Host simulation -----------------------------------------------------------------------------
@@ -405,13 +470,16 @@ func _physics_process(delta: float) -> void:
 		return
 	if _emerge_tick(delta):
 		return
+	delta = _lod_delta(delta)
+	if delta <= 0.0:
+		return
 	_tick_statuses(delta)
 	if not alive:
 		return
 	_attack_timer -= delta
 	_breach_timer -= delta
 	var factor := status_speed()
-	var think := {direction = Vector3.ZERO, facing = Vector3.ZERO, breach = false}
+	var think := _IDLE
 	if factor > 0.0:
 		think = _think_raging(delta) if statuses.has("raging") else _think(delta)
 	else:
@@ -451,6 +519,31 @@ func _physics_process(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, atan2(-facing.x, -facing.z), 1.0 - exp(-10.0 * delta))
 	if global_position.y < KILL_HEIGHT:
 		manager.despawn(id)
+
+
+## Host, simulation LOD: the delta to simulate this physics frame, or 0 to skip it. Within
+## LOD_RANGE of a target player (or mid wind-up) every frame runs; farther, one frame in LOD_STRIDE
+## (staggered by id) runs, with the skipped time added on.
+func _lod_delta(delta: float) -> float:
+	_lod_time += delta
+	if (Engine.get_physics_frames() + id) % LOD_STRIDE != 0 and _windup <= 0.0 and manager.is_far(global_position, LOD_RANGE):
+		return 0.0
+	var out := minf(_lod_time, delta * LOD_STRIDE)
+	_lod_time = 0.0
+	return out
+
+
+## Host: world.get_flow at its feet, reused for up to FLOW_CACHE seconds while it stays in the same
+## nav column (VoxelWorld NAV_COLUMN = 4 voxels a side) and the field hasn't refreshed since.
+func flow_here() -> Dictionary:
+	var v := world.world_to_voxel(global_position)
+	var column := Vector3i(floori(v.x / 4.0), floori(v.y / 4.0), floori(v.z / 4.0))
+	var now := Time.get_ticks_msec()
+	if column != _flow_column or now - _flow_msec > int(FLOW_CACHE * 1000.0) or _flow_msec < manager.flow_msec:
+		_flow = world.get_flow(global_position)
+		_flow_msec = now
+		_flow_column = column
+	return _flow
 
 
 ## Host, every physics tick: decides where to go. Returns {direction (horizontal, length <= 1),
@@ -494,7 +587,7 @@ func _think(delta: float) -> Dictionary:
 	var goal := target.global_position
 	# Close but out of sight (a wall between): the flow field leads around it.
 	if flat > 2.0 or not seen:
-		var flow: Dictionary = world.get_flow(global_position)
+		var flow := flow_here()
 		if flow.valid and not flow.at_target:
 			goal = flow.next
 			out.breach = flow.breach
@@ -547,17 +640,43 @@ func _attack_enemy(target: Enemy, connects: bool) -> void:
 		manager.damage(target.id, damage, global_position, "enemy")
 
 
-## Host: digs a body-sized hole ahead (through WorldSync, so every peer's world agrees).
+## Host: digs a body-sized hole ahead (through WorldSync, so every peer's world agrees). When there
+## is nothing there it could dig (world.find_in_sphere for materials at or below breach_power), it
+## sends nothing and waits twice as long before the next try (up to BREACH_BACKOFF_MAX); a dig that
+## finds something resets the wait to breach_cooldown.
 func _breach(direction: Vector3) -> void:
-	_breach_timer = breach_cooldown
 	var forward := (direction if direction.length() > 0.1 else -global_basis.z).normalized()
 	forward.y = 0.0
 	# Centered above the floor so it never digs the ground away.
 	var point := global_position + forward * breach_reach + Vector3.UP * (breach_radius + 0.08)
-	manager.world_sync.carve_sphere(point, breach_radius, breach_power, -forward)
+	var hosts := breach_hosts(world, breach_power)
+	if not hosts.is_empty() and not world.find_in_sphere(point, breach_radius, hosts, false, 1).is_empty():
+		_breach_wait = breach_cooldown
+		manager.world_sync.carve_sphere(point, breach_radius, breach_power, -forward)
+	else:
+		_breach_wait = minf(maxf(_breach_wait, breach_cooldown) * 2.0, maxf(BREACH_BACKOFF_MAX, breach_cooldown))
+	_breach_timer = _breach_wait
 	if on_floor:
 		velocity.y = 3.5 # Hop, in case it's a ledge it can't dig.
 	_stuck_time = 0.0
+
+
+## The material ids a dig of power (its max hardness) removes, as world.find_in_sphere hosts. Empty
+## only when nothing qualifies (find_in_sphere would read an empty list as "any solid"). Cached per
+## power until the world's hardness table changes.
+static func breach_hosts(voxel_world: VoxelWorld, power: int) -> PackedByteArray:
+	var hardness := voxel_world.material_hardness
+	if hardness != _breach_hardness:
+		_breach_hardness = hardness
+		_breach_hosts.clear()
+	if not _breach_hosts.has(power):
+		var hosts := PackedByteArray()
+		for m in range(1, 255):
+			var h: int = hardness[m] if m < hardness.size() else 1
+			if h <= power:
+				hosts.append(m)
+		_breach_hosts[power] = hosts
+	return _breach_hosts[power]
 
 
 # --- Every peer ----------------------------------------------------------------------------------
@@ -647,7 +766,7 @@ func _make_embers() -> CPUParticles3D:
 	# Voxel embers (VoxelFx): grid-snapped cubes stepping yellow -> orange -> red, shrinking out.
 	var embers := VoxelFx.particles(0.1, [Color(1.0, 0.85, 0.3), Color(1.0, 0.5, 0.1), Color(0.85, 0.2, 0.05)], 0.4)
 	embers.name = "Embers"
-	embers.amount = 16
+	embers.amount = 8 if OS.has_feature("web") else 16
 	embers.lifetime = 0.8
 	embers.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
 	embers.emission_box_extents = bounds.size * Vector3(0.4, 0.4, 0.4)
@@ -679,14 +798,19 @@ func die() -> void:
 	queue_free()
 
 
-## Material id -> voxel count of the body, for the death burst.
+## Material id -> voxel count of the body, for the death burst. Counted once per model (_debris);
+## don't modify the result.
 func _debris_counts() -> Dictionary:
-	var counts := {}
 	var model := EnemyModels.model(kind, variant)
+	var key := mesh_key(model)
+	if _debris.has(key):
+		return _debris[key]
+	var counts := {}
 	var voxels: PackedByteArray = model.get("voxels", PackedByteArray())
 	for i in voxels.size():
 		if voxels[i] != 0:
 			counts[voxels[i]] = counts.get(voxels[i], 0) + 1
+	_debris[key] = counts
 	return counts
 
 

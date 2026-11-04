@@ -20,6 +20,8 @@ const GRID := 0.05
 static var _cubes := {}
 static var _volumes := {}
 static var _curves := {}
+static var _ramps := {}
+static var _shared_materials := {}
 
 
 ## The cube shader: snap makes each instance a grid-snapped cube of edge cube_size (at scale 1).
@@ -31,6 +33,17 @@ static func material(cube_size := 0.1, snap := true, tint := Color.WHITE) -> Sha
 	m.set_shader_parameter("tint", tint)
 	m.set_shader_parameter("grid", GRID)
 	m.set_shader_parameter("size_step", GRID)
+	return m
+
+
+## material(), shared: one per (cube_size, snap, tint), for callers that never change its
+## parameters afterwards (projectiles, splats). Change a returned one and every user changes.
+static func shared_material(cube_size := 0.1, snap := true, tint := Color.WHITE) -> ShaderMaterial:
+	var key := "%.3f:%d:%s" % [cube_size, int(snap), tint.to_html(true)]
+	var m: ShaderMaterial = _shared_materials.get(key)
+	if m == null:
+		m = material(cube_size, snap, tint)
+		_shared_materials[key] = m
 	return m
 
 
@@ -54,7 +67,11 @@ static func cube(size: float) -> BoxMesh:
 
 
 ## colors (Color, alpha included) in equal steps over a particle's life, with no blending between.
+## Shared per list of colors: don't change the returned gradient.
 static func ramp(colors: Array) -> Gradient:
+	var cached: Gradient = _ramps.get(colors)
+	if cached != null:
+		return cached
 	var gradient := Gradient.new()
 	var offsets := PackedFloat32Array()
 	var packed := PackedColorArray()
@@ -64,6 +81,7 @@ static func ramp(colors: Array) -> Gradient:
 	gradient.offsets = offsets
 	gradient.colors = packed
 	gradient.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	_ramps[colors.duplicate()] = gradient
 	return gradient
 
 
@@ -202,6 +220,15 @@ static func stain(radius: float, cell := 0.1, variant := 0) -> ArrayMesh:
 	var mesh := st.commit()
 	_volumes[key] = mesh
 	return mesh
+
+
+## Builds the stains (stain()) of every radius in radii, each of variants variants, so the first
+## cloud of a size doesn't build its mesh mid-fight. Call at level load with the radii clouds use
+## (Cloud draws radius * each of its STAIN_STEPS, variant id % 3).
+static func prewarm_stains(radii: Array, cell := 0.1, variants := 3) -> void:
+	for r in radii:
+		for v in variants:
+			stain(float(r), cell, v)
 
 
 ## The face of the cell at corner (size a side) facing normal.

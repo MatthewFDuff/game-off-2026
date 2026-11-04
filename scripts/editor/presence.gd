@@ -35,6 +35,12 @@ var _prisms: MeshInstance3D
 var _ghost: MeshInstance3D
 ## "<name>" over what they're moving or resizing (their soft lock).
 var _lock_tag: Label3D
+## What the line meshes were last drawn from: they're only drawn again when it changes.
+var _drawn_cursor: Variant = null
+var _drawn_prisms: Variant = null
+var _drawn_selection := []
+var _selection_box := AABB()
+var _drawn_ghost := {}
 
 
 func _ready() -> void:
@@ -137,8 +143,9 @@ func _show() -> void:
 		_name_tag.text = player.display_name
 	var cursor: Variant = state.get("cursor") if editing else null
 	_cursor.visible = cursor != null
-	if cursor != null:
+	if cursor != null and cursor != _drawn_cursor:
 		lab.view.draw_box(_cursor.mesh, cursor)
+	_drawn_cursor = cursor
 	var preview: Variant = state.get("preview") if editing else null
 	_preview.visible = preview != null
 	if preview != null:
@@ -148,24 +155,31 @@ func _show() -> void:
 		_preview.global_position = lab.view.to_world(box.position) + size * 0.5
 	var prisms: Array = state.get("prisms", []) if editing else []
 	_prisms.visible = not prisms.is_empty()
-	if _prisms.visible:
+	if _prisms.visible and prisms != _drawn_prisms:
 		_draw_prisms(_prisms.mesh, prisms)
+	_drawn_prisms = prisms if _prisms.visible else null
 	var ghost: Dictionary = state.get("ghost", {}) if editing else {}
 	_ghost.visible = not ghost.is_empty()
-	if _ghost.visible:
+	if _ghost.visible and ghost != _drawn_ghost:
 		_ghost.mesh = lab.view.prop_mesh(ghost.name, ghost.facing)
 		_ghost.material_override = lab.world.material
 		_ghost.global_position = lab.view.to_world(Vector3(ghost.origin))
+	_drawn_ghost = ghost
 	var selected: Dictionary = lab.level.objects.get(state.get("selected", ""), {}) if editing and lab.level else {}
 	_selection.visible = not selected.is_empty()
 	_lock_tag.visible = false
 	if _selection.visible:
-		var box := LevelBuild.box_of(selected, lab.level.objects).grow(0.3)
-		var corners := LevelBuild.corners_of(selected, lab.level.objects)
-		if corners.is_empty():
-			lab.view.draw_box(_selection.mesh, box)
-		else:
-			lab.view.draw_corners(_selection.mesh, corners) # A wall square to itself, 45° too.
+		# Drawn again when the selection or any object changes (a wall's box follows its storey).
+		var drawn := [selected.id, lab.edits.objects_version, lab.level.get_instance_id()]
+		if drawn != _drawn_selection:
+			_drawn_selection = drawn
+			_selection_box = LevelBuild.box_of(selected, lab.level.objects).grow(0.3)
+			var corners := LevelBuild.corners_of(selected, lab.level.objects)
+			if corners.is_empty():
+				lab.view.draw_box(_selection.mesh, _selection_box)
+			else:
+				lab.view.draw_corners(_selection.mesh, corners) # A wall square to itself, 45° too.
+		var box := _selection_box
 		if lab.edits.locks.get(selected.id, 0) == player.get_multiplayer_authority():
 			_lock_tag.visible = true
 			_lock_tag.text = "%s is moving this" % player.display_name

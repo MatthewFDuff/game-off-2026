@@ -5,11 +5,14 @@ extends Control
 ## three volumes, in the pixel font at 8 * scale px, labels left and values right as "<  value  >",
 ## the chosen row marked with the amber caret. It is keyboard-driven through handle_key (the
 ## console feeds it the screen's keys; the pause panel its own): up / down choose a row, left /
-## right change it, Enter flips a two-state row, Esc emits closed. Every change goes straight to
+## right change it, Enter flips a two-state row (or, on the console's Name row, emits rename),
+## Esc or Backspace emits closed. Every change goes straight to
 ## GameSettings.set_value, which saves and applies it. Hard pixels only: no panel of its own, so
 ## it takes the background of whatever holds it.
 
 signal closed
+## Enter on the Name row (the console's menu only): the holder opens its name field.
+signal rename
 
 const Settings := preload("res://scripts/game_settings.gd")
 const CARET_COLOR := Color(0.95, 0.68, 0.16)
@@ -23,6 +26,9 @@ const ROWS: Array[Dictionary] = [
 	{key = "volume_effects", label = "Effects", kind = "range", range = Settings.VOLUME_RANGE},
 	{key = "volume_music", label = "Music", kind = "range", range = Settings.VOLUME_RANGE},
 ]
+## The Name row (kind "name"): shows the name on file, Enter emits rename. Only the console has it
+## (the pause panel can't type a name).
+const NAME_ROW: Dictionary = {key = "name", label = "Name", kind = "name"}
 ## The widest values the rows show, so the arrows line up down the column.
 const WIDE_VALUES := ["Attend", "0.00x", "110"]
 
@@ -30,6 +36,8 @@ const WIDE_VALUES := ["Attend", "0.00x", "110"]
 var pixel_scale := 1
 ## The rows' text color (the console's green by default).
 var color := Color(0.75, 0.95, 0.8)
+## The rows this menu shows: ROWS, plus NAME_ROW when created with_name.
+var rows: Array[Dictionary] = []
 var selected := 0
 var _column := VBoxContainer.new()
 var _carets: Array[Label] = []
@@ -39,11 +47,15 @@ var _lefts: Array[Label] = []
 var _rights: Array[Label] = []
 
 
-## A settings menu at scale (1 on the console, 2 on the pause panel), in color.
-static func create(scale: int, text_color := Color(0.75, 0.95, 0.8)) -> SettingsMenu:
+## A settings menu at scale (1 on the console, 2 on the pause panel), in color; with_name adds the
+## Name row (the console).
+static func create(scale: int, text_color := Color(0.75, 0.95, 0.8), with_name := false) -> SettingsMenu:
 	var menu := SettingsMenu.new()
 	menu.pixel_scale = maxi(scale, 1)
 	menu.color = text_color
+	menu.rows.assign(ROWS)
+	if with_name:
+		menu.rows.append(NAME_ROW)
 	menu._build()
 	return menu
 
@@ -70,15 +82,15 @@ func handle_key(event: InputEvent) -> bool:
 		return false
 	var key: Key = (event as InputEventKey).keycode
 	match key:
-		KEY_ESCAPE:
+		KEY_ESCAPE, KEY_BACKSPACE:
 			if event.is_echo():
 				return true
 			closed.emit()
 		KEY_UP, KEY_W:
-			selected = posmod(selected - 1, ROWS.size())
+			selected = posmod(selected - 1, rows.size())
 			_blip()
 		KEY_DOWN, KEY_S:
-			selected = posmod(selected + 1, ROWS.size())
+			selected = posmod(selected + 1, rows.size())
 			_blip()
 		KEY_LEFT, KEY_A:
 			_step(-1)
@@ -87,7 +99,9 @@ func handle_key(event: InputEvent) -> bool:
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			if event.is_echo():
 				return true
-			if ROWS[selected].kind == "choice" and ROWS[selected].values.size() == 2:
+			if rows[selected].kind == "name":
+				rename.emit()
+			elif rows[selected].kind == "choice" and rows[selected].values.size() == 2:
 				_step(1, true)
 		_:
 			return false
@@ -95,8 +109,10 @@ func handle_key(event: InputEvent) -> bool:
 	return true
 
 
-## The value the row shows ("Attend", "On", "1.25x", "80", "7").
+## The value the row shows ("Attend", "On", "1.25x", "80", "7", the name).
 static func value_text(row: Dictionary, value: Variant) -> String:
+	if row.kind == "name":
+		return str(value) if str(value).strip_edges() != "" else "(none)"
 	if row.kind == "choice":
 		var index: int = row.values.find(value)
 		return str(row.names[index]) if index >= 0 else str(value)
@@ -108,6 +124,8 @@ static func value_text(row: Dictionary, value: Variant) -> String:
 func _build() -> void:
 	if not _carets.is_empty():
 		return
+	if rows.is_empty():
+		rows.assign(ROWS)
 	var font_size := PixelFont.SIZE * pixel_scale
 	_column.add_theme_constant_override("separation", 2 * pixel_scale)
 	_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -120,7 +138,7 @@ func _build() -> void:
 	var value_width := 0.0
 	for text: String in WIDE_VALUES:
 		value_width = maxf(value_width, PixelFont.font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
-	for row: Dictionary in ROWS:
+	for row: Dictionary in rows:
 		var line := HBoxContainer.new()
 		line.add_theme_constant_override("separation", 3 * pixel_scale)
 		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -164,7 +182,9 @@ func _step(direction: int, wrap := false) -> void:
 	var settings := _settings()
 	if settings == null:
 		return
-	var row: Dictionary = ROWS[selected]
+	var row: Dictionary = rows[selected]
+	if row.kind == "name":
+		return
 	var current: Variant = settings.get_value(row.key)
 	var next: Variant = current
 	if row.kind == "choice":
@@ -191,7 +211,7 @@ func _on_changed(_key: String) -> void:
 func _refresh() -> void:
 	var settings := _settings()
 	for i in _carets.size():
-		var row: Dictionary = ROWS[i]
+		var row: Dictionary = rows[i]
 		var chosen := i == selected
 		_carets[i].modulate.a = 1.0 if chosen else 0.0
 		var dim := Color(1, 1, 1, 1.0 if chosen else 0.7)
@@ -202,6 +222,11 @@ func _refresh() -> void:
 			continue
 		var value: Variant = settings.get_value(row.key)
 		_values[i].text = value_text(row, value)
+		if row.kind == "name":
+			# No arrows: Enter opens the name field.
+			_lefts[i].modulate.a = 0.0
+			_rights[i].modulate.a = 0.0
+			continue
 		var at_min: bool
 		var at_max: bool
 		if row.kind == "choice":

@@ -6,12 +6,14 @@ extends Node3D
 ## HUD, no networking). E or a click on what they aim at: the computer (the camera zooms onto its
 ## screen), the rubber duck (a squeak, then the computer on its Site maintenance page), the sleeping
 ## bag (the clock-out prompt; Esc in the room shows it too), the notes (the reader panel) and the
-## plant. Walking out of the opening freezes the player with an error buzz and an intercom line
-## (escalating, counted in `exits`) and sets them back inside.
+## plant. Straying too far into the hallway (HALL_DEPTH past the opening) freezes the player with
+## an error buzz, a flashing red light and an intercom line (escalating, counted in `exits`) and
+## sets them back inside. Back in the room from a panel or the screen, the mouse is captured again.
 ##
 ## The console is drawn in pixel text on the monitor's screen voxels (a SubViewport on a quad) and
-## is keyboard-driven: arrows move, Enter / SHIFT choose, Esc backs out one page (from the top page
-## the camera zooms back out). Its pages (Page) are the sign-in, the main menu, singleplayer,
+## is keyboard-driven: arrows move, Enter / SHIFT select, Esc (or Backspace outside a field) backs
+## out one page (from the top page the camera zooms back out). Its pages (Page) are the sign-in
+## (nobody is signed in at launch; the name on file is offered), the main menu, singleplayer,
 ## multiplayer (host / join a shift), settings (the shared SettingsMenu), the payroll statement
 ## left by the last shift (Net.pending_statement), Site maintenance (the old menu's testing and
 ## editing: levels, new level, play solo, host co-op, the co-op editor) and the LOG: orientation,
@@ -85,12 +87,14 @@ const CLOCK_OUT_TEXT := "Clock out? Fung AI wishes you a restful six hours."
 const CLOCK_OUT_KEYS := "Y / Enter: clock out     N / Esc: stay"
 const CLOSE_TAB_TEXT := "You may close the tab."
 const MAINTENANCE_SUB := "authorized personnel and ducks"
-const NO_CLONE := "no clone on file"
+const NO_CLONE := "no record on file"
+const NEW_GAME := "APPLY FOR JOB"
 const OLD_LAYOUT := "recorded against an older site layout"
 ## The shift on file (docs/shift-save.md): its room, h:mm on shift, the owed total.
-const CLONE_NOTE := "clone held at %s, %s on shift, $%d owed"
+## The money is never shown before the statement (it would give the ending away).
+const CLONE_NOTE := "clone held at %s, %s on shift"
 ## New game (or begin orientation) with a shift on file: its room and owed total.
-const DISCARD_TEXT := "A shift is in progress. Your clone held at the %s and the $%d recorded against you will be discarded. Fung AI does not refund clones."
+const DISCARD_TEXT := "A shift is in progress. Your clone held at the %s will be discarded. Fung AI does not refund clones."
 const DESKTOP_ONLY := "needs the desktop build"
 const STATEMENT_NOTICE := "1 new statement"
 
@@ -116,7 +120,13 @@ const SCREEN_DISTANCE := 0.35
 ## Meters from the eye that E reaches.
 const REACH := 2.5
 ## The leaving freeze, and how far inside the opening the player is set back (voxels).
-const FREEZE_SECONDS := 0.8
+const FREEZE_SECONDS := 1.5
+## How far into the hallway the player may go past the opening (meters, straight out and to the
+## side) before the red light flashes and they are set back inside.
+const HALL_DEPTH := 1.2
+const HALL_SIDE := 0.5
+const FLASH_PERIOD := 0.3
+const FLASH_ENERGY := 6.0
 const SET_BACK := 6.0
 ## A subtitle stays this long per character, and at least MIN_SUBTITLE seconds.
 const SECONDS_PER_CHAR := 0.06
@@ -170,11 +180,20 @@ var _pause_left := 0.0
 var _state_time := 0.0
 var _beat_left := 0.0
 var _blink := 0.0
+## The screen redraws at 10 Hz (and at once on _render) instead of every frame.
+var _screen_redraw_left := 0.0
+## What _fit_subtitle last fitted (text and viewport size), so it only re-fits on a change.
+var _fit_key := ""
+var _fit_size := Vector2.ZERO
 var _hint_time := INF
 var _done := false
 var _rng := RandomNumberGenerator.new()
-## Signed out: the next SHIFT on the splash asks for the name again.
-var _signed_out := false
+## Signed out: the next SHIFT on the splash asks for the name again. Nobody is signed in when the
+## scene opens, even with a name on file: the sign-in page comes up with the name filled in and
+## Enter confirms it.
+var _signed_out := true
+## The page the sign-in field returns to: SPLASH (then MAIN) or SETTINGS (changing the name).
+var _name_from := Page.SPLASH
 ## Typed fields: the sign-in name, the join address, the new level's name.
 var _name_field := ""
 var _address_field := ""
@@ -212,8 +231,11 @@ var _monitor_box := AABB()
 var _screen_center := Vector3.ZERO
 var _screen_normal := Vector3.BACK
 var _leave_box := AABB()
+## The red light over the opening that flashes while the player is set back from the hallway.
+var _hall_light := OmniLight3D.new()
 ## id -> {box: AABB (meters), label: String}
 var _interactables := {}
+const SCREEN_REDRAW_INTERVAL := 0.1
 var _viewport := SubViewport.new()
 var _zoom_tween: Tween
 
@@ -284,6 +306,10 @@ func _exit_tree() -> void:
 
 func _process(delta: float) -> void:
 	_blink += delta
+	_screen_redraw_left -= delta
+	if _screen_redraw_left <= 0.0:
+		_screen_redraw_left = SCREEN_REDRAW_INTERVAL
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_state_time += delta
 	_hint_time += delta
 	_hint.visible = _hint_time < SKIP_HINT_SECONDS and page == Page.LOG and state == State.LOG
@@ -309,6 +335,7 @@ func _process(delta: float) -> void:
 			_check_leaving()
 		State.FROZEN:
 			_freeze_left -= delta
+			_hall_light.light_energy = FLASH_ENERGY if fmod(_state_time, FLASH_PERIOD) < FLASH_PERIOD * 0.5 else 0.0
 			if _freeze_left <= 0.0:
 				_unfreeze_after_leaving()
 		State.READING:
@@ -369,7 +396,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		State.ROOM:
 			handled = _room_input(event)
 		State.READING:
-			if event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel"):
+			if event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel") or _is_key(event, KEY_BACKSPACE):
 				close_reader()
 				handled = true
 		State.CLOCK_OUT:
@@ -377,7 +404,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				match event.keycode:
 					KEY_Y, KEY_ENTER, KEY_KP_ENTER:
 						clock_out()
-					KEY_N, KEY_ESCAPE:
+					KEY_N, KEY_ESCAPE, KEY_BACKSPACE:
 						close_clock_out()
 				handled = true
 		State.SCREEN, State.LOG, State.DYING, State.DEAD, State.TRASH, State.GO_BACK, State.ACCEPTED:
@@ -407,18 +434,30 @@ func _room_input(event: InputEvent) -> bool:
 	return false
 
 
-## The interactable the player's camera is aimed at within REACH ("" for none).
+## The interactable the player's camera is aimed at within REACH ("" for none): the nearest box the
+## ray hits, except that a box enclosing another hit box yields to it (the duck stands inside the
+## computer desk's box, and the player aiming at the duck means the duck).
 func aimed() -> String:
 	if player == null or not player.is_inside_tree():
 		return ""
 	var from := player.camera.global_position
 	var direction := -player.camera.global_basis.z
-	var best := ""
-	var best_distance := REACH
+	var hits := {}
 	for id: String in _interactables:
 		var hit = (_interactables[id].box as AABB).intersects_ray(from, direction)
-		if hit != null and from.distance_to(hit) <= best_distance:
-			best_distance = from.distance_to(hit)
+		if hit != null and from.distance_to(hit) <= REACH:
+			hits[id] = from.distance_to(hit)
+	var best := ""
+	for id: String in hits:
+		var box: AABB = _interactables[id].box
+		var encloses_another := false
+		for other: String in hits:
+			if other != id and box.encloses(_interactables[other].box):
+				encloses_another = true
+				break
+		if encloses_another:
+			continue
+		if best == "" or hits[id] < hits[best]:
 			best = id
 	return best
 
@@ -449,10 +488,17 @@ func use_duck() -> void:
 
 # --- Leaving the cubicle ------------------------------------------------------------------------------
 
+## The player may step through the opening and a little way into the hallway (HALL_DEPTH straight
+## out, HALL_SIDE to either side of the opening); past that they are stopped.
 func _check_leaving() -> void:
 	if player == null or _leave_box.size == Vector3.ZERO:
 		return
-	if _leave_box.grow(0.02).has_point(player.global_position):
+	var feet := player.global_position
+	var beyond := feet.z - _leave_box.end.z
+	if beyond <= 0.0:
+		return
+	var aside := maxf(_leave_box.position.x - feet.x, feet.x - _leave_box.end.x)
+	if beyond > HALL_DEPTH or aside > HALL_SIDE:
 		_on_leave()
 
 
@@ -465,9 +511,11 @@ func _on_leave() -> void:
 	state = State.FROZEN
 	_state_time = 0.0
 	_freeze_left = FREEZE_SECONDS
+	_hall_light.light_energy = FLASH_ENERGY
 
 
 func _unfreeze_after_leaving() -> void:
+	_hall_light.light_energy = 0.0
 	var feet := player.global_position
 	feet.x = clampf(feet.x, _leave_box.position.x + 0.3, _leave_box.end.x - 0.3)
 	feet.z = _leave_box.position.z - SET_BACK * _world.voxel_size
@@ -475,6 +523,7 @@ func _unfreeze_after_leaving() -> void:
 	player.teleport(feet)
 	player.process_mode = Node.PROCESS_MODE_INHERIT
 	state = State.ROOM
+	_capture_mouse()
 
 
 # --- Clocking out -------------------------------------------------------------------------------------
@@ -495,6 +544,7 @@ func close_clock_out() -> void:
 	_clock_panel.visible = false
 	_freeze_player(false)
 	state = State.ROOM
+	_capture_mouse()
 
 
 ## Fades to black and quits (on the web: asks to close the tab).
@@ -526,6 +576,7 @@ func close_reader() -> void:
 	_reader.visible = false
 	if state == State.READING:
 		state = State.ROOM
+		_capture_mouse()
 
 
 # --- The computer -----------------------------------------------------------------------------------
@@ -553,13 +604,14 @@ func use_monitor(start_page := -1) -> void:
 	_tween_camera(target, func() -> void: _on_zoomed_in())
 
 
-## From the top page: the camera moves back to the player's eyes and the room is theirs again (the
-## mouse is captured on the next click).
+## From the top page: the camera moves back to the player's eyes and the room is theirs again, the
+## mouse captured at once (the key that stepped away is the gesture the web build needs for it).
 func zoom_out() -> void:
 	if state != State.SCREEN:
 		return
 	state = State.ZOOM
 	_state_time = 0.0
+	_capture_mouse()
 	var target := player.camera.global_transform if player else _zoom_camera.global_transform
 	_tween_camera(target, func() -> void:
 		if player:
@@ -597,6 +649,16 @@ func _freeze_player(frozen: bool) -> void:
 	if player:
 		player.velocity = Vector3.ZERO
 		player.process_mode = Node.PROCESS_MODE_DISABLED if frozen else Node.PROCESS_MODE_INHERIT
+
+
+## Back in the room after a panel or the screen: the mouse is captured again without a click.
+func _capture_mouse() -> void:
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+static func _is_key(event: InputEvent, keycode: Key) -> bool:
+	return event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == keycode
 
 
 func _home_page() -> Page:
@@ -638,7 +700,11 @@ func handle_key(event: InputEventKey) -> bool:
 			if not event.echo:
 				press_shift()
 		KEY_BACKSPACE:
-			_erase()
+			# Erases in a field; elsewhere it is Esc's twin.
+			if _field_item() != {}:
+				_erase()
+			elif not event.echo:
+				back()
 		_:
 			if event.unicode >= 32 and _field_item() != {}:
 				type_text(char(event.unicode))
@@ -735,7 +801,7 @@ func back() -> void:
 				open_page(Page.SPLASH)
 				zoom_out()
 		Page.SIGN_IN:
-			open_page(Page.SPLASH)
+			open_page(_name_from)
 		Page.SINGLEPLAYER, Page.MULTIPLAYER, Page.SETTINGS:
 			open_page(Page.MAIN)
 		Page.HOST:
@@ -844,7 +910,15 @@ func _sign_in() -> void:
 		open_page(Page.MAIN)
 	else:
 		_name_field = str(GameSettings.get_value("name"))
+		_name_from = Page.SPLASH
 		open_page(Page.SIGN_IN)
+
+
+## Settings' Name row: the sign-in field again, returning to SETTINGS.
+func _change_name() -> void:
+	_name_field = str(GameSettings.get_value("name"))
+	_name_from = Page.SETTINGS
+	open_page(Page.SIGN_IN)
 
 
 func _submit_name() -> void:
@@ -858,7 +932,7 @@ func _submit_name() -> void:
 	Net.player_name = entered
 	_signed_out = false
 	_update_nameplate()
-	open_page(Page.MAIN)
+	open_page(Page.MAIN if _name_from == Page.SPLASH else _name_from)
 
 
 func _sign_out() -> void:
@@ -879,12 +953,12 @@ func _can_continue() -> bool:
 	return not _save.is_empty() and bool(_save.get("layout_ok", false))
 
 
-## CONTINUE's note: the room, the time on shift (h:mm) and the owed total.
+## CONTINUE's note: the room and the time on shift (h:mm).
 func _clone_note() -> String:
 	var seconds := int(_save.get("elapsed", 0))
 	@warning_ignore("integer_division")
 	var on_shift := "%d:%02d" % [seconds / 3600, (seconds / 60) % 60]
-	return CLONE_NOTE % [str(_save.get("vat_room", "")), on_shift, int(_save.get("owed", 0))]
+	return CLONE_NOTE % [str(_save.get("vat_room", "")), on_shift]
 
 
 ## CONTINUE (singleplayer): the shift on file resumes solo, no orientation.
@@ -1384,13 +1458,14 @@ func _clear_statement() -> void:
 	_statement_lines = []
 
 
-## The nameplate by the opening: the name on file, the job, the shifts and the balance.
+## The nameplate by the opening: the name on file, the job and the shifts worked (the balance is
+## kept but never shown here; the statement is the first the player hears of it).
 func _update_nameplate() -> void:
 	if level == null or not level.objects.has(NAMEPLATE_ID):
 		return
 	var employee := str(GameSettings.get_value("name")).strip_edges()
-	level.objects[NAMEPLATE_ID].text = "%s\nLLM Operator\nShifts worked: %d\nBalance owed to Fung AI: $%d" % [
-		employee if employee != "" else "EMPLOYEE", int(GameSettings.get_value("shifts_worked")), int(GameSettings.get_value("balance_owed"))]
+	level.objects[NAMEPLATE_ID].text = "%s\nLLM Operator\nShifts worked: %d" % [
+		employee if employee != "" else "EMPLOYEE", int(GameSettings.get_value("shifts_worked"))]
 
 
 # --- The pages ----------------------------------------------------------------------------------------
@@ -1423,10 +1498,10 @@ func _items() -> Array[Dictionary]:
 				items.append({kind = "item", text = "CONTINUE", action = _continue, detail = _clone_note()})
 			else:
 				items.append({kind = "item", text = "CONTINUE", dim = true, note = NO_CLONE if _save.is_empty() else OLD_LAYOUT})
-			items.append({kind = "item", text = "NEW GAME", action = _new_game})
+			items.append({kind = "item", text = NEW_GAME, action = _new_game})
 			items.append({kind = "item", text = "BACK", action = back})
 		Page.DISCARD:
-			items.append({kind = "text", text = DISCARD_TEXT % [str(_save.get("vat_room", "")), int(_save.get("owed", 0))], color = AMBER})
+			items.append({kind = "text", text = DISCARD_TEXT % str(_save.get("vat_room", "")), color = AMBER})
 			items.append({kind = "gap"})
 			items.append({kind = "item", text = "DISCARD AND CLOCK IN", action = _discard_and_clock_in})
 			items.append({kind = "item", text = "KEEP IT", action = back})
@@ -1544,7 +1619,7 @@ func _field_item() -> Dictionary:
 
 func _page_title() -> String:
 	match page:
-		Page.SIGN_IN: return "FUNG AI  |  SIGN IN"
+		Page.SIGN_IN: return "FUNG AI  |  CHANGE NAME" if _name_from == Page.SETTINGS else "FUNG AI  |  SIGN IN"
 		Page.MAIN: return "FUNG AI  |  MAIN"
 		Page.SINGLEPLAYER: return "FUNG AI  |  SINGLEPLAYER"
 		Page.MULTIPLAYER: return "FUNG AI  |  MULTIPLAYER"
@@ -1563,12 +1638,12 @@ func _page_title() -> String:
 func _footer_text() -> String:
 	match page:
 		Page.SPLASH: return "SHIFT: sign in    Esc: step away"
-		Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "type    Enter: choose    Esc: back"
+		Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "type    Enter: select    Esc: back"
 		Page.SETTINGS: return "arrows: change    Esc: back"
 		Page.STATEMENT: return "SHIFT: sign in" if _statement == "done" else ""
 		Page.LOG, Page.TRANSFER: return ""
-		Page.MAIN, Page.MAINTENANCE: return "arrows    SHIFT: choose    Esc: step away"
-	return "arrows    SHIFT: choose    Esc: back"
+		Page.MAIN, Page.MAINTENANCE: return "arrows    SHIFT: select    Esc: step away"
+	return "arrows    SHIFT: select    Esc: back"
 
 
 ## Redraws the console for the current page.
@@ -1577,6 +1652,7 @@ func _render() -> void:
 		return
 	_blinkers.clear()
 	_cursor_block = null
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	var on_log := page == Page.LOG
 	_log_box.visible = on_log
 	_body.visible = not on_log
@@ -1590,8 +1666,9 @@ func _render() -> void:
 			child.free()
 	if page == Page.SETTINGS:
 		if _settings_menu == null:
-			_settings_menu = SettingsMenu.create(1, GREEN)
+			_settings_menu = SettingsMenu.create(1, GREEN, true)
 			_settings_menu.closed.connect(func() -> void: open_page(Page.MAIN))
+			_settings_menu.rename.connect(_change_name)
 			_body.add_child(_settings_menu)
 		_settings_menu.visible = true
 		return
@@ -1722,6 +1799,13 @@ func _build_room() -> bool:
 		elif object.kind == "marker" and object.type == "trigger" and object.get("id") == LEAVE_ID:
 			var box := LevelSchema.marker_box(object)
 			_leave_box = AABB(box.position * vs, box.size * vs)
+			# The red light over the hallway side of the opening, off until someone strays.
+			_hall_light.light_color = Color(1.0, 0.12, 0.08)
+			_hall_light.omni_range = 6.0
+			_hall_light.light_energy = 0.0
+			_hall_light.shadow_enabled = false
+			_hall_light.position = Vector3(_leave_box.get_center().x, _leave_box.end.y - 0.2, _leave_box.end.z + 0.4)
+			add_child(_hall_light)
 
 	var environment := WorldEnvironment.new()
 	var env := Environment.new()
@@ -1731,7 +1815,7 @@ func _build_room() -> bool:
 	env.ambient_light_color = level.settings.get("ambient_color", Color(0.5, 0.5, 0.56))
 	env.ambient_light_energy = level.settings.get("ambient_energy", 0.25)
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
-	env.glow_enabled = true
+	env.glow_enabled = not OS.has_feature("web")
 	env.glow_intensity = 0.9
 	env.glow_bloom = 0.1
 	env.fog_enabled = true
@@ -1829,7 +1913,7 @@ func _spawn_player(vs: float) -> void:
 
 func _build_console() -> void:
 	_viewport.size = SCREEN_PIXELS
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_viewport.transparent_bg = false
 	_viewport.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	add_child(_viewport)
@@ -2070,6 +2154,10 @@ func subtitle_text() -> String:
 
 func _fit_subtitle() -> void:
 	var viewport := get_viewport().get_visible_rect().size
+	if _subtitle.text == _fit_key and viewport == _fit_size:
+		return
+	_fit_key = _subtitle.text
+	_fit_size = viewport
 	var width := minf(900.0, viewport.x - 40.0)
 	_subtitle.custom_minimum_size.x = minf(width - 24.0, _subtitle.label_settings.font.get_string_size(_subtitle.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _subtitle.label_settings.font_size).x + 4.0)
 	_subtitle_panel.size = _subtitle_panel.get_combined_minimum_size()

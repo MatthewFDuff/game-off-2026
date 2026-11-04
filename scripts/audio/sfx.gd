@@ -17,6 +17,23 @@ const TABLE_SIZE := 2048
 ## Samples per envelope step.
 const BLOCK := 16
 
+const SOUNDS := [
+	"rifle", "blast", "chip", "shroom_hit", "shroom_pop", "harvest_chime", "hurt", "plant", "uproot",
+	"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip", "ui_click", "ui_pop",
+	"build_place", "build_denied", "amb_day", "amb_night",
+	"sting_night", "sting_finale", "sting_quota", "sting_gameover", "sting_dawn",
+	"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
+	"melee_swing", "melee_hit", "flask_throw", "flask_break",
+	"drawer_open", "terminal_beep", "station_use", "glass_break", "glass_crack", "glass_shatter", "glass_shatter_big",
+	"glass_crunch",
+	"fuse", "shroom_scream", "spit", "giant_slam",
+	"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
+	"intercom_chime", "register_tick", "crash", "zap", "splash", "rain", "emerge",
+	"squeak", "vend", "gas_hiss", "foam_spray", "thud", "printer", "radio_loop",
+]
+## Made before the first frame; the rest are made on first use or, a few ms at a time, after startup.
+const EAGER := ["ui_click", "ui_pop", "ui_blip", "amb_day", "terminal_beep", "build_denied", "intercom_chime"]
+
 enum Shape { SINE, TRIANGLE, SAW, SQUARE }
 
 static var _instance: Sfx
@@ -25,6 +42,9 @@ static var _effects_db := 0.0
 static var _music_db := 0.0
 
 var _streams := {}
+## SOUNDS as a set, and the sounds still to make in the background.
+var _known := {}
+var _backlog: Array[String] = []
 var _noise := PackedFloat32Array()
 ## One-cycle wavetables, indexed by Shape.
 var _tables: Array[PackedFloat32Array] = []
@@ -61,7 +81,7 @@ static func play_at(sound: String, position: Vector3, volume_db := 0.0, pitch_ji
 ## The synthesized stream called sound (null if there's none), for players of their own (a radio's
 ## positional loop, InteractRules).
 static func stream(sound: String) -> AudioStream:
-	return _instance._streams.get(sound) if is_instance_valid(_instance) else null
+	return _instance._get_stream(sound) if is_instance_valid(_instance) else null
 
 
 ## True when nothing should start playing (headless runs, see _muted).
@@ -96,7 +116,7 @@ static func _offset(sound: String) -> float:
 
 
 static func has_sound(sound: String) -> bool:
-	return is_instance_valid(_instance) and _instance._streams.has(sound)
+	return is_instance_valid(_instance) and _instance._known.has(sound)
 
 #endregion
 
@@ -122,8 +142,16 @@ func _ready() -> void:
 		push_warning("Sfx: no audio bus, staying silent.")
 		return
 	var start := Time.get_ticks_usec()
-	var samples := _synthesize_all()
-	print("Sfx: synthesized %d sounds (%d samples) in %.1f ms" % [_streams.size(), samples, (Time.get_ticks_usec() - start) / 1000.0])
+	_init_tables()
+	var samples := 0
+	for sound in EAGER:
+		samples += _get_stream(sound).data.size() / 2
+	print("Sfx: %d of %d sounds ready (%d samples) in %.1f ms, the rest on demand" % [_streams.size(), SOUNDS.size(), samples, (Time.get_ticks_usec() - start) / 1000.0])
+	for sound in SOUNDS:
+		if not _streams.has(sound):
+			_backlog.append(sound)
+	_backlog.reverse()
+	set_process(not _muted and not _backlog.is_empty())
 	for i in POSITIONAL_VOICES:
 		var player := AudioStreamPlayer3D.new()
 		player.unit_size = 4.0
@@ -145,8 +173,16 @@ func _ready() -> void:
 		_ambience.append(player)
 
 
+## Fills the rest of the bank one sound a frame once the game is up.
+func _process(_delta: float) -> void:
+	if _backlog.is_empty():
+		set_process(false)
+		return
+	_get_stream(_backlog.pop_back())
+
+
 func _play(sound: String, volume_db: float, pitch_jitter: float, pitch: float) -> void:
-	var stream: AudioStream = _streams.get(sound)
+	var stream: AudioStream = _get_stream(sound)
 	if stream == null or _flat.is_empty():
 		return
 	var index := _pick(_flat, _flat_started)
@@ -159,7 +195,7 @@ func _play(sound: String, volume_db: float, pitch_jitter: float, pitch: float) -
 
 
 func _play_at(sound: String, position: Vector3, volume_db: float, pitch_jitter: float, pitch: float) -> void:
-	var stream: AudioStream = _streams.get(sound)
+	var stream: AudioStream = _get_stream(sound)
 	if stream == null or _positional.is_empty():
 		return
 	var index := _pick(_positional, _positional_started)
@@ -207,7 +243,7 @@ func _set_ambience(sound: String, volume_db: float, fade: float) -> void:
 		_ambience_tween.tween_property(current, "volume_db", volume_db, fade)
 		return
 
-	var stream: AudioStreamWAV = _streams.get(sound)
+	var stream: AudioStreamWAV = _get_stream(sound)
 	if not sound.is_empty() and stream == null:
 		return
 	if running:
@@ -244,6 +280,19 @@ func _remix_ambience() -> void:
 #region Synthesis
 
 func _synthesize_all() -> int:
+	_init_tables()
+	var total := 0
+	for sound in SOUNDS:
+		var stream := _get_stream(sound)
+		if stream:
+			total += stream.data.size() / 2
+	return total
+
+
+## Builds the noise and wavetables every recipe reads (once).
+func _init_tables() -> void:
+	if not _tables.is_empty():
+		return
 	_rng.seed = 2026
 	_noise.resize(NOISE_SIZE)
 	for i in NOISE_SIZE:
@@ -264,26 +313,23 @@ func _synthesize_all() -> int:
 				_:
 					table[i] = 1.0 if phase < 0.5 else -1.0
 		_tables.append(table)
-	var total := 0
-	for sound in [
-		"rifle", "blast", "chip", "shroom_hit", "shroom_pop", "harvest_chime", "hurt", "plant", "uproot",
-		"shroom_chitter", "bite", "dig", "hatch_servo", "power_down", "alarm", "power_up", "ui_blip", "ui_click", "ui_pop",
-		"build_place", "build_denied", "amb_day", "amb_night",
-		"sting_night", "sting_finale", "sting_quota", "sting_gameover", "sting_dawn",
-		"shotgun", "flame", "ricochet", "homing", "poison_shot", "ammo_shift", "pickup",
-		"melee_swing", "melee_hit", "flask_throw", "flask_break",
-		"drawer_open", "terminal_beep", "station_use", "glass_break", "glass_crack", "glass_shatter", "glass_shatter_big",
-		"glass_crunch",
-		"fuse", "shroom_scream", "spit", "giant_slam",
-		"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
-		"intercom_chime", "register_tick", "crash", "zap", "splash", "rain", "emerge",
-		"squeak", "vend", "gas_hiss", "foam_spray", "thud", "printer", "radio_loop",
-	]:
-		var stream: AudioStreamWAV = call("_make_" + sound)
-		if stream:
-			_streams[sound] = stream
-			total += stream.data.size() / 2
-	return total
+
+
+## The stream for sound, synthesized and cached on first request (null if there's no such sound).
+func _get_stream(sound: String) -> AudioStreamWAV:
+	var cached: AudioStreamWAV = _streams.get(sound)
+	if cached != null:
+		return cached
+	if _known.is_empty():
+		for name in SOUNDS:
+			_known[name] = true
+	if not _known.has(sound):
+		return null
+	_init_tables()
+	var stream: AudioStreamWAV = call("_make_" + sound)
+	if stream:
+		_streams[sound] = stream
+	return stream
 
 
 ## Heartbeat: a lub and a softer dub, low and round (the cubicle's decline).
@@ -1091,8 +1137,10 @@ func _seam(buf: PackedFloat32Array, rate: int) -> void:
 func _to_wav(buf: PackedFloat32Array, rate: int, loop := false) -> AudioStreamWAV:
 	var data := PackedByteArray()
 	data.resize(buf.size() * 2)
-	for i in buf.size():
-		data.encode_s16(i * 2, int(clampf(buf[i], -1.0, 1.0) * 32767.0))
+	var at := 0
+	for v in buf:
+		data.encode_s16(at, int(clampf(v, -1.0, 1.0) * 32767.0))
+		at += 2
 	var wav := AudioStreamWAV.new()
 	wav.format = AudioStreamWAV.FORMAT_16_BITS
 	wav.mix_rate = rate

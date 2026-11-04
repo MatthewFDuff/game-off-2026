@@ -2,6 +2,14 @@ class_name Combat
 ## Hit detection against the voxel world and enemies, for every weapon. Enemies register in the
 ## Enemy.GROUP node group, so each query is a loop over them. Queries only find enemies; damage goes
 ## through EnemyManager.request_hit so the host applies it.
+##
+## The group is read once and kept (_group) until an enemy enters the tree (Enemy._ready calls
+## invalidate) or the physics frame changes; each query skips the dead, freed and emerging ones as
+## it goes, so a kill or a finished emergence within the frame shows at once.
+
+## Every Enemy.GROUP member as last read, and the physics frame it was read in (-1: stale).
+static var _group: Array = []
+static var _group_frame := -1
 
 
 ## The nearest thing a ray hits within range: a voxel (world.raycast) or an enemy (its bounds, then
@@ -19,10 +27,14 @@ static func ray_hit(world: VoxelWorld, from: Vector3, direction: Vector3, max_ra
 		result.normal = voxel.normal
 		result.distance = voxel.distance
 		result.material = voxel.material
-	for enemy in enemies():
-		if enemy in ignore:
+	for node: Variant in _live():
+		if not _hittable(node) or (not ignore.is_empty() and node in ignore):
 			continue
-		var hit := enemy.ray_test(from, dir)
+		var enemy: Enemy = node
+		# The bounding sphere first (cheap); the full test only for rays that can reach it in range.
+		if not enemy.ray_could_hit(from, dir, result.distance):
+			continue
+		var hit := enemy.ray_test(from, dir, result.distance)
 		if not hit.is_empty() and hit.distance < result.distance:
 			result.hit = true
 			result.position = hit.position
@@ -38,7 +50,10 @@ static func ray_hit(world: VoxelWorld, from: Vector3, direction: Vector3, max_ra
 ## Enemies whose bounds come within radius of center (blasts, clouds).
 static func sphere_hit(center: Vector3, radius: float) -> Array[Enemy]:
 	var found: Array[Enemy] = []
-	for enemy in enemies():
+	for node: Variant in _live():
+		if not _hittable(node):
+			continue
+		var enemy: Enemy = node
 		var box := enemy.world_bounds()
 		var closest := center.clamp(box.position, box.end)
 		if closest.distance_squared_to(center) <= radius * radius:
@@ -49,23 +64,51 @@ static func sphere_hit(center: Vector3, radius: float) -> Array[Enemy]:
 ## Enemies whose bounds overlap a world-space box (melee swings).
 static func box_hit(box: AABB) -> Array[Enemy]:
 	var found: Array[Enemy] = []
-	for enemy in enemies():
-		if enemy.world_bounds().intersects(box):
+	for node: Variant in _live():
+		if _hittable(node) and (node as Enemy).world_bounds().intersects(box):
+			var enemy: Enemy = node
 			found.append(enemy)
 	return found
 
 
-## Every living enemy in the scene that can be hit (not still emerging, see Enemy.emerging).
+## Every living enemy in the scene that can be hit (not still emerging, see Enemy.emerging). A new
+## array each call; the queries here use the shared _live() list instead.
 static func enemies() -> Array[Enemy]:
 	var found: Array[Enemy] = []
+	for node: Variant in _live():
+		if _hittable(node):
+			found.append(node)
+	return found
+
+
+## Whether a member of the cached group can be hit right now.
+static func _hittable(node: Variant) -> bool:
+	if not is_instance_valid(node):
+		return false
+	var enemy := node as Enemy
+	return enemy != null and enemy.alive and enemy.emerging <= 0.0 and enemy.is_inside_tree()
+
+
+## The cached Enemy.GROUP (read again once per physics frame or after invalidate). Shared: don't
+## modify it, and check _hittable on each.
+static func _live() -> Array:
+	var frame := Engine.get_physics_frames()
+	if _group_frame == frame:
+		return _group
+	_group.clear()
+	_group_frame = frame
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree == null:
-		return found
+		return _group
 	for node in tree.get_nodes_in_group(Enemy.GROUP):
-		var enemy := node as Enemy
-		if enemy and enemy.alive and enemy.emerging <= 0.0:
-			found.append(enemy)
-	return found
+		if node is Enemy:
+			_group.append(node)
+	return _group
+
+
+## An enemy joined the group: the next query reads it again.
+static func invalidate() -> void:
+	_group_frame = -1
 
 
 # --- Line of sight -------------------------------------------------------------------------------

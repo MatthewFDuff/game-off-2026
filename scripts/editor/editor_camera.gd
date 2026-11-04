@@ -175,6 +175,11 @@ func cut_y() -> float:
 	return lab.world.global_position.y + cut_layer * lab.world.voxel_size
 
 
+## What raycast's answer depends on besides the ray: on, the cut, walls-down and where it is.
+func pick_state() -> Array:
+	return [active, cut_mode, cut_layer, walls_down, _shown_pivot, _shown_yaw]
+
+
 ## VoxelWorld.raycast that sees what the cutaway shows: it starts at the cut plane (so it hits the
 ## cap first) and misses anything above the cut. distance is from origin, as usual; cap is true
 ## on a hit on the cap.

@@ -33,6 +33,7 @@ const NUDGE_SECONDS := 30.0
 const NUDGE_CANCEL := "t_0_outbreak"
 
 var lab: Lab
+var _fit_key := ""
 ## Host: line ids said so far (once-only lines).
 var said := {}
 ## Host: id -> msec a repeatable line last played.
@@ -225,6 +226,10 @@ func overlay_open() -> bool:
 ## Bottom center (top center while overlay_open), never wider than the viewport.
 func _fit() -> void:
 	var viewport := get_viewport_rect().size
+	var key := "%s|%s|%s" % [_label.text, viewport, overlay_open()]
+	if key == _fit_key:
+		return
+	_fit_key = key
 	var width := minf(MAX_WIDTH, viewport.x - 40.0)
 	_label.custom_minimum_size.x = width - 24.0
 	_panel.size = _panel.get_combined_minimum_size()

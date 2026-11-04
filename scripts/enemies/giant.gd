@@ -72,7 +72,10 @@ func build_body() -> void:
 	if antennae_broken and _mesh and world:
 		var model := EnemyModels.model(kind, variant)
 		if not model.is_empty():
-			_mesh.mesh = world.build_model_mesh(model.size, without_antennae(model))
+			var key := mesh_key(model) + ":antennaless"
+			if not _meshes.has(key):
+				_meshes[key] = world.build_model_mesh(model.size, without_antennae(model))
+			_mesh.mesh = _meshes[key]
 
 
 func _setup_hit_zones(model: Dictionary) -> void:

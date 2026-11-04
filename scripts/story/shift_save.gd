@@ -4,13 +4,22 @@ extends RefCounted
 ## seal, the generator, leaving and closing the window, and the cubicle's Continue resumes it. In
 ## the fiction it is the clone Fung AI keeps on file. One folder, no slots:
 ##   shift.json   the record (Lab.save_shift builds it; section 1 of the doc lists the keys)
-##   voxels.bin   VoxelWorld.get_data() at the save, an 8-byte size header plus zstd
+##   voxels.bin   an 8-byte size header plus zstd of: (format 1) VoxelWorld.get_data() at the save;
+##                (format 2, what Lab writes) only the chunks changed since the level was built for
+##                play: chunk_count int32 slots, then their 32768 raw bytes each
+##                (VoxelWorld.get_changed_chunks / get_chunks_data). A format 2 save is a delta on
+##                the level as built from its voxels.bin, which level_hash ties it to.
 ## A record is tied to the level it was made in by level_hash (its level.json text plus voxels.bin
 ## bytes, as LevelData.load_level would read them), so a shift recorded against an older layout is
 ## refused instead of loaded into the wrong rooms.
 
 const DIR := "user://shift/"
-const FORMAT := 1
+## What Lab writes now (a chunk delta, write_delta); FORMAT_FULL saves (the whole world, write) are
+## still read, so a shift saved before the delta format still loads.
+const FORMAT := 2
+const FORMAT_FULL := 1
+## Bytes of one chunk in get_chunks_data (32³ voxels).
+const CHUNK_BYTES := 32768
 const RECORD_FILE := "shift.json"
 const VOXELS_FILE := "voxels.bin"
 ## Tests point this at a scratch folder.
@@ -55,8 +64,10 @@ static func summary() -> Dictionary:
 	}
 
 
-## The whole record plus voxels (key "voxels": the raw VoxelWorld data) and layout_ok, or {} if
-## missing or invalid.
+## The whole record plus its world and layout_ok, or {} if missing or invalid. The world is, for a
+## format 1 save, "voxels" (the raw VoxelWorld data); for a format 2 save, "chunk_slots"
+## (PackedInt32Array) and "chunk_data" (CHUNK_BYTES each), to set_chunks_data onto the level as
+## built for play.
 static func load() -> Dictionary:
 	var record := _read_record()
 	if record.is_empty():
@@ -64,10 +75,20 @@ static func load() -> Dictionary:
 	var packed := FileAccess.get_file_as_bytes(dir().path_join(VOXELS_FILE))
 	if packed.size() < 8 or (record.has("voxels_size") and int(record.voxels_size) != packed.size()):
 		return {}
-	var voxels := packed.slice(8).decompress(packed.decode_u64(0), FileAccess.COMPRESSION_ZSTD)
-	if voxels.is_empty() or voxels.size() != packed.decode_u64(0):
+	var raw_size := packed.decode_u64(0)
+	var raw := packed.slice(8).decompress(raw_size, FileAccess.COMPRESSION_ZSTD) if raw_size > 0 else PackedByteArray()
+	if raw.size() != raw_size:
 		return {}
-	record.voxels = voxels
+	if int(record.format) == FORMAT_FULL:
+		if raw.is_empty():
+			return {}
+		record.voxels = raw
+	else:
+		var count := int(record.get("chunk_count", -1))
+		if count < 0 or raw.size() != count * (4 + CHUNK_BYTES):
+			return {}
+		record.chunk_slots = raw.slice(0, count * 4).to_int32_array()
+		record.chunk_data = raw.slice(count * 4)
 	record.layout_ok = _layout_ok(record)
 	return record
 
@@ -75,17 +96,35 @@ static func load() -> Dictionary:
 ## Writes the record (format, level_hash and voxels_size are filled in here) and the world. The
 ## voxels go first and the record last, each through a temporary file, so a half-written save
 ## never reads as whole.
+## A whole-world save (FORMAT_FULL): voxels is VoxelWorld.get_data().
 static func write(record: Dictionary, voxels: PackedByteArray) -> Error:
+	return _write(record, voxels, FORMAT_FULL, -1)
+
+
+## A delta save (FORMAT, what Lab.save_shift writes): the chunk slots changed since the level was
+## built for play and their get_chunks_data bytes (CHUNK_BYTES each, in slot order).
+static func write_delta(record: Dictionary, slots: PackedInt32Array, chunk_data: PackedByteArray) -> Error:
+	if chunk_data.size() != slots.size() * CHUNK_BYTES:
+		return ERR_INVALID_DATA
+	var raw := slots.to_byte_array()
+	raw.append_array(chunk_data)
+	return _write(record, raw, FORMAT, slots.size())
+
+
+static func _write(record: Dictionary, raw: PackedByteArray, format: int, chunk_count: int) -> Error:
 	var folder := dir()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
 	var packed := PackedByteArray()
 	packed.resize(8)
-	packed.encode_u64(0, voxels.size())
-	packed.append_array(voxels.compress(FileAccess.COMPRESSION_ZSTD))
+	packed.encode_u64(0, raw.size())
+	if not raw.is_empty():
+		packed.append_array(raw.compress(FileAccess.COMPRESSION_ZSTD))
 	var out := record.duplicate(true)
-	out.erase("voxels")
-	out.erase("layout_ok")
-	out.format = FORMAT
+	for key in ["voxels", "layout_ok", "chunk_slots", "chunk_data", "chunk_count"]:
+		out.erase(key)
+	out.format = format
+	if chunk_count >= 0:
+		out.chunk_count = chunk_count
 	out.voxels_size = packed.size()
 	if not out.has("level_hash"):
 		out.level_hash = level_hash(str(out.get("level", "")))
@@ -154,7 +193,7 @@ static func _read_record() -> Dictionary:
 	if not FileAccess.file_exists(path) or not FileAccess.file_exists(dir().path_join(VOXELS_FILE)):
 		return {}
 	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not data is Dictionary or int(data.get("format", 0)) != FORMAT or str(data.get("level", "")) == "":
+	if not data is Dictionary or int(data.get("format", 0)) not in [FORMAT, FORMAT_FULL] or str(data.get("level", "")) == "":
 		return {}
 	return data
 

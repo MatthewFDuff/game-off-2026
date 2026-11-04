@@ -1,15 +1,22 @@
 class_name PropThumbnails
 extends Node
-## Renders a small picture of each prop for the editor's prop list, one per frame in an offscreen
-## viewport, and keeps them. Does nothing without a display (headless runs).
+## Renders a small picture of each prop for the editor's prop list in an offscreen viewport, and
+## keeps them. The ones the list shows right now (want_now) go first, one a frame; the rest follow
+## in the background, one every BACKGROUND_FRAMES frames, so opening the catalog doesn't hitch for
+## hundreds of frames. Does nothing without a display (headless runs).
 
 signal rendered(prop_name: String, texture: Texture2D)
 
 const SIZE := 72
+## Frames between background renders (pictures nobody's looking at yet).
+const BACKGROUND_FRAMES := 3
 
 var view: LevelView
 var _textures := {}
 var _queue: Array[String] = []
+## Wanted now (in view): rendered before _queue, one a frame.
+var _urgent: Array[String] = []
+var _wait := 0
 var _viewport := SubViewport.new()
 var _camera := Camera3D.new()
 var _mesh := MeshInstance3D.new()
@@ -37,10 +44,34 @@ func _ready() -> void:
 	add_child(_viewport)
 
 
-func get_texture(prop_name: String) -> Texture2D:
-	if not _textures.has(prop_name) and prop_name not in _queue and DisplayServer.get_name() != "headless":
-		_queue.append(prop_name)
+## The prop's picture, or null until it's rendered (it's queued). urgent: it's on screen, so it
+## goes ahead of the background ones.
+func get_texture(prop_name: String, urgent := true) -> Texture2D:
+	if not _textures.has(prop_name) and DisplayServer.get_name() != "headless":
+		if urgent:
+			if prop_name not in _urgent:
+				_urgent.append(prop_name)
+		elif prop_name not in _queue and prop_name not in _urgent:
+			_queue.append(prop_name)
 	return _textures.get(prop_name)
+
+
+## The props in view right now: theirs are rendered next (one a frame), in this order.
+func want_now(prop_names: Array[String]) -> void:
+	for prop_name in _urgent:
+		if prop_name not in _queue:
+			_queue.append(prop_name) # Out of view now: still drawn, in the background.
+	_urgent.clear()
+	if DisplayServer.get_name() == "headless":
+		return
+	for prop_name in prop_names:
+		if not _textures.has(prop_name):
+			_urgent.append(prop_name)
+
+
+## Pictures still to render.
+func pending() -> int:
+	return _urgent.size() + _queue.size()
 
 
 ## Live reload: draw it again.
@@ -49,14 +80,30 @@ func forget(prop_name: String) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _busy or _queue.is_empty():
+	if _busy:
 		return
-	_render(_queue.pop_front())
+	while not _urgent.is_empty():
+		var prop_name: String = _urgent.pop_front()
+		if _textures.has(prop_name):
+			continue
+		_queue.erase(prop_name)
+		_render(prop_name)
+		return
+	if _queue.is_empty():
+		return
+	_wait -= 1
+	if _wait > 0:
+		return
+	_wait = BACKGROUND_FRAMES
+	var next: String = _queue.pop_front()
+	if not _textures.has(next):
+		_render(next)
 
 
 func _render(prop_name: String) -> void:
 	var mesh := view.prop_mesh(prop_name, 0)
 	if mesh == null:
+		_textures[prop_name] = null # No picture: don't keep trying.
 		return
 	_busy = true
 	_mesh.mesh = mesh

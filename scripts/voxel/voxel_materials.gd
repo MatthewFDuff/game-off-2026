@@ -72,6 +72,8 @@ const ROOT := 52
 const MYCELIUM_DEAD := 53
 # Interactables (prop-build-plan E). Id 60 is claimed by them.
 const RED_PAINT := 60
+# Office greenery: a matte leaf green that doesn't glow (the fake plant; the Sample liquids glow).
+const LEAF := 61
 
 const PATTERN_DIR := "res://assets/patterns/"
 ## Largest pattern per side (the shader's pattern layers are this big).
@@ -156,6 +158,8 @@ const DEFS := {
 
 	# Interactables: plain red paint that doesn't glow (fire extinguishers, alarm pulls; EMERGENCY glows).
 	RED_PAINT: {name = "Red paint", color = Color(0.72, 0.10, 0.08), hardness = 3},
+	# Plastic foliage: no emission at all, burns like the plastic it is.
+	LEAF: {name = "Leaf", color = Color(0.24, 0.52, 0.27), hardness = 1, burn = 3.0, catch = 0.3, ash = 0.15},
 }
 
 
