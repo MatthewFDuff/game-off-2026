@@ -64,7 +64,7 @@ func _process(delta: float) -> void:
 ## Host: E while reading the terminal closes it (Lab), so "Begin shift [E]" is taken here too.
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact") and lab.mode == "play" and lab.play.reading == TERMINAL \
-			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and can_begin():
+			and InputSetup.is_playing() and can_begin():
 		begin_shift()
 
 

@@ -3,7 +3,7 @@ extends Node
 ## applies each value where it belongs (docs/cubicle-menu.md, section 6). The cubicle's console
 ## and the pause panel's SettingsMenu read and write through get_value / set_value; set_value
 ## saves and applies at once and emits changed(key), which the local Player listens to for its
-## look speed and field of view. The player's name, address and level keep the old menu's
+## look speeds and field of view. The player's name, address and level keep the old menu's
 ## `player/*` keys so existing settings carry over; its `skip_intro` checkbox becomes
 ## orientation = "skip" the first time the file is read.
 
@@ -25,6 +25,7 @@ const KEYS := {
 	fullscreen = ["display", false],
 	fov = ["display", 80],
 	mouse_sensitivity = ["controls", 1.0],
+	stick_sensitivity = ["controls", 1.0],
 	volume_master = ["audio", 10],
 	volume_effects = ["audio", 10],
 	volume_music = ["audio", 10],
@@ -101,7 +102,7 @@ func _apply(key: String) -> void:
 				AudioServer.set_bus_volume_db(0, volume_db(maxi(step, 1)))
 		"volume_effects", "volume_music":
 			Sfx.set_mix(volume_db(get_value("volume_effects")), volume_db(get_value("volume_music")))
-		# mouse_sensitivity and fov: the Player reads them; orientation, address, level and the
+		# mouse_sensitivity, stick_sensitivity and fov: the Player reads them; orientation, address, level and the
 		# nameplate's numbers: the cubicle reads them.
 
 
@@ -122,7 +123,7 @@ func _validate(key: String, value: Variant) -> Variant:
 			return bool(value) if value is bool or value is int else fallback
 		"shifts_worked", "balance_owed":
 			return int(value) if value is int or value is float else fallback
-		"mouse_sensitivity":
+		"mouse_sensitivity", "stick_sensitivity":
 			return _snap(value, SENSITIVITY_RANGE, fallback)
 		"fov":
 			return int(_snap(value, FOV_RANGE, fallback))

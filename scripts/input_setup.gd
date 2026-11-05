@@ -1,6 +1,8 @@
 class_name InputSetup
 ## Registers the game's input actions at startup so they don't need to be maintained in
-## project.godot by hand. Actions already defined in the project settings are left alone.
+## project.godot by hand. Actions already defined in the project settings are left alone. Play
+## actions get their gamepad bindings from PAD (docs/controls.md); the menus' pad actions come from
+## PAD_MENU, and ui_cancel trades Godot's joypad B (crouch in play) for Start.
 
 const KEYS := {
 	move_forward = [KEY_W],
@@ -90,6 +92,65 @@ const MOUSE_BUTTONS := {
 	melee = [MOUSE_BUTTON_MIDDLE],
 }
 
+## Gamepad bindings of the play actions, by position (Xbox names): a JOY_BUTTON_* is a button, an
+## [axis, value] pair a stick or trigger direction. Nothing on R3; the dev keys have none.
+const PAD := {
+	move_forward = [[JOY_AXIS_LEFT_Y, -1.0]],
+	move_back = [[JOY_AXIS_LEFT_Y, 1.0]],
+	move_left = [[JOY_AXIS_LEFT_X, -1.0]],
+	move_right = [[JOY_AXIS_LEFT_X, 1.0]],
+	look_left = [[JOY_AXIS_RIGHT_X, -1.0]],
+	look_right = [[JOY_AXIS_RIGHT_X, 1.0]],
+	look_up = [[JOY_AXIS_RIGHT_Y, -1.0]],
+	look_down = [[JOY_AXIS_RIGHT_Y, 1.0]],
+	jump = [JOY_BUTTON_A],
+	crouch = [JOY_BUTTON_B],
+	fire = [[JOY_AXIS_TRIGGER_RIGHT, 1.0]],
+	alt_fire = [[JOY_AXIS_TRIGGER_LEFT, 1.0]],
+	melee = [JOY_BUTTON_RIGHT_SHOULDER],
+	cycle_flask = [JOY_BUTTON_LEFT_SHOULDER],
+	cycle_ammo = [JOY_BUTTON_Y],
+	ammo_1 = [JOY_BUTTON_DPAD_UP],
+	ammo_2 = [JOY_BUTTON_DPAD_RIGHT],
+	ammo_3 = [JOY_BUTTON_DPAD_DOWN],
+	ammo_4 = [JOY_BUTTON_DPAD_LEFT],
+	interact = [JOY_BUTTON_X],
+	toggle_flashlight = [JOY_BUTTON_LEFT_STICK],
+	show_controls = [JOY_BUTTON_BACK],
+}
+## Pad-only actions for the menus' checks and for tests (the menus themselves read keys, through
+## Pad.to_key): the face buttons, Start, and the D-pad with the left stick.
+const PAD_MENU := {
+	pad_accept = [JOY_BUTTON_A],
+	pad_back = [JOY_BUTTON_B],
+	pad_alt = [JOY_BUTTON_X],
+	pad_shift = [JOY_BUTTON_Y],
+	pad_start = [JOY_BUTTON_START],
+	pad_up = [JOY_BUTTON_DPAD_UP, [JOY_AXIS_LEFT_Y, -1.0]],
+	pad_down = [JOY_BUTTON_DPAD_DOWN, [JOY_AXIS_LEFT_Y, 1.0]],
+	pad_left = [JOY_BUTTON_DPAD_LEFT, [JOY_AXIS_LEFT_X, -1.0]],
+	pad_right = [JOY_BUTTON_DPAD_RIGHT, [JOY_AXIS_LEFT_X, 1.0]],
+}
+## Deadzones of the actions bound to a stick (the look's squared response starts past it) and to a
+## trigger; the menus' stick directions need a firmer push. Buttons keep InputMap's default.
+const STICK_DEADZONE := 0.25
+const TRIGGER_DEADZONE := 0.3
+const MENU_STICK_DEADZONE := 0.5
+const BUTTON_DEADZONE := 0.2
+const BUTTON_NAMES := {
+	JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y",
+	JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB",
+	JOY_BUTTON_LEFT_STICK: "L3", JOY_BUTTON_RIGHT_STICK: "R3",
+	JOY_BUTTON_START: "Start", JOY_BUTTON_BACK: "Back",
+	JOY_BUTTON_DPAD_UP: "D-pad Up", JOY_BUTTON_DPAD_RIGHT: "D-pad Right",
+	JOY_BUTTON_DPAD_DOWN: "D-pad Down", JOY_BUTTON_DPAD_LEFT: "D-pad Left",
+}
+const AXIS_NAMES := {
+	JOY_AXIS_LEFT_X: "Left stick", JOY_AXIS_LEFT_Y: "Left stick",
+	JOY_AXIS_RIGHT_X: "Right stick", JOY_AXIS_RIGHT_Y: "Right stick",
+	JOY_AXIS_TRIGGER_LEFT: "LT", JOY_AXIS_TRIGGER_RIGHT: "RT",
+}
+
 ## Play-mode rows of the F1 controls overlay, in display order: [label, actions...].
 const PLAY_CONTROLS := [
 	["Move", "move_forward", "move_left", "move_back", "move_right"],
@@ -108,11 +169,20 @@ const PLAY_CONTROLS := [
 ]
 ## Rows whose keys read better as words than as the bound keys' names.
 const CONTROL_TEXT := {Look = "Mouse / arrows"}
+## The same rows' words when the sheet lists the pad too.
+const PAD_CONTROL_TEXT := {Look = "Mouse / arrows / right stick"}
 ## Actions bound only when the game is launched with the dev flag (DEV_FLAG); otherwise they exist
 ## with no keys, so checking them is harmless and never true.
 const DEV_ACTIONS := ["toggle_fly"]
 ## The launch flag for developer keys (F flies): `godot -- --dev`.
 const DEV_FLAG := "--dev"
+
+## The game is being played on a pad: play input is live without the mouse captured (the web
+## build can't capture it on a pad press). Set by resume_play, cleared by release_play.
+static var playing_on_pad := false
+## Headless runs count as playing (no display to capture the mouse on). Tests of the paused state
+## set this false to see the game the way a window does.
+static var headless_plays := true
 
 
 ## True when the game was launched with the dev flag after `--` (OS.get_cmdline_user_args).
@@ -120,36 +190,91 @@ static func is_dev() -> bool:
 	return DEV_FLAG in OS.get_cmdline_user_args()
 
 
-## True when gameplay input should be live: the mouse is captured, or there is no display to
-## capture it on (headless test runs).
+## True when gameplay input should be live: the mouse is captured, the game is being played on a
+## pad (playing_on_pad), or there is no display to capture it on (headless test runs).
 static func is_playing() -> bool:
-	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless"
+	return Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or playing_on_pad \
+			or (headless_plays and DisplayServer.get_name() == "headless")
+
+
+## Gives the game play focus: captures the mouse (not headless) and, when the pad is the device in
+## use, sets playing_on_pad, so the game is live even where the capture doesn't take.
+static func resume_play() -> void:
+	var pad := _pad()
+	playing_on_pad = pad == null or pad.active
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Takes play focus away (pause, a menu, the window losing focus): clears playing_on_pad and shows
+## the mouse.
+static func release_play() -> void:
+	playing_on_pad = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## True when the controls sheet lists the pad too: a pad is plugged in or was used last.
+static func shows_pad() -> bool:
+	var pad := _pad()
+	return pad != null and (pad.connected or pad.active)
+
+
+## The Pad autoload, or null where it isn't loaded.
+static func _pad() -> Node:
+	var tree := Engine.get_main_loop() as SceneTree
+	return tree.root.get_node_or_null("Pad") if tree else null
 
 
 ## The play controls for the F1 overlay as [{label, keys}], generated from the input map so it
-## never goes stale.
+## never goes stale. With a pad plugged in or in use (shows_pad), each row adds the pad's names
+## after the keys ("LMB / RT").
 static func describe_play_controls() -> Array[Dictionary]:
 	ensure_actions()
+	var with_pad := shows_pad()
+	var texts: Dictionary = PAD_CONTROL_TEXT if with_pad else CONTROL_TEXT
 	var rows: Array[Dictionary] = []
 	for row: Array in PLAY_CONTROLS:
-		if CONTROL_TEXT.has(row[0]):
-			rows.append({label = row[0], keys = CONTROL_TEXT[row[0]]})
+		if texts.has(row[0]):
+			rows.append({label = row[0], keys = texts[row[0]]})
 			continue
 		var keys: Array[String] = []
+		var pads: Array[String] = []
 		for i in range(1, row.size()):
 			var action: String = row[i]
 			if not InputMap.has_action(action):
 				continue
 			var names: Array[String] = []
 			for event in InputMap.action_get_events(action):
-				names.append(_event_name(event))
+				var pad := pad_name(event)
+				if pad == "":
+					names.append(_event_name(event))
+				elif with_pad and not pad in pads:
+					pads.append(pad)
 			if not names.is_empty():
 				keys.append(names[0])
+		# Several D-pad directions on one row read as the D-pad.
+		var dpad := pads.filter(func(n: String) -> bool: return n.begins_with("D-pad"))
+		if dpad.size() > 1:
+			pads.assign(pads.filter(func(n: String) -> bool: return not n.begins_with("D-pad")))
+			pads.append("D-pad")
+		keys.append_array(pads)
 		rows.append({label = row[0], keys = " / ".join(keys)})
 	return rows
 
 
+## A pad event's name by position, Xbox style ("A", "LB", "RT", "D-pad Up", "Left stick"), or ""
+## for anything that isn't a pad binding.
+static func pad_name(event: InputEvent) -> String:
+	if event is InputEventJoypadButton:
+		return BUTTON_NAMES.get(event.button_index, "")
+	if event is InputEventJoypadMotion:
+		return AXIS_NAMES.get(event.axis, "")
+	return ""
+
+
 static func _event_name(event: InputEvent) -> String:
+	if pad_name(event) != "":
+		return pad_name(event)
 	if event is InputEventKey:
 		var code: Key = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
 		return OS.get_keycode_string(code)
@@ -165,13 +290,14 @@ static func ensure_actions() -> void:
 	for action in KEYS:
 		if InputMap.has_action(action):
 			continue
-		InputMap.add_action(action)
+		InputMap.add_action(action, _deadzone(action))
 		if action in DEV_ACTIONS and not is_dev():
 			continue
 		for keycode in KEYS[action]:
 			var event := InputEventKey.new()
 			event.physical_keycode = keycode
 			InputMap.action_add_event(action, event)
+		_add_pad_events(action, PAD)
 	for action in EDITOR_KEYS:
 		if InputMap.has_action(action):
 			continue
@@ -181,11 +307,62 @@ static func ensure_actions() -> void:
 	for action in MOUSE_BUTTONS:
 		if InputMap.has_action(action):
 			continue
-		InputMap.add_action(action)
+		InputMap.add_action(action, _deadzone(action))
 		for button in MOUSE_BUTTONS[action]:
 			var event := InputEventMouseButton.new()
 			event.button_index = button
 			InputMap.action_add_event(action, event)
+		_add_pad_events(action, PAD)
+	for action in PAD_MENU:
+		if InputMap.has_action(action):
+			continue
+		InputMap.add_action(action, MENU_STICK_DEADZONE)
+		_add_pad_events(action, PAD_MENU)
+	_pad_ui_actions()
+
+
+## The deadzone of a play action: its stick's or trigger's, BUTTON_DEADZONE for the rest.
+static func _deadzone(action: String) -> float:
+	for spec: Variant in PAD.get(action, []):
+		if spec is Array:
+			return TRIGGER_DEADZONE if spec[0] in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT] else STICK_DEADZONE
+	return BUTTON_DEADZONE
+
+
+static func _add_pad_events(action: String, table: Dictionary) -> void:
+	for spec: Variant in table.get(action, []):
+		if spec is Array:
+			var motion := InputEventJoypadMotion.new()
+			motion.axis = spec[0]
+			motion.axis_value = spec[1]
+			InputMap.action_add_event(action, motion)
+		else:
+			var button := InputEventJoypadButton.new()
+			button.button_index = spec
+			InputMap.action_add_event(action, button)
+
+
+## ui_cancel without a joypad B (B crouches in play; menus read it through Pad) and with Start;
+## ui_accept with A (Godot 4.6 gives it no pad button), which presses the pause panel's buttons.
+## Safe to run again.
+static func _pad_ui_actions() -> void:
+	var has_start := false
+	for event in InputMap.action_get_events("ui_cancel"):
+		if event is InputEventJoypadButton:
+			if event.button_index == JOY_BUTTON_START:
+				has_start = true
+			else:
+				InputMap.action_erase_event("ui_cancel", event)
+	if not has_start:
+		var start := InputEventJoypadButton.new()
+		start.button_index = JOY_BUTTON_START
+		InputMap.action_add_event("ui_cancel", start)
+	var has_a := InputMap.action_get_events("ui_accept").any(func(event: InputEvent) -> bool:
+		return event is InputEventJoypadButton and event.button_index == JOY_BUTTON_A)
+	if not has_a:
+		var accept := InputEventJoypadButton.new()
+		accept.button_index = JOY_BUTTON_A
+		InputMap.action_add_event("ui_accept", accept)
 
 
 static func _key_event(spec: String) -> InputEventKey:

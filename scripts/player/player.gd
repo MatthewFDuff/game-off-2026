@@ -60,9 +60,11 @@ signal footstep_played(sound: String)
 
 @export_group("Look")
 @export var mouse_sensitivity := 0.0025
-## Arrow-key look speed in radians per second. A fallback for remote desktop sessions, where
-## captured mouse motion often doesn't arrive.
-@export var key_look_speed := 2.2
+## Right-stick look speed in radians per second at full deflection (times the Stick sensitivity
+## setting; the stick's response is squared, so small pushes aim finely). The arrow keys turn at
+## the same speed: a fallback for remote desktop sessions, where captured mouse motion often
+## doesn't arrive.
+@export var pad_look_speed := 2.5
 
 @export_group("Camera Feel")
 ## Trauma lost per second; the shake strength is trauma squared.
@@ -158,6 +160,8 @@ const TELEPORT_STEP := 4.0
 var is_local := true
 ## The exported mouse_sensitivity, before GameSettings' multiplier.
 var _base_sensitivity := 0.0025
+## The Stick sensitivity setting (a multiple of pad_look_speed).
+var _stick_sensitivity := 1.0
 ## Carrying the spore shooter (levels with `start_unarmed` begin without it; the case drops it).
 ## Replicated with the movement state so every peer hides or shows the gun.
 var has_weapon := true
@@ -221,6 +225,7 @@ func _on_setting_changed(_key: String) -> void:
 	var settings := get_node_or_null("/root/GameSettings")
 	if settings:
 		mouse_sensitivity = _base_sensitivity * float(settings.get_value("mouse_sensitivity"))
+		_stick_sensitivity = float(settings.get_value("stick_sensitivity"))
 		camera.fov = float(settings.get_value("fov"))
 
 
@@ -235,14 +240,18 @@ func set_display(player_name: String, color: Color) -> void:
 func _notification(what: int) -> void:
 	# Never keep the cursor locked when the game window loses focus (alt-tab, editor, etc).
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		InputSetup.release_play()
 
 
 func _input(event: InputEvent) -> void:
-	# Handled in _input so no UI or other node can swallow the way out of mouse capture. The level
-	# editor handles Esc itself (it backs out of a tool step first).
-	if event.is_action_pressed("ui_cancel") and not editing:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# Handled in _input so no UI or other node can swallow the way out of play (Esc, or Start on a
+	# pad). The level editor handles Esc itself (it backs out of a tool step first). Only a way
+	# out: resuming belongs to the pause panel and the cubicle, and an event one of them already
+	# took (Start resuming) is left alone. Not marked handled, so the cubicle still sees the Esc
+	# that opens its clock-out prompt.
+	if event.is_action_pressed("ui_cancel") and not editing and InputSetup.is_playing() \
+			and not get_viewport().is_input_handled():
+		InputSetup.release_play()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -257,13 +266,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		if editing and (builder_view or not EditorInput.world_may_use(event)):
 			return
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		InputSetup.resume_play()
 		get_viewport().gui_release_focus() # A text field mustn't keep typing while we fly.
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_fly") and OS.is_debug_build() and not editing:
 		flying = not flying
 		velocity = Vector3.ZERO
-	elif event.is_action_pressed("interact") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif event.is_action_pressed("interact") and InputSetup.is_playing():
 		interacted.emit()
 	elif event.is_action_pressed("toggle_flashlight"):
 		flashlight.visible = not flashlight.visible
@@ -295,9 +304,11 @@ func _process(delta: float) -> void:
 	if not is_local:
 		_interpolate_remote()
 		return
-	var key_look := _vector("look_left", "look_right", "look_up", "look_down")
-	if key_look != Vector2.ZERO:
-		_look(key_look * key_look_speed * delta)
+	# The right stick and the arrow keys: squared response (a key gives a unit vector, so it turns
+	# at full speed).
+	var stick := _vector("look_left", "look_right", "look_up", "look_down")
+	if stick != Vector2.ZERO:
+		_look(stick * stick.length() * pad_look_speed * _stick_sensitivity * delta)
 
 	# Movement runs at the physics rate, but the screen refreshes faster. Interpolate the camera
 	# between the last two physics positions so it moves smoothly at any frame rate.

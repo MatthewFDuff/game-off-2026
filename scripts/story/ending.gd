@@ -106,7 +106,7 @@ func _show(lines: Array, net: int) -> void:
 	Net.pending_statement = lines.duplicate()
 	Net.pending_total = net
 	visible = true
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	InputSetup.release_play()
 	_tween = create_tween()
 	_tween.tween_property(_black, "color", Color(0, 0, 0, 1), FADE_SECONDS)
 	_tween.tween_callback(_leave)

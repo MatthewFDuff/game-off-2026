@@ -36,4 +36,5 @@ limits/opengl/max_renderable_lights=64
 SfxBank="*res://scripts/audio/sfx.gd"
 Net="*res://scripts/net/net.gd"
 GameSettings="*res://scripts/game_settings.gd"
+Pad="*res://scripts/pad.gd"
 VoxWatch="*res://scripts/voxel/vox_watch.gd"

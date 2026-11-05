@@ -1,7 +1,11 @@
 class_name ControlsOverlay
 extends Control
-## F1 controls cheat sheet, listing the bindings from InputSetup so it never goes stale.
-## Esc closes it too.
+## F1 controls cheat sheet, listing the bindings from InputSetup so it never goes stale; with a pad
+## plugged in or in use it lists the pad's buttons too (and Back toggles it), rebuilt when the
+## device changes. Esc closes it too, and B or Start on a pad.
+
+var _title := Label.new()
+var _grid := GridContainer.new()
 
 
 func _ready() -> void:
@@ -21,22 +25,29 @@ func _ready() -> void:
 	panel.add_child(margin)
 	var column := VBoxContainer.new()
 	margin.add_child(column)
-	var title := Label.new()
-	title.text = "Controls (F1)"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(title)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 24)
-	column.add_child(grid)
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(_title)
+	_grid.columns = 2
+	_grid.add_theme_constant_override("h_separation", 24)
+	column.add_child(_grid)
+	_rebuild()
+	Pad.device_changed.connect(_rebuild)
+
+
+## The title and rows for the device in use (InputSetup.describe_play_controls).
+func _rebuild() -> void:
+	_title.text = "Controls (F1 / Back)" if InputSetup.shows_pad() else "Controls (F1)"
+	for child in _grid.get_children():
+		_grid.remove_child(child)
+		child.queue_free()
 	for row in InputSetup.describe_play_controls():
 		var label := Label.new()
 		label.text = row.label
-		grid.add_child(label)
+		_grid.add_child(label)
 		var keys := Label.new()
 		keys.text = row.keys
 		keys.modulate = Color(0.75, 1.0, 0.8)
-		grid.add_child(keys)
+		_grid.add_child(keys)
 
 
 ## Shows the sheet for a few seconds (the story does this when the player first gets the gun).
@@ -50,5 +61,5 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("show_controls"):
 		visible = not visible
 		get_viewport().set_input_as_handled()
-	elif visible and event.is_action_pressed("ui_cancel"):
+	elif visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pad_back")):
 		visible = false

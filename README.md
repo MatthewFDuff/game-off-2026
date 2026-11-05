@@ -278,6 +278,8 @@ godot --headless --path . --script res://tests/fire_test.gd          # fire: spr
 godot --headless --path . --script res://tests/combat_los_test.gd    # line of sight (clouds, giant swing, bites through walls), fair spawns, emergence
 godot --headless --path . --script res://tests/roster_b_test.gd      # mommy brood, spore blindness, ceiling poison cloud, tentacle grabs
 godot --headless --path . --script res://tests/controller_test.gd    # movement: top speed, stopping, jump height, coyote time, jump buffer, bunny hops, air strafing, crouch-jump
+godot --headless --path . --script res://tests/gamepad_test.gd       # gamepad: pad bindings, Pad.to_key and stick edges, stick walking and look on the play-focus flag, the pause panel by pad
+godot --headless --path . --script res://tests/pad_console_test.gd   # the cubicle by pad: A for play focus, the console, arcade name entry, the log and email, clock-out, notes
 godot --headless --path . --script res://tests/vox_test.gd           # .vox round trips, prop library vs generators
 godot --headless --path . --script res://tests/editor_tool_test.gd   # the level editor driven by keys and clicks
 godot --headless --path . --script res://tests/editor_input_test.gd  # editor input rules: wheel over panels, typing, Tab, modals, Esc

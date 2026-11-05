@@ -4,8 +4,9 @@ extends CanvasLayer
 ## is released ("SHIFT PAUSED": Resume, Settings, Invite for a co-op host, Leave shift). Settings
 ## and Invite take the buttons' place in the panel until Esc (or the menu's own back) returns.
 ## Solo play pauses under it; co-op keeps running. In a story shift a line under the buttons says
-## what leaving does (the host saves the shift: Lab.save_shift). Placeholder until the real HUD
-## exists.
+## what leaving does (the host saves the shift: Lab.save_shift). On a pad the first button takes
+## focus when the panel opens, the D-pad and stick move it, A presses, B goes back a page and
+## Start resumes (docs/controls.md, 2.5). Placeholder until the real HUD exists.
 
 @export var lab: Lab
 
@@ -26,6 +27,7 @@ var _story: Story
 var _combat: CombatHud
 var _prompt: InteractPrompt
 var _controls: ControlsOverlay
+var _solo := true
 
 
 ## HUD label settings: the pixel font (PixelFont) at about size px, a drop shadow for outline > 0.
@@ -101,6 +103,9 @@ func _process(delta: float) -> void:
 	elif _pause.visible and not was_paused:
 		_update_shift_hint()
 		_recenter_pause()
+		_focus_first()
+	if _pause.visible:
+		_update_pause_hint()
 	_crosshair.visible = playing and not ending
 	# Solo play pauses with the mouse released; co-op and the editor keep running.
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
@@ -128,15 +133,15 @@ func _build_pause() -> void:
 	title.label_settings = _settings(32)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
-	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
-	_pause_hint.text = "Click to resume." if solo else "Click to resume. The shift does not pause for you."
+	_solo = multiplayer.multiplayer_peer is OfflineMultiplayerPeer
+	_update_pause_hint()
 	_pause_hint.label_settings = _settings(16, Color(0.7, 0.7, 0.7), 0)
 	_pause_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_pause_hint)
 
 	_buttons.add_theme_constant_override("separation", 8)
 	column.add_child(_buttons)
-	_add_button("Resume", func() -> void: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+	_add_button("Resume", InputSetup.resume_play)
 	_add_button("Settings", _show_settings)
 	if hosting_info(multiplayer) != "":
 		_add_button("Invite", _show_invite)
@@ -155,6 +160,7 @@ func _build_pause() -> void:
 	_invite.add_child(_pause_info)
 	var back := Button.new()
 	back.text = "Back"
+	back.focus_mode = Control.FOCUS_ALL
 	back.pressed.connect(_show_buttons)
 	_invite.add_child(back)
 
@@ -169,8 +175,27 @@ func _build_pause() -> void:
 func _add_button(text: String, action: Callable) -> void:
 	var button := Button.new()
 	button.text = text
+	button.focus_mode = Control.FOCUS_ALL
 	button.pressed.connect(action)
 	_buttons.add_child(button)
+
+
+## How to resume, by device ("Click to resume." / "Press Start to resume."); co-op adds that the
+## shift runs on.
+func _update_pause_hint() -> void:
+	var how := "Press Start to resume." if Pad.active else "Click to resume."
+	var text := how if _solo else how + " The shift does not pause for you."
+	if _pause_hint.text != text:
+		_pause_hint.text = text
+
+
+## Gives the shown page's first button the focus, so a pad can work the panel at once.
+func _focus_first() -> void:
+	var page := _buttons if _buttons.visible else _invite
+	for child in page.get_children():
+		if child is Button and child.visible:
+			child.grab_focus()
+			return
 
 
 ## The pause panel's look: a flat near-black box with a hard border, square buttons.
@@ -207,6 +232,8 @@ func _show_buttons() -> void:
 	if _settings_menu:
 		_settings_menu.visible = false
 	_recenter_pause()
+	if _pause.visible:
+		_focus_first()
 
 
 func _update_shift_hint() -> void:
@@ -226,15 +253,26 @@ func _show_invite() -> void:
 	_buttons.visible = false
 	_invite.visible = true
 	_recenter_pause()
+	_focus_first()
 
 
+## The pause panel's keys and pad buttons: Start (or Esc) on the buttons page resumes; the settings
+## page takes its keys (and pad presses) through SettingsMenu.handle_key; Esc, B or Start on the
+## invite page goes back. _pause.visible is last frame's, so the Start that just paused (the
+## Player's _input releasing play) doesn't resume here too; a Start this takes is marked handled,
+## which the Player checks.
 func _input(event: InputEvent) -> void:
-	if not _pause.visible or _buttons.visible:
+	if not _pause.visible or get_viewport().is_input_handled():
+		return
+	if _buttons.visible:
+		if event.is_action_pressed("ui_cancel"):
+			InputSetup.resume_play()
+			get_viewport().set_input_as_handled()
 		return
 	if _settings_menu.visible:
 		if _settings_menu.handle_key(event):
 			get_viewport().set_input_as_handled()
-	elif _invite.visible and event.is_action_pressed("ui_cancel"):
+	elif _invite.visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pad_back")):
 		_show_buttons()
 		get_viewport().set_input_as_handled()
 

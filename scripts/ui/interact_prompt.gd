@@ -3,7 +3,8 @@ extends Control
 ## Play-mode interact feedback for the local player: the prompt under the crosshair for the door or
 ## prop in view ("[E] Open", "Locked: needs red keycard"), and the reader panel for notes and
 ## terminals (LevelPlay.reading), which closes on E (Lab), Esc (the mouse is released), or walking
-## away. Added by LabHud.
+## away. On a pad (Pad.active) the key tokens read as its buttons ("[X] Open", "[Y]"), X or Start
+## closes, and the D-pad or right stick scrolls. Added by LabHud.
 
 ## Meters past reach the player can wander before an open note closes.
 const READ_SLACK := 1.0
@@ -12,6 +13,10 @@ const READ_SLACK := 1.0
 const READ_HEIGHT_SHARE := 0.6
 const READ_WIDTH := 520.0
 const SCROLL_STEP := 40.0
+## Pixels per second the reader scrolls with the right stick held all the way.
+const STICK_SCROLL_SPEED := 700.0
+## The right stick scrolls past this deflection (less is looking around).
+const STICK_SCROLL_DEADZONE := 0.5
 
 var lab: Lab
 var _fit_key := ""
@@ -22,6 +27,11 @@ var _title := Label.new()
 var _text := Label.new()
 var _scroll := ScrollContainer.new()
 var _reading := ""
+var _hint := Label.new()
+## The reader's text before Pad.text, so it reads right after the device changes.
+var _raw_text := ""
+## The right stick's last vertical deflection (from its events).
+var _right_y := 0.0
 
 
 static func create(level: Lab) -> InteractPrompt:
@@ -69,17 +79,17 @@ func _ready() -> void:
 	_scroll.custom_minimum_size = Vector2(READ_WIDTH - 36.0, 0)
 	_scroll.add_child(_text)
 	column.add_child(_scroll)
-	var hint := Label.new()
-	hint.text = "E or Esc to close"
-	hint.label_settings = LabHud._settings(13, Color(1, 1, 1, 0.5), 0)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	column.add_child(hint)
+	_hint.label_settings = LabHud._settings(13, Color(1, 1, 1, 0.5), 0)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	column.add_child(_hint)
 	_panel.visible = false
 	add_child(_panel)
 	lab.play.reading_changed.connect(_on_reading_changed)
+	Pad.device_changed.connect(_on_device_changed)
+	_on_device_changed()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if lab == null or not is_instance_valid(lab):
 		return
 	var play := lab.play
@@ -92,8 +102,10 @@ func _process(_delta: float) -> void:
 			play.close_reading()
 	_prompt.visible = playing and play.reading == ""
 	if _prompt.visible:
-		_prompt.text = play.interactables.prompt_for(me.camera).text
+		_prompt.text = Pad.text(play.interactables.prompt_for(me.camera).text)
 	if _panel.visible:
+		if absf(_right_y) > STICK_SCROLL_DEADZONE:
+			_scroll.scroll_vertical += int(signf(_right_y) * STICK_SCROLL_SPEED * _right_y * _right_y * delta)
 		_fit_reader()
 
 
@@ -122,11 +134,22 @@ func _fit_reader(force := false) -> void:
 	_panel.size = size
 
 
+func _input(event: InputEvent) -> void:
+	# Only watched, never taken: the same stick looks around.
+	if event is InputEventJoypadMotion and event.axis == JOY_AXIS_RIGHT_Y:
+		_right_y = event.axis_value
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not _panel.visible:
 		return
 	var step := 0.0
-	if event is InputEventMouseButton and event.pressed:
+	if event is InputEventJoypadButton and event.pressed:
+		# The D-pad (not the left stick, which walks away from the note).
+		match event.button_index:
+			JOY_BUTTON_DPAD_DOWN: step = SCROLL_STEP
+			JOY_BUTTON_DPAD_UP: step = -SCROLL_STEP
+	elif event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			step = SCROLL_STEP
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -157,12 +180,20 @@ func _on_reading_changed(id: String) -> void:
 	var object: Dictionary = lab.level.objects.get(id, {})
 	_title.text = "TERMINAL" if object.get("use") == "terminal" else "Note"
 	var text := lab.play.reading_text(id).strip_edges()
-	_text.text = text if text != "" else "(blank)"
+	_raw_text = text if text != "" else "(blank)"
+	_text.text = Pad.text(_raw_text)
 	var same := id == _reading
 	_reading = id
 	_fit_reader(true)
 	# A fresh note starts at the top; an experiment that just printed a line shows its end.
 	_scroll.scroll_vertical = 100000 if same else 0
+
+
+## The reader's tokens and close hint for the device in use.
+func _on_device_changed() -> void:
+	_hint.text = "X or Start to close" if Pad.active else "E or Esc to close"
+	if _raw_text != "":
+		_text.text = Pad.text(_raw_text)
 
 
 static func _distance_to_box(point: Vector3, box: AABB) -> float:

@@ -199,7 +199,9 @@ func _update_ammo(me: Player, delta: float) -> void:
 	var rounds: int = me.inventory.count(type.name) if me.inventory else -1
 	_ammo_count.text = "∞" if rounds < 0 else str(rounds)
 	var next := weapon.next_ammo()
-	_ammo_next.text = "" if next == type.name else "SHIFT: %s" % AmmoType.by_name(next).label
+	# SHIFT on keys, Y on a pad.
+	var key := "Y" if Pad.active else "SHIFT"
+	_ammo_next.text = "" if next == type.name else "%s: %s" % [key, AmmoType.by_name(next).label]
 	if _last_ammo != "" and _last_ammo != type.name:
 		_ammo_toast.text = type.label
 		if _ammo_toast.label_settings.font_color != type.color:

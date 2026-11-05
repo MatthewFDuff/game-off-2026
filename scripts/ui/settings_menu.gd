@@ -1,12 +1,13 @@
 class_name SettingsMenu
 extends Control
 ## The settings rows, shared by the cubicle's console (at 1x, on the 240 x 160 screen) and the
-## lab's pause panel (at 2x): Orientation, Fullscreen, Mouse sensitivity, Field of view and the
-## three volumes, in the pixel font at 8 * scale px, labels left and values right as "<  value  >",
+## lab's pause panel (at 2x): Orientation, Fullscreen, Mouse and Stick sensitivity, Field of view
+## and the three volumes, in the pixel font at 8 * scale px, labels left and values right as "<  value  >",
 ## the chosen row marked with the amber caret. It is keyboard-driven through handle_key (the
 ## console feeds it the screen's keys; the pause panel its own): up / down choose a row, left /
 ## right change it, Enter flips a two-state row (or, on the console's Name row, emits rename),
-## Esc or Backspace emits closed. Every change goes straight to
+## Esc or Backspace emits closed. A pad works too: handle_key reads its presses as keys (Pad.to_key:
+## the D-pad and left stick are the arrows, A Enter, B Esc). Every change goes straight to
 ## GameSettings.set_value, which saves and applies it. Hard pixels only: no panel of its own, so
 ## it takes the background of whatever holds it.
 
@@ -21,6 +22,7 @@ const ROWS: Array[Dictionary] = [
 	{key = "orientation", label = "Orientation", kind = "choice", values = ["play", "skip"], names = ["Attend", "Skip"]},
 	{key = "fullscreen", label = "Fullscreen", kind = "choice", values = [false, true], names = ["Off", "On"]},
 	{key = "mouse_sensitivity", label = "Mouse sensitivity", kind = "range", range = Settings.SENSITIVITY_RANGE},
+	{key = "stick_sensitivity", label = "Stick sensitivity", kind = "range", range = Settings.SENSITIVITY_RANGE},
 	{key = "fov", label = "Field of view", kind = "range", range = Settings.FOV_RANGE},
 	{key = "volume_master", label = "Master", kind = "range", range = Settings.VOLUME_RANGE},
 	{key = "volume_effects", label = "Effects", kind = "range", range = Settings.VOLUME_RANGE},
@@ -76,8 +78,11 @@ func _ready() -> void:
 	_refresh()
 
 
-## Handles a key for the menu; true when it was the menu's (the caller marks it handled).
+## Handles a key (or a pad press, as its key) for the menu; true when it was the menu's (the caller
+## marks it handled).
 func handle_key(event: InputEvent) -> bool:
+	if Pad.is_pad(event):
+		event = Pad.to_key(event)
 	if not (event is InputEventKey) or not event.pressed:
 		return false
 	var key: Key = (event as InputEventKey).keycode
@@ -116,7 +121,7 @@ static func value_text(row: Dictionary, value: Variant) -> String:
 	if row.kind == "choice":
 		var index: int = row.values.find(value)
 		return str(row.names[index]) if index >= 0 else str(value)
-	if row.key == "mouse_sensitivity":
+	if row.key in ["mouse_sensitivity", "stick_sensitivity"]:
 		return "%.2fx" % float(value)
 	return str(int(value))
 

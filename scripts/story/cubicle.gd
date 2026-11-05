@@ -8,11 +8,15 @@ extends Node3D
 ## bag (the clock-out prompt; Esc in the room shows it too), the notes (the reader panel) and the
 ## plant. Straying too far into the hallway (HALL_DEPTH past the opening) freezes the player with
 ## an error buzz, a flashing red light and an intercom line (escalating, counted in `exits`) and
-## sets them back inside. Back in the room from a panel or the screen, the mouse is captured again.
+## sets them back inside. Back in the room from a panel or the screen, play focus comes back
+## (InputSetup.resume_play: the mouse captured again, or the pad's play flag).
 ##
 ## The console is drawn in pixel text on the monitor's screen voxels (a SubViewport on a quad) and
 ## is keyboard-driven: arrows move, Enter / SHIFT select, Esc (or Backspace outside a field) backs
-## out one page (from the top page the camera zooms back out). Its pages (Page) are the sign-in
+## out one page (from the top page the camera zooms back out). A pad drives it through the same
+## keys (Pad.to_key: A Enter, Y SHIFT, B Esc, X Backspace, the D-pad and left stick arrows), its
+## fields take arcade entry (up / down turn the last character) and its texts name the pad's
+## buttons while it is the device in use (docs/controls.md). Its pages (Page) are the sign-in
 ## (nobody is signed in at launch; the name on file is offered), the main menu, singleplayer,
 ## multiplayer (host / join a shift), settings (the shared SettingsMenu), the payroll statement
 ## left by the last shift (Net.pending_statement), Site maintenance (the old menu's testing and
@@ -63,9 +67,13 @@ const SIGN_IN_PROMPT := "Press SHIFT to sign in"
 const SESSION_STARTED := "session started. operator: you. shift: night."
 const SKIP_HINT := "F9 skips orientation"
 const CLICK_HINT := "Click to look around"
+## The same prompts while a pad is in use (Pad.active; the click hint: a pad plugged in).
+const SIGN_IN_PROMPT_PAD := "Press Y to sign in"
+const CLICK_HINT_PAD := "Click or press A to look around"
 ## The email arrives after this many lines.
 const EMAIL_AFTER := 4
 const EMAIL_NOTICE := "1 new email  [E]"
+const EMAIL_NOTICE_PAD := "1 new email  [A]"
 const EMAIL_FROM := "Fung AI People Operations"
 const EMAIL_SUBJECT := "Opportunity: Laboratory Technician (Expendable Grade), Site 3"
 const EMAIL_BODY := "Congratulations! Your performance as LLM Operator (pressing: 100%) has been noticed. Fung AI is pleased to offer you a transfer to Site 3, where you will continue experiments on our substrate program. Lab coat provided. Science permitted."
@@ -85,6 +93,7 @@ const PLANT_LINE := "It is plastic. It is Fung AI property."
 const DUCK_LINE := "Squeak."
 const CLOCK_OUT_TEXT := "Clock out? Fung AI wishes you a restful six hours."
 const CLOCK_OUT_KEYS := "Y / Enter: clock out     N / Esc: stay"
+const CLOCK_OUT_PAD_KEYS := "A: clock out     B: stay"
 const CLOSE_TAB_TEXT := "You may close the tab."
 const MAINTENANCE_SUB := "authorized personnel and ducks"
 const NO_CLONE := "no record on file"
@@ -137,6 +146,9 @@ const STATEMENT_ROWS := 11
 const STATEMENT_ROWS_DONE := 5
 ## The console's pixels (the screen voxels are 6 x 4, a 3:2 face: square texels).
 const SCREEN_PIXELS := Vector2i(300, 200)
+## Arcade entry (a pad in a field): the characters up / down turn through, in order (each field
+## keeps only those it takes, _field_allows).
+const ARCADE_CHARS := " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-:"
 ## Log lines kept on the screen.
 const SCREEN_LINES := 4
 const FONT_SIZE := 8
@@ -222,7 +234,8 @@ var _waiting_for_host := false
 var _reading := ""
 var _subtitle_left := 0.0
 var _freeze_left := 0.0
-var _ever_captured := false
+## Play focus has been held once (the click hint is gone for good).
+var _ever_played := false
 
 # The room.
 var _world: VoxelWorld
@@ -265,9 +278,13 @@ var _subtitle := Label.new()
 var _reader: PanelContainer
 var _reader_title := Label.new()
 var _reader_text := Label.new()
+var _reader_hint := Label.new()
 var _clock_panel: PanelContainer
+var _clock_keys := Label.new()
 var _email: PanelContainer
 var _email_scroll := ScrollContainer.new()
+## The email's ACCEPT and DECLINE buttons (their key names follow the device).
+var _email_buttons: Array[Button] = []
 var _vignette := ColorRect.new()
 var _black := ColorRect.new()
 var _overlay_text := Label.new()
@@ -285,6 +302,8 @@ func _ready() -> void:
 	Net.players_changed.connect(_on_players_changed)
 	Net.session_started.connect(_on_session_started)
 	Net.session_ended.connect(_on_session_ended)
+	Pad.device_changed.connect(_on_device_changed)
+	_device_texts()
 	if not Net.pending_statement.is_empty():
 		_statement = "waiting"
 		_statement_lines = Net.pending_statement.duplicate()
@@ -298,8 +317,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or InputSetup.playing_on_pad:
+		InputSetup.release_play()
 
 
 # --- Driving it --------------------------------------------------------------------------------------
@@ -322,14 +341,15 @@ func _process(delta: float) -> void:
 			_subtitle_panel.visible = false
 	if _subtitle_panel.visible:
 		_fit_subtitle()
-	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	_ever_captured = _ever_captured or captured
-	_click_hint.visible = state == State.ROOM and not _ever_captured and DisplayServer.get_name() != "headless"
-	_crosshair.visible = state == State.ROOM and captured
+	# Headless runs count as playing (InputSetup.headless_plays), so the hint never shows there.
+	var playing := InputSetup.is_playing()
+	_ever_played = _ever_played or playing
+	_click_hint.visible = state == State.ROOM and not _ever_played
+	_crosshair.visible = state == State.ROOM and playing
 	var aimed := aimed() if state == State.ROOM and player != null else ""
 	_use_prompt.visible = aimed != ""
 	if aimed != "":
-		_use_prompt.text = "[E] " + str(_interactables[aimed].label)
+		_use_prompt.text = Pad.text("[E] " + str(_interactables[aimed].label))
 	match state:
 		State.ROOM:
 			_check_leaving()
@@ -354,7 +374,7 @@ func _process(delta: float) -> void:
 				_prompt.text = "thinking" + ".".repeat(1 + int(fmod(_blink * 2.0, 3.0)))
 				_prompt.visible = true
 				if _pause_left <= 0.0:
-					_prompt.text = "[SHIFT]"
+					_prompt.text = Pad.text("[SHIFT]")
 			else:
 				_prompt.visible = fmod(_blink, 1.0) < 0.6
 		State.DYING:
@@ -396,26 +416,32 @@ func _unhandled_input(event: InputEvent) -> void:
 		State.ROOM:
 			handled = _room_input(event)
 		State.READING:
-			if event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel") or _is_key(event, KEY_BACKSPACE):
+			# X is interact; B reads as Esc and Start is ui_cancel.
+			var key := _as_key(event)
+			if event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel") or _is_key(key, KEY_BACKSPACE) or _is_key(key, KEY_ESCAPE):
 				close_reader()
 				handled = true
 		State.CLOCK_OUT:
-			if event is InputEventKey and event.pressed and not event.echo:
-				match event.keycode:
+			# A reads as Enter (clock out), B and Start as Esc and X as Backspace (stay).
+			var key := _as_key(event)
+			if key is InputEventKey and key.pressed and not key.echo:
+				match key.keycode:
 					KEY_Y, KEY_ENTER, KEY_KP_ENTER:
 						clock_out()
 					KEY_N, KEY_ESCAPE, KEY_BACKSPACE:
 						close_clock_out()
 				handled = true
 		State.SCREEN, State.LOG, State.DYING, State.DEAD, State.TRASH, State.GO_BACK, State.ACCEPTED:
-			if event is InputEventKey:
+			if Pad.is_pad(event):
+				handled = handle_pad(event)
+			elif event is InputEventKey:
 				handled = handle_key(event)
 			elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 				if state == State.LOG and email_sent and not email_open:
 					open_email()
 					handled = true
 		State.ZOOM, State.FROZEN, State.CLOSING:
-			handled = event is InputEventKey
+			handled = event is InputEventKey or event is InputEventJoypadButton
 	if handled and viewport:
 		viewport.set_input_as_handled()
 
@@ -430,6 +456,14 @@ func _room_input(event: InputEvent) -> bool:
 		return true
 	if event.is_action_pressed("ui_cancel"):
 		open_clock_out()
+		return true
+	# A pad player gets in without a click: any button while the room has no play focus. After
+	# ui_cancel, so the Start that just released play (Player._input) opens the clock-out prompt.
+	# On the button's release, not its press: A is jump, and play going live on the press would
+	# hop the player the same tick.
+	if event is InputEventJoypadButton and not InputSetup.is_playing():
+		if not event.pressed:
+			InputSetup.resume_play()
 		return true
 	return false
 
@@ -533,7 +567,7 @@ func open_clock_out() -> void:
 		return
 	state = State.CLOCK_OUT
 	_freeze_player(true)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	InputSetup.release_play()
 	_clock_panel.visible = true
 	Sfx.play("ui_blip", -6.0, 0.0)
 
@@ -595,7 +629,7 @@ func use_monitor(start_page := -1) -> void:
 	state = State.ZOOM
 	_state_time = 0.0
 	_freeze_player(true)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	InputSetup.release_play()
 	_render()
 	var target := Transform3D(Basis.looking_at(-_screen_normal, Vector3.UP), _screen_center + _screen_normal * SCREEN_DISTANCE)
 	_zoom_camera.fov = player.camera.fov if player else 70.0
@@ -604,8 +638,9 @@ func use_monitor(start_page := -1) -> void:
 	_tween_camera(target, func() -> void: _on_zoomed_in())
 
 
-## From the top page: the camera moves back to the player's eyes and the room is theirs again, the
-## mouse captured at once (the key that stepped away is the gesture the web build needs for it).
+## From the top page: the camera moves back to the player's eyes and the room is theirs again, play
+## focus back at once (the key that stepped away is the gesture the web build needs to capture the
+## mouse; a pad button sets the pad's play flag).
 func zoom_out() -> void:
 	if state != State.SCREEN:
 		return
@@ -651,14 +686,14 @@ func _freeze_player(frozen: bool) -> void:
 		player.process_mode = Node.PROCESS_MODE_DISABLED if frozen else Node.PROCESS_MODE_INHERIT
 
 
-## Back in the room after a panel or the screen: the mouse is captured again without a click.
+## Back in the room after a panel or the screen: play focus again without a click (the mouse
+## captured, or on a pad the play flag; InputSetup.resume_play).
 func _capture_mouse() -> void:
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	InputSetup.resume_play()
 
 
 static func _is_key(event: InputEvent, keycode: Key) -> bool:
-	return event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == keycode
+	return event != null and event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == keycode
 
 
 func _home_page() -> Page:
@@ -670,6 +705,42 @@ func _signed_in() -> bool:
 
 
 # --- The console's keys -------------------------------------------------------------------------------
+
+## event as a key: a pad event as the key it stands for (Pad.to_key; null for a release or a
+## button with no key), anything else unchanged.
+static func _as_key(event: InputEvent) -> InputEvent:
+	return Pad.to_key(event) if Pad.is_pad(event) else event
+
+
+## A pad event on the console. Its pad-only meanings first: in a field, arcade entry (up / down
+## turn the last character, right adds one, left erases, Y steps the caret off the field); with
+## the email open, X declines. Everything else goes to handle_key as the key it stands for (A
+## Enter, B and Start Esc, Y SHIFT, X Backspace, arrows). True if it was the console's.
+func handle_pad(event: InputEvent) -> bool:
+	var key := Pad.to_key(event)
+	if key == null:
+		return false
+	if state == State.SCREEN and _field_item() != {}:
+		match key.keycode:
+			KEY_UP:
+				turn_char(1)
+			KEY_DOWN:
+				turn_char(-1)
+			KEY_RIGHT:
+				type_text("A")
+			KEY_LEFT:
+				_erase()
+			KEY_SHIFT:
+				if _selectable().size() > 1:
+					move_cursor(1)
+			_:
+				return handle_key(key)
+		return true
+	if email_open and event.is_action_pressed("pad_alt"):
+		decline()
+		return true
+	return handle_key(key)
+
 
 ## A key on the console (the screen is in use). True if it was the console's.
 func handle_key(event: InputEventKey) -> bool:
@@ -724,9 +795,15 @@ func _log_key(event: InputEventKey) -> bool:
 		KEY_ESCAPE:
 			if state in [State.LOG, State.DYING] and not email_open:
 				_abort_orientation()
+			elif state == State.GO_BACK:
+				_finish(false) # B on a pad.
 		KEY_ENTER, KEY_KP_ENTER, KEY_E:
 			if state == State.LOG and email_sent and not email_open:
 				open_email()
+			elif email_open and event.keycode != KEY_E:
+				accept() # A on a pad.
+			elif state == State.GO_BACK and event.keycode != KEY_E:
+				go_back()
 		KEY_A:
 			if email_open:
 				accept()
@@ -868,14 +945,47 @@ func type_text(text: String) -> void:
 		return
 	var value := _get_field(item.field)
 	for c in text:
-		var ok := (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or (c >= "0" and c <= "9") or c == " "
-		if item.field == "address":
-			ok = ok or c in [".", ":", "-"]
-		elif item.field == "new_name":
-			ok = ok or c in ["_", "-"]
-		if ok and value.length() < int(item.get("max", GameSettings.NAME_LENGTH)):
+		if _field_allows(item.field, c) and value.length() < int(item.get("max", GameSettings.NAME_LENGTH)):
 			value += c
 	_set_field(item.field, value)
+	_render()
+
+
+## The characters a field takes: letters, digits and space; addresses . : - too, level names _ -.
+static func _field_allows(field: String, c: String) -> bool:
+	var ok := (c >= "a" and c <= "z") or (c >= "A" and c <= "Z") or (c >= "0" and c <= "9") or c == " "
+	if field == "address":
+		ok = ok or c in [".", ":", "-"]
+	elif field == "new_name":
+		ok = ok or c in ["_", "-"]
+	return ok
+
+
+## ARCADE_CHARS as far as the field takes them, in order.
+static func _arcade_chars(field: String) -> String:
+	var chars := ""
+	for c in ARCADE_CHARS:
+		if _field_allows(field, c):
+			chars += c
+	return chars
+
+
+## Arcade entry: turns the field's last character step places through its characters
+## (_arcade_chars; up is +1, wrapping round). An empty field gets an A; a character not in the
+## list (a typed lowercase letter reads as its capital, an underscore) turns from A.
+func turn_char(step: int) -> void:
+	var item := _field_item()
+	if item.is_empty():
+		return
+	var value := _get_field(item.field)
+	if value == "":
+		value = "A"
+	else:
+		var chars := _arcade_chars(item.field)
+		var at := chars.find(value[value.length() - 1].to_upper())
+		value = value.left(value.length() - 1) + (chars[posmod(at + step, chars.length())] if at >= 0 else "A")
+	_set_field(item.field, value)
+	Sfx.play("ui_blip", -12.0, 0.0)
 	_render()
 
 
@@ -1296,7 +1406,7 @@ func _enter(new_state: State) -> void:
 		State.GO_BACK:
 			_overlay_text.text = GO_BACK_TEXT
 			_overlay_text.modulate = Color.WHITE
-			_set_buttons([["Yes (Y)", go_back], ["No (N)", func() -> void: _finish(false)]])
+			_go_back_buttons()
 		State.ACCEPTED:
 			# The transfer note on the monitor, then the fade carries it over the black.
 			for child in _log.get_children():
@@ -1470,6 +1580,43 @@ func _update_nameplate() -> void:
 
 # --- The pages ----------------------------------------------------------------------------------------
 
+## The go-back prompt's buttons, named by the device in use.
+func _go_back_buttons() -> void:
+	var names := _go_back_names()
+	_set_buttons([[names[0], go_back], [names[1], func() -> void: _finish(false)]])
+
+
+func _go_back_names() -> PackedStringArray:
+	return PackedStringArray(["Yes [A]", "No [B]"] if Pad.active else ["Yes (Y)", "No (N)"])
+
+
+## The prompts outside the console that name keys, by the device in use (the console's own are
+## worked out as it renders).
+func _device_texts() -> void:
+	var pad := Pad.active
+	_click_hint.text = CLICK_HINT_PAD if InputSetup.shows_pad() else CLICK_HINT
+	_notification.text = EMAIL_NOTICE_PAD if pad else EMAIL_NOTICE
+	_clock_keys.text = CLOCK_OUT_PAD_KEYS if pad else CLOCK_OUT_KEYS
+	_reader_hint.text = "X or B to close" if pad else "E or Esc to close"
+	if _email_buttons.size() == 2:
+		_email_buttons[0].text = "ACCEPT [A]" if pad else "ACCEPT (A)"
+		_email_buttons[1].text = "DECLINE [X]" if pad else "DECLINE (D)"
+	if _prompt.text in ["[SHIFT]", "[Y]"]:
+		_prompt.text = Pad.text("[SHIFT]")
+	if state == State.GO_BACK and _buttons.get_child_count() == 2:
+		# Renamed, not rebuilt: the click that switched back to the mouse may be on one of them.
+		var names := _go_back_names()
+		for i in 2:
+			(_buttons.get_child(i) as Button).text = names[i]
+
+
+## The player switched between pad and keys (or plugged a pad in): the prompts and the console
+## follow.
+func _on_device_changed() -> void:
+	_device_texts()
+	_render()
+
+
 ## The current page's lines: {kind: "title" / "text" / "item" / "field" / "pair" / "gap", text, color,
 ## action, dim, note, step (choice lines), field, blink}.
 func _items() -> Array[Dictionary]:
@@ -1480,7 +1627,7 @@ func _items() -> Array[Dictionary]:
 			items.append({kind = "gap"})
 			items.append({kind = "title", text = GAME_NAME})
 			items.append({kind = "gap"})
-			items.append({kind = "text", text = SIGN_IN_PROMPT, color = BRIGHT, blink = true})
+			items.append({kind = "text", text = _sign_in_prompt(), color = BRIGHT, blink = true})
 			if _signed_in():
 				items.append({kind = "text", text = "signed in: %s" % GameSettings.get_value("name"), color = DIM})
 		Page.SIGN_IN:
@@ -1533,13 +1680,13 @@ func _items() -> Array[Dictionary]:
 			items.append({kind = "text", text = "Host address:"})
 			items.append({kind = "field", field = "address", action = _dial, max = 40})
 			if _joined:
-				items.append({kind = "text", text = "Accepted. %d staff on. Press SHIFT to begin orientation." % Net.players.size(), color = BRIGHT})
+				items.append({kind = "text", text = "Accepted. %d staff on. Press %s to begin orientation." % [Net.players.size(), "Y" if Pad.active else "SHIFT"], color = BRIGHT})
 				items.append({kind = "item", text = "BEGIN ORIENTATION", action = _join_begin})
 			elif _dialing:
 				items.append({kind = "text", text = status, color = GREEN, blink = true})
 			elif _join_error != "":
 				items.append({kind = "text", text = _join_error, color = RED})
-				items.append({kind = "text", text = "Enter: retry  ·  Esc: back", color = DIM})
+				items.append({kind = "text", text = "A: retry  ·  B: back" if Pad.active else "Enter: retry  ·  Esc: back", color = DIM})
 			var recent: Array = GameSettings.get_value("recent_addresses")
 			if not _joined and not _dialing and recent.size() > 0:
 				items.append({kind = "gap"})
@@ -1563,7 +1710,7 @@ func _items() -> Array[Dictionary]:
 				if _statement == "done":
 					items.append({kind = "gap"})
 					items.append({kind = "text", text = str(Lines.ENDING.note).replace("\n\n", "\n"), color = Color(0.85, 0.85, 0.75)})
-					items.append({kind = "text", text = SIGN_IN_PROMPT, color = BRIGHT, blink = true})
+					items.append({kind = "text", text = _sign_in_prompt(), color = BRIGHT, blink = true})
 		Page.MAINTENANCE:
 			items.append({kind = "text", text = MAINTENANCE_SUB, color = DIM})
 			items.append({kind = "gap"})
@@ -1635,7 +1782,22 @@ func _page_title() -> String:
 	return CONSOLE_TITLE
 
 
+## SIGN_IN_PROMPT, or its pad wording.
+func _sign_in_prompt() -> String:
+	return SIGN_IN_PROMPT_PAD if Pad.active else SIGN_IN_PROMPT
+
+
+## The keys under the page, by the device in use.
 func _footer_text() -> String:
+	if Pad.active:
+		match page:
+			Page.SPLASH: return "Y: sign in    B: step away"
+			Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "turn: up/down    A: select    B: back"
+			Page.SETTINGS: return "arrows: change    B: back"
+			Page.STATEMENT: return "Y: sign in" if _statement == "done" else ""
+			Page.LOG, Page.TRANSFER: return ""
+			Page.MAIN, Page.MAINTENANCE: return "A: select    B: step away"
+		return "A: select    B: back"
 	match page:
 		Page.SPLASH: return "SHIFT: sign in    Esc: step away"
 		Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "type    Enter: select    Esc: back"
@@ -1716,14 +1878,23 @@ func _render() -> void:
 				caret.custom_minimum_size.x = FONT_SIZE
 				line.add_child(caret)
 				if item.kind == "field":
-					var value := _console_label(_get_field(item.field), BRIGHT)
+					# On a pad (arcade entry) the block sits on the last character, the one up /
+					# down turn, drawn dark on it and not blinking; on keys it blinks after the text.
+					var text := _get_field(item.field)
+					var turning := is_chosen and Pad.active and text != ""
+					var value := _console_label(text.left(text.length() - 1) if turning else text, BRIGHT)
 					line.add_child(value)
 					var block := ColorRect.new()
 					block.color = BRIGHT if is_chosen else DIM
 					block.custom_minimum_size = Vector2(5, 7)
 					block.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 					line.add_child(block)
-					if is_chosen:
+					if turning:
+						var turned := _console_label(text[text.length() - 1], BACKGROUND)
+						block.add_child(turned)
+						block.custom_minimum_size = block.custom_minimum_size.max(turned.get_combined_minimum_size())
+						_cursor_block = block
+					elif is_chosen:
 						_blinkers.append(block)
 						_cursor_block = block
 				else:
@@ -2021,11 +2192,10 @@ func _build_overlay() -> void:
 	_reader_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_reader_text.custom_minimum_size = Vector2(480, 0)
 	reader_column.add_child(_reader_text)
-	var reader_hint := Label.new()
-	reader_hint.text = "E or Esc to close"
-	reader_hint.label_settings = _label(16, Color(1, 1, 1, 0.5))
-	reader_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	reader_column.add_child(reader_hint)
+	_reader_hint.text = "E or Esc to close"
+	_reader_hint.label_settings = _label(16, Color(1, 1, 1, 0.5))
+	_reader_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	reader_column.add_child(_reader_hint)
 	_reader.visible = false
 	_layer.add_child(_reader)
 
@@ -2041,10 +2211,9 @@ func _build_overlay() -> void:
 	clock_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	clock_text.custom_minimum_size = Vector2(520, 0)
 	clock_column.add_child(clock_text)
-	var clock_keys := Label.new()
-	clock_keys.text = CLOCK_OUT_KEYS
-	clock_keys.label_settings = _label(16, AMBER)
-	clock_column.add_child(clock_keys)
+	_clock_keys.text = CLOCK_OUT_KEYS
+	_clock_keys.label_settings = _label(16, AMBER)
+	clock_column.add_child(_clock_keys)
 	_clock_panel.visible = false
 	_layer.add_child(_clock_panel)
 	_clock_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -2083,6 +2252,7 @@ func _build_overlay() -> void:
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(entry[1])
 		choices.add_child(button)
+		_email_buttons.append(button)
 	email_column.add_child(choices)
 	_email.visible = false
 	_layer.add_child(_email)
