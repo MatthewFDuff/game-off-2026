@@ -62,6 +62,9 @@ const STALE_SHIFT_NOTE := "The shift on file was recorded against an older site 
 @export var fire: Fire
 @export var glass: Glass
 @export var mycelium: Mycelium
+## Loose pieces falling as objects, ceiling tiles breaking loose (made in _ready, so every peer has
+## it at the same path).
+var falling: FallingPieces
 
 var level: LevelData
 var mode := "play"
@@ -73,11 +76,11 @@ var players := {}
 ## Host, in play: the edit-mode world to restore, and the stamped props (for live reload).
 var _edit_base := PackedByteArray()
 var _props: Props
-## This peer: clones grown for the local player since play began (the respawn toast counts them).
+## This peer: replacements grown for the local player since play began (the respawn toast counts them).
 var clones := 0
 ## Host: seconds of play in this story shift so far (from the save when resumed; counts in play).
 var shift_seconds := 0.0
-## Host: clones the party had grown when the resumed shift was saved; Story starts its deaths here.
+## Host: replacements the party had grown when the resumed shift was saved; Story starts its deaths here.
 var resumed_deaths := 0
 ## Host: this level was resumed from the shift save.
 var resumed := false
@@ -95,6 +98,10 @@ var _full_saves := false
 
 func _ready() -> void:
 	VoxelMaterials.apply_to(world)
+	falling = FallingPieces.new()
+	falling.name = "FallingPieces"
+	falling.lab = self
+	add_child(falling)
 	world_sync.carved.connect(func(center: Vector3, normal: Vector3, removed: Dictionary) -> void: debris.burst(center, normal, removed))
 	world_sync.blob_received.connect(_on_blob)
 	world_sync.snapshot_applied.connect(_on_snapshot)
@@ -226,7 +233,7 @@ func in_shift() -> bool:
 
 
 ## Host: keeps the shift on file (ShiftSave): play's state, the world, the director, the item spots,
-## the clock and the clone count. A no-op on peers, outside a shift and during the finale.
+## the clock and the replacement count. A no-op on peers, outside a shift and during the finale.
 func save_shift() -> void:
 	if not multiplayer.is_server() or not in_shift() or not play.active or (director and director.finale_active):
 		return
@@ -251,11 +258,11 @@ func save_shift() -> void:
 		var slots := world.get_changed_chunks()
 		error = ShiftSave.write_delta(record, slots, world.get_chunks_data(slots))
 	if error != OK:
-		notify("Fung AI could not keep your clone on file (%s)." % error_string(error), false)
+		notify("Fung AI could not save the shift (%s)." % error_string(error), false)
 
 
 ## Host: the shift save for this level, or {} (with the fallback notice) if it's missing, broken or
-## recorded against another layout. Sets the clock and the clone count from it.
+## recorded against another layout. Sets the clock and the replacement count from it.
 func _load_shift() -> Dictionary:
 	var save := ShiftSave.load()
 	if save.is_empty() or not save.get("layout_ok", false) or str(save.get("level", "")) != level.name:
@@ -549,7 +556,7 @@ func _on_local_died() -> void:
 	me.rotation.y = respawn_yaw()
 	me.revive()
 	clones += 1
-	notify("Clone #%d grown. Billed to you." % clones, false)
+	notify("Replacement #%d grown. Billed to you." % clones, false)
 	_death_fade(0.0, DEATH_FADE_OUT)
 
 

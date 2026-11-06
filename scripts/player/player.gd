@@ -141,9 +141,34 @@ var _blind_overlay: ColorRect
 const STATUS_TICK := 0.5
 var _status_tick := 0.0
 
-## Meters walked between footstep checks (_footstep).
+## Meters walked between footsteps (_footstep).
 const STRIDE := 0.6
 var _stride := 0.0
+## Footstep loudness (dB): quiet enough that a walk sits under the gunfire and the ambience, and
+## quieter still crouched, so sneaking sounds like sneaking. Pitch jitter keeps one sound per
+## surface from machine-gunning.
+const STEP_DB := -14.0
+const STEP_CROUCH_DB := -22.0
+const STEP_JITTER := 0.12
+## The landing thump after a fall faster than LAND_SPEED m/s (the speed the camera dip starts at).
+const LAND_DB := -10.0
+const LAND_SPEED := 3.0
+## The footstep Sfx for the floor voxel underfoot; anything not listed (plastic, glass, bedrock, the
+## world edge) is step_hard. Glass shards are checked first and crunch instead.
+const STEP_SOUNDS := {
+	VoxelMaterials.METAL: "step_metal", VoxelMaterials.STEEL: "step_metal",
+	VoxelMaterials.DIAMOND_PLATE: "step_metal", VoxelMaterials.LADDER: "step_metal",
+	VoxelMaterials.HATCH: "step_metal", VoxelMaterials.PIPE: "step_metal",
+	VoxelMaterials.DIRT: "step_soft", VoxelMaterials.SAND: "step_soft", VoxelMaterials.GRAVEL: "step_soft",
+	VoxelMaterials.CLAY: "step_soft", VoxelMaterials.SUBSTRATE: "step_soft", VoxelMaterials.CLOTH: "step_soft",
+	VoxelMaterials.RUBBER: "step_soft", VoxelMaterials.LEAF: "step_soft",
+	VoxelMaterials.MYCELIUM: "step_soft", VoxelMaterials.MYCELIUM_GLOW: "step_soft",
+	VoxelMaterials.MYCELIUM_DEAD: "step_soft", VoxelMaterials.ROOT: "step_soft",
+	VoxelMaterials.SHROOM_CAP: "step_soft", VoxelMaterials.SHROOM_STEM: "step_soft",
+	VoxelMaterials.SHROOM_SPOT: "step_soft", VoxelMaterials.SHROOM_GILL: "step_soft",
+	VoxelMaterials.SHROOM_EYE: "step_soft",
+	VoxelMaterials.PLANK: "step_wood", VoxelMaterials.WOOD: "step_wood",
+}
 
 ## Larger per-tick moves than this are teleports, not movement, and skip camera interpolation.
 const MAX_INTERPOLATED_STEP := 2.0
@@ -330,6 +355,15 @@ func add_recoil(pitch: float) -> void:
 	_recoil += pitch
 
 
+## Rumbles the pad (Pad.rumble, docs/controls.md section 6) for this player's own events: only on
+## the local player and never while editing. The autoload is looked up by path because tests name
+## this class at compile time, before autoloads exist.
+func rumble(weak: float, strong: float, seconds: float) -> void:
+	var pad := get_node_or_null("/root/Pad")
+	if pad and is_local and not editing:
+		pad.rumble(weak, strong, seconds)
+
+
 ## Shake and recoil ride on top of the interpolated head: translation on the head, rotation on the
 ## camera, so neither the look pitch nor the step smoothing is touched.
 func _apply_shake(delta: float) -> void:
@@ -354,6 +388,7 @@ func take_damage(amount: float, from: Vector3) -> void:
 	push.y = 0.0
 	velocity += push.normalized() * 4.0 + Vector3.UP * 2.0
 	add_shake(hurt_shake)
+	rumble(0.0, 0.4 + 0.6 * clampf(amount / max_health, 0.0, 1.0), 0.2)
 	_lose_health(amount, from)
 
 
@@ -364,6 +399,7 @@ func _lose_health(amount: float, from: Vector3) -> void:
 	if health <= 0.0:
 		health = 0.0
 		is_dead = true
+		rumble(0.0, 1.0, 0.6)
 		died.emit()
 
 
@@ -590,8 +626,10 @@ func _walk(delta: float) -> void:
 	_step_offset -= result.step_up
 	if on_floor:
 		_footstep(Vector2(global_position.x - start.x, global_position.z - start.z).length())
-	if on_floor and not was_on_floor and falling > 3.0:
+	if on_floor and not was_on_floor and falling > LAND_SPEED:
 		_land_offset = minf(falling * land_dip, land_dip_max)
+		rumble(_land_offset / land_dip_max, 0.0, 0.1)
+		Sfx.play_at("land", global_position, LAND_DB + (STEP_CROUCH_DB - STEP_DB if crouching else 0.0), STEP_JITTER)
 
 	if (on_floor and velocity.y < 0.0) or (result.hit_ceiling and velocity.y > 0.0):
 		velocity.y = 0.0
@@ -602,8 +640,11 @@ func _walk(delta: float) -> void:
 		velocity.z = moved.z
 
 
-## Footsteps: every STRIDE meters walked, what's underfoot may make a sound. Only glass shards
-## (Glass) do so far: a crunch everyone nearby hears (enemies don't react to it).
+## Footsteps: every STRIDE meters walked, a step everyone nearby hears (enemies don't react to it),
+## chosen by the floor voxel underfoot (STEP_SOUNDS); glass shards (Glass) crunch instead. Runs on
+## every peer for its copy of each player: the local one from _walk (only on the floor), remote
+## copies from _interpolate_remote, which don't know whether they're airborne, so a remote copy
+## over air stays silent (the local player standing on a ledge's edge still steps, as hard).
 func _footstep(moved: float) -> void:
 	if world == null:
 		return
@@ -615,6 +656,13 @@ func _footstep(moved: float) -> void:
 	if world.get_voxel(feet) == VoxelMaterials.GLASS_SHARDS or world.get_voxel(feet + Vector3i.DOWN) == VoxelMaterials.GLASS_SHARDS:
 		Sfx.play_at("glass_crunch", global_position, -2.0, 0.15)
 		footstep_played.emit("glass_crunch")
+		return
+	var floor_id: int = world.get_voxel(world.world_to_voxel(global_position + Vector3.DOWN * 0.02))
+	if floor_id == VoxelMaterials.AIR and not is_local:
+		return
+	var sound: String = STEP_SOUNDS.get(floor_id, "step_hard")
+	Sfx.play_at(sound, global_position, STEP_CROUCH_DB if crouching else STEP_DB, STEP_JITTER)
+	footstep_played.emit(sound)
 
 
 ## Crouching on the ground lowers the head; in the air it pulls the feet up instead (a crouch-jump

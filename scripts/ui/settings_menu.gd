@@ -6,14 +6,17 @@ extends Control
 ## the chosen row marked with the amber caret. It is keyboard-driven through handle_key (the
 ## console feeds it the screen's keys; the pause panel its own): up / down choose a row, left /
 ## right change it, Enter flips a two-state row (or, on the console's Name row, emits rename),
-## Esc or Backspace emits closed. A pad works too: handle_key reads its presses as keys (Pad.to_key:
-## the D-pad and left stick are the arrows, A Enter, B Esc). Every change goes straight to
-## GameSettings.set_value, which saves and applies it. Hard pixels only: no panel of its own, so
-## it takes the background of whatever holds it.
+## Esc or Backspace emits closed; the last row, Controls, emits controls on Enter (the holder opens
+## its BindingsMenu, docs/controls.md section 5). A pad works too: handle_key reads its presses as
+## keys (Pad.to_key: the D-pad and left stick are the arrows, A Enter, B Esc). Every change goes
+## straight to GameSettings.set_value, which saves and applies it. Hard pixels only: no panel of its
+## own, so it takes the background of whatever holds it.
 
 signal closed
 ## Enter on the Name row (the console's menu only): the holder opens its name field.
 signal rename
+## Enter on the Controls row: the holder opens the bindings menu.
+signal controls
 
 const Settings := preload("res://scripts/game_settings.gd")
 const CARET_COLOR := Color(0.95, 0.68, 0.16)
@@ -23,6 +26,7 @@ const ROWS: Array[Dictionary] = [
 	{key = "fullscreen", label = "Fullscreen", kind = "choice", values = [false, true], names = ["Off", "On"]},
 	{key = "mouse_sensitivity", label = "Mouse sensitivity", kind = "range", range = Settings.SENSITIVITY_RANGE},
 	{key = "stick_sensitivity", label = "Stick sensitivity", kind = "range", range = Settings.SENSITIVITY_RANGE},
+	{key = "rumble", label = "Rumble", kind = "choice", values = [false, true], names = ["Off", "On"]},
 	{key = "fov", label = "Field of view", kind = "range", range = Settings.FOV_RANGE},
 	{key = "volume_master", label = "Master", kind = "range", range = Settings.VOLUME_RANGE},
 	{key = "volume_effects", label = "Effects", kind = "range", range = Settings.VOLUME_RANGE},
@@ -31,6 +35,8 @@ const ROWS: Array[Dictionary] = [
 ## The Name row (kind "name"): shows the name on file, Enter emits rename. Only the console has it
 ## (the pause panel can't type a name).
 const NAME_ROW: Dictionary = {key = "name", label = "Name", kind = "name"}
+## The Controls row (kind "page"), last on both menus: Enter emits controls.
+const CONTROLS_ROW: Dictionary = {key = "controls", label = "Controls", kind = "page"}
 ## The widest values the rows show, so the arrows line up down the column.
 const WIDE_VALUES := ["Attend", "0.00x", "110"]
 
@@ -38,7 +44,7 @@ const WIDE_VALUES := ["Attend", "0.00x", "110"]
 var pixel_scale := 1
 ## The rows' text color (the console's green by default).
 var color := Color(0.75, 0.95, 0.8)
-## The rows this menu shows: ROWS, plus NAME_ROW when created with_name.
+## The rows this menu shows: ROWS, NAME_ROW when created with_name, then CONTROLS_ROW.
 var rows: Array[Dictionary] = []
 var selected := 0
 var _column := VBoxContainer.new()
@@ -58,6 +64,7 @@ static func create(scale: int, text_color := Color(0.75, 0.95, 0.8), with_name :
 	menu.rows.assign(ROWS)
 	if with_name:
 		menu.rows.append(NAME_ROW)
+	menu.rows.append(CONTROLS_ROW)
 	menu._build()
 	return menu
 
@@ -106,6 +113,8 @@ func handle_key(event: InputEvent) -> bool:
 				return true
 			if rows[selected].kind == "name":
 				rename.emit()
+			elif rows[selected].kind == "page":
+				controls.emit()
 			elif rows[selected].kind == "choice" and rows[selected].values.size() == 2:
 				_step(1, true)
 		_:
@@ -118,6 +127,8 @@ func handle_key(event: InputEvent) -> bool:
 static func value_text(row: Dictionary, value: Variant) -> String:
 	if row.kind == "name":
 		return str(value) if str(value).strip_edges() != "" else "(none)"
+	if row.kind == "page":
+		return ""
 	if row.kind == "choice":
 		var index: int = row.values.find(value)
 		return str(row.names[index]) if index >= 0 else str(value)
@@ -131,6 +142,7 @@ func _build() -> void:
 		return
 	if rows.is_empty():
 		rows.assign(ROWS)
+		rows.append(CONTROLS_ROW)
 	var font_size := PixelFont.SIZE * pixel_scale
 	_column.add_theme_constant_override("separation", 2 * pixel_scale)
 	_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -188,7 +200,7 @@ func _step(direction: int, wrap := false) -> void:
 	if settings == null:
 		return
 	var row: Dictionary = rows[selected]
-	if row.kind == "name":
+	if row.kind in ["name", "page"]:
 		return
 	var current: Variant = settings.get_value(row.key)
 	var next: Variant = current
@@ -224,6 +236,12 @@ func _refresh() -> void:
 		_values[i].modulate = dim
 		if settings == null:
 			_values[i].text = "-"
+			continue
+		if row.kind == "page":
+			# No value: the arrow on the chosen row says Enter goes on to another page.
+			_values[i].text = ""
+			_lefts[i].modulate.a = 0.0
+			_rights[i].modulate.a = 1.0 if chosen else 0.0
 			continue
 		var value: Variant = settings.get_value(row.key)
 		_values[i].text = value_text(row, value)

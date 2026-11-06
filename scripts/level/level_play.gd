@@ -407,6 +407,27 @@ func _door_motion(id: String, from: Vector3i, to: Vector3i, duration: float, ope
 	# Linger a frame past the end so the stamped voxels are there before the mesh goes.
 	tween.tween_interval(0.1)
 	tween.tween_callback(mesh.queue_free)
+	# The motor, pitched so its length roughly fits the slide (a long slide ends on the clunk).
+	var heavy: bool = door.object.name == "door_blast"
+	var sound := "door_slide_heavy" if heavy else "door_slide"
+	var pitch := clampf((DOOR_SLIDE_HEAVY_SECONDS if heavy else DOOR_SLIDE_SECONDS) / duration, 0.7, 1.4)
+	if door.object.name == "vent_hatch":
+		pitch *= DOOR_HATCH_PITCH
+	Sfx.play_at(sound, door_box(id).get_center(), -4.0 if heavy else -8.0, 0.05, pitch)
+
+
+## How long door_slide and door_slide_heavy (Sfx) last at pitch 1, to fit them to a door's travel;
+## a vent hatch is small and plays both its sounds higher.
+const DOOR_SLIDE_SECONDS := 0.55
+const DOOR_SLIDE_HEAVY_SECONDS := 1.2
+const DOOR_HATCH_PITCH := 1.35
+
+
+## The player whose E a door refused (_use): a short buzz on their own peer only, alongside the
+## notice saying why, so the others don't hear someone else's locked door.
+@rpc("authority", "reliable")
+func _door_buzz() -> void:
+	Sfx.play("door_buzz", -6.0)
 
 
 ## Every peer: the door is stamped at origin and has stopped, open or closed. Peers learn `open`
@@ -420,6 +441,9 @@ func _door_settled(id: String, origin: Vector3i, open: bool) -> void:
 	door.open = open
 	door.moving = false
 	rules.door_moved(id)
+	var heavy: bool = door.object.name == "door_blast"
+	var pitch := 0.6 if heavy else (DOOR_HATCH_PITCH if door.object.name == "vent_hatch" else 1.0)
+	Sfx.play_at("door_clunk", door_box(id).get_center(), -2.0 if heavy else -6.0, 0.06, pitch)
 
 
 # --- Using things (E) ---------------------------------------------------------------------------
@@ -487,6 +511,10 @@ func _use(id: String, peer_id: int, door_open := -1) -> void:
 		var why := door_refusal(id)
 		if why != "":
 			lab.notify_peer(peer_id, why)
+			if peer_id == multiplayer.get_unique_id():
+				_door_buzz()
+			else:
+				_door_buzz.rpc_id(peer_id)
 			door_refused.emit(id, peer_id)
 		else:
 			if open and door_key(id) != "":
@@ -1025,7 +1053,7 @@ func set_checkpoint(id: String) -> void:
 	checkpoint = id
 	for peer_id in _peers():
 		_checkpoint_changed.rpc_id(peer_id, id)
-	lab.notify("Checkpoint: clone vat ready")
+	lab.notify("Checkpoint: vat ready")
 	lab.save_shift()
 
 

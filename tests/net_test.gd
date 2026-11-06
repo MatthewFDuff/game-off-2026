@@ -32,6 +32,11 @@ extends SceneTree
 ## WorldSync.set_voxels batches, the client must see it burning, and the world hashes are taken
 ## once it has burned out on both.
 ##
+## Falling piece: the host builds a concrete block on a thin steel post before the client joins
+## (it reaches the client in the snapshot); the client's shot cuts the post, the client must draw
+## the block falling and see it land as voxels (the host's stamp), and the world hashes check both
+## worlds have it in the same place.
+##
 ## Party arming (after the finale): the client disarms itself as in a `start_unarmed` level, the
 ## host walks into a spore shooter, and the client must be armed by it (LevelPlay.arm_party); a
 ## second one changes nothing. Then the client drops its gun and the party flag again, as a late
@@ -48,6 +53,10 @@ const SCRATCH_PROPS := "user://net_test_props/"
 const FRIDGE_FROM := Vector3i(113, 40, 216)
 const FRIDGE_TO := Vector3i(120, 59, 224)
 const LAMP := 21
+## The falling piece's post, offset from the level spawn (meters); VoxelMaterials ids.
+const PIECE_SPOT := Vector3(1.5, 0.0, -0.6)
+const CONCRETE := 3
+const STEEL := 17
 
 var _failures := 0
 var _port := PORT
@@ -91,6 +100,7 @@ func _host(net: Node) -> void:
 	_check("the break room fridge is a container", lab.level.objects.get(fridge_id, {}).get("use") == "container")
 	if fridge_id != "":
 		lab.level.objects[fridge_id].contents = "flask_fire,ammo_homing" # The client opens it.
+	_build_piece(lab)
 	print("READY") # The driver starts the client now.
 
 	# Generous: a cold Godot start alone can take half a minute on Windows.
@@ -217,6 +227,7 @@ func _client(net: Node) -> void:
 	_check("sends state to the host", streaming, str(me.net_peers))
 	me.teleport(lab.spawn_point(0) + CLIENT_SPOT)
 	lab.world_sync.carve_sphere(lab.spawn_point(0) + Vector3(0.0, 0.0, -3.0), 1.0, 254)
+	await _drop_piece(lab)
 	await _fire_explosive(lab, me)
 	var swapped := await _wait_until(func() -> bool: return _count(lab.world, LAMP) > 500, 10.0)
 	_check("host's prop reload reaches the client", swapped, "%d lamp voxels" % _count(lab.world, LAMP))
@@ -366,6 +377,48 @@ func _fire_explosive(lab, me) -> void:
 				return true
 		return false, 10.0)
 	_check("the client's explosive carves the wall through the host", blasted, "%d impacts, %d carves" % [impacts.size(), blasts.size()])
+
+
+## The falling piece's post: its bottom voxel, on the floor by the spawn.
+func _piece_base(lab) -> Vector3i:
+	return lab.world.world_to_voxel(lab.spawn_point(0) + PIECE_SPOT + Vector3.UP * 0.05)
+
+
+## Host, before the client joins: a 6 x 5 x 6 concrete block on a 2 x 8 x 2 steel post.
+func _build_piece(lab) -> void:
+	var base := _piece_base(lab)
+	var room: PackedByteArray = lab.world.get_box(base + Vector3i(-3, 0, -3), base + Vector3i(5, 14, 5))
+	_check("room by the spawn for a falling piece", room.count(0) == room.size() and lab.world.get_voxel(base + Vector3i.DOWN) != 0,
+			"%d solid" % (room.size() - room.count(0)))
+	lab.world_sync.apply_op({type = "box", from = base, to = base + Vector3i(2, 8, 2), material = STEEL})
+	lab.world_sync.apply_op({type = "box", from = base + Vector3i(-2, 8, -2), to = base + Vector3i(4, 13, 4), material = CONCRETE})
+
+
+## Client: shoots the post's foot (a carve by request); the block must fall here (drawn) and land
+## here as voxels, lower down.
+func _drop_piece(lab) -> void:
+	var base := _piece_base(lab)
+	var area := [base + Vector3i(-2, -4, -2), base + Vector3i(4, 13, 4)]
+	var before := _count_in(lab.world, area, CONCRETE)
+	_check("the client has the host's block on its post", lab.world.get_voxel(base + Vector3i(0, 12, 0)) == CONCRETE
+			and lab.world.get_voxel(base + Vector3i(0, 4, 0)) == STEEL)
+	lab.world_sync.carve_sphere(lab.view.to_world(Vector3(base) + Vector3(1.0, 1.0, 1.0)), 0.18, 3, Vector3.UP)
+	var drawn := [false]
+	var landed := await _wait_until(func() -> bool:
+		drawn[0] = drawn[0] or not lab.falling.meshes.is_empty()
+		return drawn[0] and lab.falling.meshes.is_empty() and _count_in(lab.world, area, CONCRETE) == before \
+				and lab.world.get_voxel(base + Vector3i(0, 12, 0)) != CONCRETE, 10.0)
+	_check("the client's shot drops the block: drawn falling here, then voxels again lower down", landed,
+			"drawn %s, %d of %d concrete" % [drawn[0], _count_in(lab.world, area, CONCRETE), before])
+
+
+func _count_in(world, box: Array, material: int) -> int:
+	var n := 0
+	for y in range(box[0].y, box[1].y):
+		for z in range(box[0].z, box[1].z):
+			for x in range(box[0].x, box[1].x):
+				n += int(world.get_voxel(Vector3i(x, y, z)) == material)
+	return n
 
 
 ## Host: a wooden crate (through WorldSync, so the client gets it too) on the floor where the fire

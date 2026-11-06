@@ -199,8 +199,9 @@ func _update_ammo(me: Player, delta: float) -> void:
 	var rounds: int = me.inventory.count(type.name) if me.inventory else -1
 	_ammo_count.text = "∞" if rounds < 0 else str(rounds)
 	var next := weapon.next_ammo()
-	# SHIFT on keys, Y on a pad.
-	var key := "Y" if Pad.active else "SHIFT"
+	# The cycle_ammo binding of the device in use: SHIFT on keys, Y on a pad, or the rebind.
+	var key := InputSetup.binding_name("cycle_ammo", "pad" if Pad.active else "kb")
+	key = key if Pad.active else key.to_upper()
 	_ammo_next.text = "" if next == type.name else "%s: %s" % [key, AmmoType.by_name(next).label]
 	if _last_ammo != "" and _last_ammo != type.name:
 		_ammo_toast.text = type.label

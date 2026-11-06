@@ -1,9 +1,9 @@
 # Saving the shift
 
 Decided 2026-11-03: one current shift per machine, saved by the host at every clone vat, resumed
-from the cubicle's computer as **Continue**. In fiction it is the clone: "Your clone is held at
+from the cubicle's computer as **Continue**. In fiction Fung AI keeps it on file: "The shift is saved at
 the Compute stair lobby." The debt carries over, so the payroll ending still bites, and nobody can
-save before a fight and reload to dodge a clone fee, because the save is where they would respawn
+save before a fight and reload to dodge a replacement fee, because the save is where they would respawn
 anyway. Builds on `docs/cubicle-menu.md`.
 
 ## 1. What a shift is
@@ -28,7 +28,7 @@ host writes it. On the web build `user://` is IndexedDB, so the single-player we
 | `power`, `keycards`, `armed`, `prop_state`, `doors` | As `LevelPlay._full_state` sends them (`doors`: id -> [origin, open, locked]) |
 | `fired` | Trigger ids that have fired (`LevelPlay._fired` keys), so the outbreak, seals and tour lines don't replay |
 | `damage_by_name`, `total_damage` | The payroll ledger |
-| `deaths` | `Story.deaths` (clones grown by the party), for the bill |
+| `deaths` | `Story.deaths` (replacements grown by the party), for the bill |
 | `director` | `{dormant, spawners: {id: {active, spawned, dead_fired}}}` from `HordeDirector` |
 | `items_taken` | Item spot ids already picked up, if `ItemManager` can tell cheaply; else omitted |
 | `party` | Player names at save time, for the record |
@@ -91,11 +91,11 @@ If `ShiftSave.load()` fails or the layout hash differs, the host falls back to a
 ## 4. The cubicle's computer
 
 - **SINGLEPLAYER**: CONTINUE comes first and is lit when `ShiftSave.exists()` and the layout
-  matches, with its note: "clone held at <room>, <h:mm> on shift" (the owed total is in the record
+  matches, with its note: "shift saved at the <room>, <h:mm> on shift" (the owed total is in the record
   but never shown before the statement). Dim with "no record on file" when there is none, or
   "recorded against an older site layout" when the hash differs. Enter starts the resume (solo).
-  APPLY FOR JOB (the new game) with a save on file opens **DISCARD**: "A shift is in progress. Your
-  clone held at the <room> will be discarded. Fung AI does not refund clones." with DISCARD AND
+  APPLY FOR JOB (the new game) with a save on file opens **DISCARD**: "A shift is in progress. The
+  shift saved at the <room> will be discarded. Fung AI does not refund progress." with DISCARD AND
   CLOCK IN (clears the save, then orientation as usual) and KEEP IT (back).
 - **HOST A SHIFT**: a CONTINUE SHIFT item above BEGIN ORIENTATION when a save is on file and the
   layout matches (same note). It opens the session with `shift` and `resume`, level `laboratory`,
@@ -104,8 +104,8 @@ If `ShiftSave.load()` fails or the layout hash differs, the host falls back to a
 - **JOIN**: a joiner accepted into a session whose dict has `resume = true` skips the orientation:
   the transfer note ("Transfer accepted. Report to Site 3 tonight. A car has been sent.") and
   `Net.enter_level()`.
-- **Pause menu**: Leave shift's hint says "Your clone is held at the <room>. Leaving saves the
-  shift." (host) or "The host keeps the shift. You can rejoin by address." (peer).
+- **Pause menu**: Leave shift's hint says "The shift is saved at the <room>. Leaving saves
+  it." (host) or "The host keeps the shift. You can rejoin by address." (peer).
 - The room name is the `name` of the room object the vat marker stands in, else the vat id made
   readable.
 

@@ -2,7 +2,8 @@ class_name LabHud
 extends CanvasLayer
 ## Co-op level HUD: crosshair, who's in the session, and the pause panel, shown whenever the mouse
 ## is released ("SHIFT PAUSED": Resume, Settings, Invite for a co-op host, Leave shift). Settings
-## and Invite take the buttons' place in the panel until Esc (or the menu's own back) returns.
+## and Invite take the buttons' place in the panel until Esc (or the menu's own back) returns;
+## the settings' Controls row puts the bindings menu in its place, and its back returns to Settings.
 ## Solo play pauses under it; co-op keeps running. In a story shift a line under the buttons says
 ## what leaving does (the host saves the shift: Lab.save_shift). On a pad the first button takes
 ## focus when the panel opens, the D-pad and stick move it, A presses, B goes back a page and
@@ -20,6 +21,7 @@ var _shift_hint := Label.new()
 var _buttons := VBoxContainer.new()
 var _invite := VBoxContainer.new()
 var _settings_menu: SettingsMenu
+var _bindings_menu: BindingsMenu
 var _waiting := Label.new()
 var _toast := Label.new()
 var _toast_time := 0.0
@@ -107,9 +109,11 @@ func _process(delta: float) -> void:
 	if _pause.visible:
 		_update_pause_hint()
 	_crosshair.visible = playing and not ending
-	# Solo play pauses with the mouse released; co-op and the editor keep running.
+	# Solo play pauses with the mouse released; co-op and the editor keep running. Not during the
+	# ending: it releases play focus before it fades, and a tree left paused here would follow
+	# the player home (the cubicle loads paused: the hint shows and nothing answers).
 	var solo := multiplayer.multiplayer_peer is OfflineMultiplayerPeer
-	get_tree().paused = solo and lab.mode != "edit" and not playing and not _waiting.visible
+	get_tree().paused = solo and lab.mode != "edit" and not playing and not _waiting.visible and not ending
 	if _waiting.visible and lab.local_player() != null:
 		_waiting.visible = false
 
@@ -168,7 +172,14 @@ func _build_pause() -> void:
 	_settings_menu.visible = false
 	_settings_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_settings_menu.closed.connect(_show_buttons)
+	_settings_menu.controls.connect(_show_controls_page)
 	column.add_child(_settings_menu)
+
+	_bindings_menu = BindingsMenu.create(2, Color(0.9, 0.9, 0.9))
+	_bindings_menu.visible = false
+	_bindings_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_bindings_menu.closed.connect(_show_settings)
+	column.add_child(_bindings_menu)
 	_update_pause_info()
 
 
@@ -180,13 +191,13 @@ func _add_button(text: String, action: Callable) -> void:
 	_buttons.add_child(button)
 
 
-## How to resume, by device ("Click to resume." / "Press Start to resume."); co-op adds that the
-## shift runs on.
+## The line under the title: nothing in solo play (the Resume button says how), and in co-op that
+## the shift runs on. (A "Click to resume." line was dropped on the 2026-11-04 play-test's note.)
 func _update_pause_hint() -> void:
-	var how := "Press Start to resume." if Pad.active else "Click to resume."
-	var text := how if _solo else how + " The shift does not pause for you."
+	var text := "" if _solo else "The shift does not pause for you."
 	if _pause_hint.text != text:
 		_pause_hint.text = text
+	_pause_hint.visible = text != ""
 
 
 ## Gives the shown page's first button the focus, so a pad can work the panel at once.
@@ -231,6 +242,8 @@ func _show_buttons() -> void:
 	_invite.visible = false
 	if _settings_menu:
 		_settings_menu.visible = false
+	if _bindings_menu:
+		_bindings_menu.visible = false
 	_recenter_pause()
 	if _pause.visible:
 		_focus_first()
@@ -243,7 +256,18 @@ func _update_shift_hint() -> void:
 
 func _show_settings() -> void:
 	_buttons.visible = false
+	_bindings_menu.visible = false
 	_settings_menu.visible = true
+	get_viewport().gui_release_focus()
+	_recenter_pause()
+
+
+## The bindings page (docs/controls.md, section 5), in the settings page's place; its back (closed)
+## returns to the settings, on their Controls row.
+func _show_controls_page() -> void:
+	_buttons.visible = false
+	_settings_menu.visible = false
+	_bindings_menu.visible = true
 	get_viewport().gui_release_focus()
 	_recenter_pause()
 
@@ -257,10 +281,11 @@ func _show_invite() -> void:
 
 
 ## The pause panel's keys and pad buttons: Start (or Esc) on the buttons page resumes; the settings
-## page takes its keys (and pad presses) through SettingsMenu.handle_key; Esc, B or Start on the
-## invite page goes back. _pause.visible is last frame's, so the Start that just paused (the
-## Player's _input releasing play) doesn't resume here too; a Start this takes is marked handled,
-## which the Player checks.
+## page takes its keys (and pad presses) through SettingsMenu.handle_key, the bindings page through
+## BindingsMenu.handle_key, which while listening takes every raw press first (Start and Esc then
+## only cancel the listening, they never resume); Esc, B or Start on the invite page goes back.
+## _pause.visible is last frame's, so the Start that just paused (the Player's _input releasing
+## play) doesn't resume here too; a Start this takes is marked handled, which the Player checks.
 func _input(event: InputEvent) -> void:
 	if not _pause.visible or get_viewport().is_input_handled():
 		return
@@ -269,7 +294,11 @@ func _input(event: InputEvent) -> void:
 			InputSetup.resume_play()
 			get_viewport().set_input_as_handled()
 		return
-	if _settings_menu.visible:
+	if _bindings_menu.visible:
+		if _bindings_menu.handle_key(event):
+			get_viewport().set_input_as_handled()
+			_recenter_pause()
+	elif _settings_menu.visible:
 		if _settings_menu.handle_key(event):
 			get_viewport().set_input_as_handled()
 	elif _invite.visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pad_back")):
@@ -281,14 +310,14 @@ func _update_pause_info() -> void:
 	_pause_info.text = hosting_info(multiplayer)
 
 
-## The pause menu's line about the shift: where the host's clone is held and that leaving saves, a
+## The pause menu's line about the shift: where the shift is saved and that leaving saves, a
 ## peer's reminder that the host keeps it, or "" outside a story shift.
 static func shift_hint(level: Lab) -> String:
 	if level == null or not level.in_shift():
 		return ""
 	if not level.multiplayer.is_server():
 		return "The host keeps the shift. You can rejoin by address."
-	return "Your clone is held at the %s. Leaving saves the shift." % ShiftSave.room_of(level.level, level.play.checkpoint)
+	return "The shift is saved at the %s. Leaving saves it." % ShiftSave.room_of(level.level, level.play.checkpoint)
 
 
 ## How friends reach this host ("" when not hosting). The editor's menu shows it too.

@@ -209,7 +209,9 @@ private:
 
 	// Flood-fills from solid voxels next to the removed ones. Any connected piece that reaches no
 	// unbreakable voxel within max_fragment_voxels is floating: it is removed, the edit bounds grow
-	// to cover it, and it is reported through fragments_detached.
+	// to cover it, and it is reported through fragments_detached (aabb, voxel_count, materials, and
+	// the piece itself as origin, size and a dense voxels box in stamp's layout, empty for a piece
+	// whose box would be bigger than 2^18 voxels).
 	// detached, when given, gets every voxel removed this way.
 	void detach_fragments(const std::vector<Vector3i> &removed, Vector3i &edit_from, Vector3i &edit_to, std::vector<Vector3i> *detached = nullptr);
 	// Shared tail of the carve functions: detach loose pieces, remesh, and report counts.

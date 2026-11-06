@@ -410,7 +410,7 @@ func _interactables(fired: Array) -> void:
 
 	# Flip: the table swaps for its flipped twin.
 	await _aim_at("flip")
-	_check("flip prompt", _prompt_text() == "[E] Flip it for cover", _prompt_text())
+	_check("flip prompt", _prompt_text() == "[E] Flip", _prompt_text())
 	_me.interacted.emit()
 	await _frames(3)
 	var twin := Props.orient(Props.load_prop("table_flipped"), SOUTH)

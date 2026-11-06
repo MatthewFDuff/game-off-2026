@@ -59,7 +59,7 @@ func _run() -> void:
 	# No checkpoint yet: a clone is grown at the player's own spawn, never at some vat.
 	await _die_and_respawn()
 	_check("with no checkpoint the player respawns at their spawn", _in_room("yard") and play.checkpoint == "", str(_feet()))
-	_check("the respawn toast counts the clone", "Clone #1 grown. Billed to you." in _notes, str(_notes))
+	_check("the respawn toast counts the clone", "Replacement #1 grown. Billed to you." in _notes, str(_notes))
 
 	# Signing in unlocks the blast door; the stair seal closes it behind the party, unlocked.
 	_teleport_to("gatehouse", 0.5, 0.5)

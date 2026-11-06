@@ -124,7 +124,7 @@ func _run() -> void:
 	await _shot("console_dying")
 	cubicle.free()
 
-	net.pending_statement = ["Shift wages|+$180", "Property damage:|", "   specimen case|-$25000", "   spore tank|-$6000", "   coffee machine|-$1100", "Clones grown: 2 x $5000|-$10000", "Doors forced|-$0", "TOTAL OWED TO FUNG AI|-$41920"]
+	net.pending_statement = ["Shift wages|+$180", "Property damage:|", "   specimen case|-$25000", "   spore tank|-$6000", "   coffee machine|-$1100", "Replacements grown: 2 x $5000|-$10000", "Doors forced|-$0", "TOTAL OWED TO FUNG AI|-$41920"]
 	net.pending_total = -41920
 	var kept_shifts = settings.get_value("shifts_worked")
 	var kept_balance = settings.get_value("balance_owed")

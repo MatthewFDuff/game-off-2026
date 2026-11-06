@@ -40,7 +40,7 @@ const FACINGS := ["north", "east", "south", "west"]
 ##                   glass shot out drops a snack too and bills it as damage
 ##   eyewash         clears Poisoned and Burning on the user; an emergency shower also douses fire
 ##                   around it
-##   defib           revives a dead teammate within 3 m where they lie (before their clone grows),
+##   defib           revives a dead teammate within 3 m where they lie (before their replacement grows),
 ##                   else heals the user to full, `charges` times
 ##   extinguisher    E picks it up as a foam flask; shot or caught in fire it bursts into a foam
 ##                   cloud (slows enemies, clears spore and poison clouds, douses fire)
@@ -123,7 +123,7 @@ const MARKERS := {
 		{key = "on_ceiling", type = "bool", default = false, label = "Spawns on the ceiling (ceiling_cloud)"},
 		{key = "on_dead", type = "string", default = "", label = "Fires trigger when its last enemy dies (bosses: max 1 or rate 0)"},
 	]},
-	clone_vat = {label = "Clone vat", color = Color(0.4, 1.0, 0.8), fields = []},
+	clone_vat = {label = "Growth vat", color = Color(0.4, 1.0, 0.8), fields = []},
 	kill_zone = {label = "Kill zone", color = Color(1.0, 0.2, 0.6), fields = [
 		{key = "size", type = "vector3i", default = Vector3i(20, 30, 20), label = "Size (voxels)"},
 	]},

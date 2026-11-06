@@ -3,7 +3,7 @@ extends Node
 ## The interactables of docs/prop-build-plan.md E: what E does with the newer uses (LevelSchema.USES:
 ## switch, vendor, eyewash, defib, extinguisher, flip, printer, radio, squeak), the props that react
 ## to being shot or burnt by name (fire extinguishers burst into foam, gas cylinders vent and skid,
-## then explode), crush damage under loose fragments (a hanging crate whose chain is shot), forced
+## then explode), crushing under falling pieces (a hanging crate whose chain is shot), forced
 ## doors, and two trigger actions: `lights=<room>:off|on|flicker` and `sprinkle=<room>` (a room
 ## object's box, or a trigger marker's volume).
 ##
@@ -45,11 +45,11 @@ const GAS_REACH := 3.5
 const BLAST_SHARE := 0.25
 ## Host: seconds between checks for fire reaching a reactive prop.
 const FIRE_CHECK := 0.5
-## Loose fragments of more than CRUSH_VOXELS crush what is under them, down to CRUSH_DROP meters.
+## Falling pieces (FallingPieces) of more than CRUSH_VOXELS voxels crush what is in the column they
+## fall through. Ceiling tile voxels don't count: a mineral-fibre sheet is too light to hurt.
 const CRUSH_VOXELS := 50
 const CRUSH_DAMAGE := 80.0
 const CRUSH_PLAYER_DAMAGE := 40.0
-const CRUSH_DROP := 4.0
 ## A sprinkler runs this long, dousing and clearing clouds every SPRINKLE_TICK.
 const SPRINKLE_SECONDS := 8.0
 const SPRINKLE_TICK := 0.5
@@ -126,8 +126,8 @@ func start() -> void:
 		var door: Dictionary = play._doors[id]
 		_door_total[id] = lab.world.count_matching(door.origin, door.model.size, door.model.voxels)
 		door_moved(id)
-	if not lab.world.fragments_detached.is_connected(_on_fragments):
-		lab.world.fragments_detached.connect(_on_fragments)
+	if lab.falling and not lab.falling.piece_falling.is_connected(_on_piece_falling):
+		lab.falling.piece_falling.connect(_on_piece_falling)
 
 
 func stop() -> void:
@@ -138,8 +138,8 @@ func stop() -> void:
 	_door_index.clear()
 	_sprinkling.clear()
 	_clear_looks()
-	if play.lab.world.fragments_detached.is_connected(_on_fragments):
-		play.lab.world.fragments_detached.disconnect(_on_fragments)
+	if play.lab.falling and play.lab.falling.piece_falling.is_connected(_on_piece_falling):
+		play.lab.falling.piece_falling.disconnect(_on_piece_falling)
 
 
 ## Host: a door stopped somewhere new (LevelPlay._door_settled, restore): its index entry follows.
@@ -299,7 +299,7 @@ func prompt(id: String, object: Dictionary, state: Dictionary) -> String:
 		"extinguisher":
 			return "" if state.used else "[E] Take the extinguisher"
 		"flip":
-			return "" if state.used else "[E] Flip it for cover"
+			return "" if state.used else "[E] Flip"
 		"printer":
 			return "Paper jam" if state.used else "[E] Print"
 		"radio":
@@ -597,23 +597,24 @@ func _blast_fx(at: Vector3, radius: float) -> void:
 	VoxelFx.blast(play.lab.view, at, radius, Color(1.0, 0.6, 0.2))
 
 
-## Host: loose pieces bigger than CRUSH_VOXELS (a hanging crate cut down) crush the enemies and
-## players under them.
-func _on_fragments(fragments: Array) -> void:
+## Host: a piece heavier than CRUSH_VOXELS (a hanging crate cut down) starts to fall
+## (FallingPieces.piece_falling): it crushes the enemies and players in the column it falls
+## through, as it starts (the landing is already known). FallingPieces plays the thud as it lands.
+func _on_piece_falling(fall: Dictionary) -> void:
 	if not play.active or not multiplayer.is_server() or play.lab.enemies == null:
 		return
+	var heavy := int(fall.voxel_count) - int(fall.materials.get(VoxelMaterials.CEILING_TILE, 0))
+	if heavy <= CRUSH_VOXELS:
+		return
 	var enemies := play.lab.enemies
-	for fragment: Dictionary in fragments:
-		if int(fragment.voxel_count) <= CRUSH_VOXELS:
-			continue
-		var box: AABB = fragment.aabb
-		var column := AABB(box.position - Vector3(0.15, CRUSH_DROP, 0.15), box.size + Vector3(0.3, CRUSH_DROP, 0.3))
-		for enemy in Combat.box_hit(column):
-			enemies.damage(enemy.id, CRUSH_DAMAGE, box.get_center(), "blast")
-		for player in enemies.targets():
-			if column.intersects(player.get_body_aabb()):
-				enemies.damage_player(player, CRUSH_PLAYER_DAMAGE, box.get_center())
-		Sfx.play_at("thud", box.get_center())
+	var box: AABB = fall.box
+	var fell: AABB = fall.column
+	var column := AABB(fell.position - Vector3(0.15, 0.0, 0.15), fell.size + Vector3(0.3, 0.0, 0.3))
+	for enemy in Combat.box_hit(column):
+		enemies.damage(enemy.id, CRUSH_DAMAGE, box.get_center(), "blast")
+	for player in enemies.targets():
+		if column.intersects(player.get_body_aabb()):
+			enemies.damage_player(player, CRUSH_PLAYER_DAMAGE, box.get_center())
 
 
 func _physics_process(delta: float) -> void:

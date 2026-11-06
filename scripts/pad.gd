@@ -29,17 +29,27 @@ const STICK_RELEASE := 0.3
 const ACTIVE_DEADZONE := 0.3
 ## Mouse motion shorter than this (pixels) is a bumped desk, not the player switching back.
 const MOUSE_SLOP := 2.0
-## The prompts' key tokens and what they read on a pad.
-const TOKENS := {"[E]": "[X]", "[SHIFT]": "[Y]"}
+## The prompts' key tokens and the actions they name: text() writes each as that action's binding
+## on the device in use.
+const TOKEN_ACTIONS := {"[E]": "interact", "[SHIFT]": "cycle_ammo"}
 
 ## The last input came from a pad. Tests may set it directly.
 var active := false:
 	set(value):
 		if value != active:
 			active = value
+			if not active:
+				stop_rumble() # Back on the keyboard: no buzz left running in the pad.
 			device_changed.emit()
 ## A pad is plugged in.
 var connected := false
+## The last rumble that passed the gates (active, the Rumble setting, not outranked by one in
+## flight): {weak, strong, seconds, at (ticks msec)}. Headless has no pads, so tests read this.
+var last_rumble := {}
+
+## When the rumble in flight ends (ticks msec) and how strong it is (the larger motor).
+var _rumble_until := 0
+var _rumble_power := 0.0
 
 ## The left stick's arrows currently held down: {Key: bool}.
 var _stick := {KEY_UP: false, KEY_DOWN: false, KEY_LEFT: false, KEY_RIGHT: false}
@@ -74,13 +84,18 @@ func to_key(event: InputEvent) -> InputEventKey:
 	return _last_key
 
 
-## s with the prompts' key tokens for the device in use: "[E] Open" reads "[X] Open" on a pad,
-## "[SHIFT]" reads "[Y]".
+## s with the prompts' key tokens naming the current bindings (InputSetup.binding_name) of the
+## device in use: with the defaults "[E] Open" stays on the keys and reads "[X] Open" on a pad,
+## "[SHIFT]" reads "[Y]"; after a rebind they name the new key or button ("[F] Open"). Key names
+## are capitals, as the tokens are.
 func text(s: String) -> String:
-	if not active:
-		return s
-	for token: String in TOKENS:
-		s = s.replace(token, TOKENS[token])
+	var device := "pad" if active else "kb"
+	for token: String in TOKEN_ACTIONS:
+		if not token in s:
+			continue
+		var key := InputSetup.binding_name(TOKEN_ACTIONS[token], device)
+		if key != "":
+			s = s.replace(token, "[%s]" % (key if active else key.to_upper()))
 	return s
 
 
@@ -92,6 +107,40 @@ func glyph(action: String) -> String:
 		if is_pad(event):
 			return InputSetup.pad_name(event)
 	return ""
+
+
+## The Rumble setting is on (and true when there's no GameSettings, as in a bare test).
+func rumble_enabled() -> bool:
+	var settings := get_node_or_null("/root/GameSettings")
+	return settings == null or bool(settings.get_value("rumble"))
+
+
+## Vibrates every connected pad, weak and strong being the light and heavy motors (0..1), for
+## seconds (docs/controls.md section 6). Only while a pad is in use and the Rumble setting is on;
+## a request stronger than the one in flight replaces it, a weaker one is dropped (the current one
+## is still going, so it waits it out rather than cutting it short).
+func rumble(weak: float, strong: float, seconds: float) -> void:
+	if not active or not rumble_enabled() or seconds <= 0.0:
+		return
+	weak = clampf(weak, 0.0, 1.0)
+	strong = clampf(strong, 0.0, 1.0)
+	var now := Time.get_ticks_msec()
+	var power := maxf(weak, strong)
+	if now < _rumble_until and power < _rumble_power:
+		return
+	_rumble_until = now + int(seconds * 1000.0)
+	_rumble_power = power
+	last_rumble = {weak = weak, strong = strong, seconds = seconds, at = now}
+	for device in Input.get_connected_joypads():
+		Input.start_joy_vibration(device, weak, strong, seconds)
+
+
+## Stops every pad's rumble and forgets the one in flight.
+func stop_rumble() -> void:
+	_rumble_until = 0
+	_rumble_power = 0.0
+	for device in Input.get_connected_joypads():
+		Input.stop_joy_vibration(device)
 
 
 func _translate(event: InputEvent) -> InputEventKey:

@@ -310,7 +310,7 @@ func _end_finale(outcome: String) -> void:
 	for spawner: Dictionary in spawners.values():
 		spawner.alive.clear()
 	_horde_ids.clear()
-	lab.notify("Everyone died. The company restarts the shift from the last clone.")
+	lab.notify("Everyone died. The company restarts the shift from the last vat.")
 	lab.play.set_power("backup")
 	for id: String in lab.level.objects:
 		var object: Dictionary = lab.level.objects[id]

@@ -29,6 +29,7 @@ const VALUES := {
 	"duct_": 150, "duct_insulated": 220, "duct_end_grille": 120, "pipe_bundle": 300, "pipe_valve": 450,
 	"cable_tray": 180, "ceiling_tile": 40, "vent_diffuser": 60, "return_grille": 50, "extractor_fan": 600,
 	"sprinkler_head": 45, "smoke_detector": 35, "speaker_horn": 140, "security_camera": 1200, "hazard_beacon": 180,
+	"security_camera_head": 0,
 	"chain_hoist": 1500, "gantry_rail": 700, "service_hatch": 250,
 	"fixture_troffer": 160, "fixture_strip": 90, "fixture_bulkhead": 120, "fixture_pendant": 110,
 	"fixture_emergency": 140, "fixture_dead": 30,
@@ -70,6 +71,7 @@ static func entries(add: Callable) -> void:
 	add.call("smoke_detector", func(p: Props, o: Vector3i) -> void: smoke_detector(p, o))
 	add.call("speaker_horn", func(p: Props, o: Vector3i) -> void: speaker_horn(p, o))
 	add.call("security_camera", func(p: Props, o: Vector3i) -> void: security_camera(p, o))
+	add.call("security_camera_head", func(p: Props, o: Vector3i) -> void: security_camera_head(p, o))
 	add.call("hazard_beacon", func(p: Props, o: Vector3i) -> void: hazard_beacon(p, o))
 	add.call("chain_hoist", func(p: Props, o: Vector3i) -> void: chain_hoist(p, o))
 	add.call("gantry_rail", func(p: Props, o: Vector3i) -> void: gantry_rail(p, o))
@@ -257,7 +259,8 @@ static func cable_tray(p: Props, o: Vector3i, kind: String) -> void:
 static func ceiling_tiles(p: Props, o: Vector3i, kind: String) -> void:
 	p.begin(o, 20, 20, P.NORTH)
 	var y0 := 6 if kind == "hanging" else 0
-	p.box(Vector3i(0, y0, 0), Vector3i(20, y0 + 1, 20), M.PLASTIC)
+	# The sheets are CEILING_TILE (FallingPieces drops a shot tile whole), the bars and wires steel.
+	p.box(Vector3i(0, y0, 0), Vector3i(20, y0 + 1, 20), M.CEILING_TILE)
 	for a in [0, 10]:
 		p.box(Vector3i(a, y0, 0), Vector3i(a + 1, y0 + 1, 20), M.STEEL)
 		p.box(Vector3i(0, y0, a), Vector3i(20, y0 + 1, a + 1), M.STEEL)
@@ -274,7 +277,7 @@ static func ceiling_tiles(p: Props, o: Vector3i, kind: String) -> void:
 		for x in 11:
 			heights.append(y0 - roundi((10 - x) * float(y0) / 9.0))
 		for x in range(1, 10):
-			p.box(Vector3i(x, maxi(heights[x], 0), 1), Vector3i(x + 1, heights[x + 1] + 1, 10), M.PLASTIC)
+			p.box(Vector3i(x, maxi(heights[x], 0), 1), Vector3i(x + 1, heights[x + 1] + 1, 10), M.CEILING_TILE)
 
 
 ## A flush square air diffuser: concentric rings of steel and dark slots.
@@ -336,15 +339,27 @@ static func speaker_horn(p: Props, o: Vector3i) -> void:
 	p.box(Vector3i(1, 0, 1), Vector3i(5, 1, 5), M.RUBBER)
 
 
-## A security camera on an arm, looking north (its front).
+## A security camera's arm, looking north (its front): a ceiling plate and an arm reaching out over
+## the head's swivel. Only the arm is voxels (stamped, destroyable, billed); the head is
+## security_camera_head, which PropMotion hangs under the arm as a mesh that pans and blinks in play
+## and drops when the arm is shot away. The frame keeps the head's room (y 0-2) empty, so the
+## camera places and sits exactly as the one-piece camera did; editor views draw both together.
 static func security_camera(p: Props, o: Vector3i) -> void:
 	p.begin(o, 4, 8, P.NORTH)
 	p.box(Vector3i(0, 4, 5), Vector3i(4, 5, 8), M.STEEL)
-	p.box(Vector3i(1, 3, 4), Vector3i(3, 4, 6), M.STEEL)
+	p.box(Vector3i(1, 3, 3), Vector3i(3, 4, 6), M.STEEL)
+
+
+## A security camera's head, looking north: the housing, lens hood and lens, a steel swivel collar
+## on top and a dark LED socket (PropMotion lights it). It sits at the arm's frame origin, under
+## the arm's swivel (x 1-2, z 3-4).
+static func security_camera_head(p: Props, o: Vector3i) -> void:
+	p.begin(o, 4, 6, P.NORTH)
 	p.box(Vector3i(0, 0, 0), Vector3i(4, 3, 6), M.PLASTIC)
+	p.box(Vector3i(1, 2, 2), Vector3i(3, 3, 5), M.STEEL)
 	p.box(Vector3i(1, 0, 0), Vector3i(3, 2, 1), M.RUBBER)
 	p.box(Vector3i(1, 1, 0), Vector3i(2, 2, 1), M.GLASS)
-	p.box(Vector3i(3, 2, 0), Vector3i(4, 3, 1), M.EMERGENCY)
+	p.box(Vector3i(3, 2, 0), Vector3i(4, 3, 1), M.RUBBER)
 
 
 ## A hazard beacon: a dome that lights on backup power (alarm spinning is not built yet).

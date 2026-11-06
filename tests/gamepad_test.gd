@@ -6,7 +6,8 @@ extends SceneTree
 ## the controls sheet's pad names; the settings menu by pad; a pushed left stick walks the player
 ## and a pushed right stick turns them, with the play-focus flag set and the mouse not captured;
 ## the pause panel opens with Resume focused, A presses it, Start resumes, and the Player and the
-## panel never both act on one Start. Builds a scratch level: one concrete room.
+## panel never both act on one Start; its settings' Controls row opens the bindings page, where
+## Start only cancels a listening row. Builds a scratch level: one concrete room.
 ##
 ## Game types are left untyped (see editor_test.gd).
 
@@ -251,7 +252,7 @@ func _check_pause_panel(lab, me) -> void:
 	var resume = hud._buttons.get_child(0)
 	_check("released, the pause panel shows", hud._pause.visible and hud._buttons.visible)
 	_check("Resume has the focus", resume.text == "Resume" and resume.has_focus(), str(hud.get_viewport().gui_get_focus_owner()))
-	_check("the hint says Start", hud._pause_hint.text.begins_with("Press Start to resume."), hud._pause_hint.text)
+	_check("solo, no how-to-resume line under the title", hud._pause_hint.text == "" and not hud._pause_hint.visible, hud._pause_hint.text)
 	_check("solo, the tree pauses", paused)
 
 	Input.parse_input_event(_button(JOY_BUTTON_START, true))
@@ -303,6 +304,24 @@ func _check_pause_panel(lab, me) -> void:
 	Input.parse_input_event(_button(JOY_BUTTON_DPAD_DOWN, false))
 	await _frames(2)
 	_check("D-pad down moves the settings row", hud._settings_menu.selected == row + 1, str(hud._settings_menu.selected))
+	# The Controls row: the bindings page; Start while it listens only cancels the listening.
+	hud._settings_menu.selected = hud._settings_menu.rows.size() - 1
+	Input.parse_input_event(_button(JOY_BUTTON_A, true))
+	Input.parse_input_event(_button(JOY_BUTTON_A, false))
+	await _idle(3)
+	_check("A on Controls opens the bindings page", hud._bindings_menu.visible and not hud._settings_menu.visible)
+	Input.parse_input_event(_button(JOY_BUTTON_A, true))
+	Input.parse_input_event(_button(JOY_BUTTON_A, false))
+	await _idle(3)
+	_check("A listens", hud._bindings_menu.listening != "")
+	Input.parse_input_event(_button(JOY_BUTTON_START, true))
+	Input.parse_input_event(_button(JOY_BUTTON_START, false))
+	await _idle(3)
+	_check("Start cancels the listening, the game stays paused", hud._bindings_menu.listening == "" and hud._bindings_menu.visible and hud._pause.visible and not InputSetup.is_playing())
+	Input.parse_input_event(_button(JOY_BUTTON_B, true))
+	Input.parse_input_event(_button(JOY_BUTTON_B, false))
+	await _idle(3)
+	_check("B goes back to the settings", hud._settings_menu.visible and not hud._bindings_menu.visible)
 	Input.parse_input_event(_button(JOY_BUTTON_B, true))
 	Input.parse_input_event(_button(JOY_BUTTON_B, false))
 	await _frames(3)
@@ -311,7 +330,7 @@ func _check_pause_panel(lab, me) -> void:
 
 	_pad.active = false
 	await _frames(2)
-	_check("on keys the hint says Click", hud._pause_hint.text.begins_with("Click to resume."), hud._pause_hint.text)
+	_check("on keys there is still no line", hud._pause_hint.text == "", hud._pause_hint.text)
 	InputSetup.resume_play()
 	_check("resumed on keys: no pad flag", not InputSetup.playing_on_pad)
 	await _frames(2)

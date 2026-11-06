@@ -26,7 +26,8 @@ and slabs, so floors are 40 apart) and by what fit:
   inset cells. Floor heights (voxels): dig 30, containment 130, compute 170, cultivation 210,
   admin 250, gatehouse 290.
 - Floor 0: the route is stairs, lobby, break room, training room, grow room 0 and back through the
-  lobby to the lift lobby (the security office's second door opens on the lift lobby). The gun is
+  lobby to the lift lobby (the security office's second door opens on the lift lobby; both its
+  doors are locked until the outbreak, so the blue card can't be taken early). The gun is
   not in the case (the player carries it from the start); the case holds shotgun ammo and a fire
   flask.
 - Floor -1: the fertilizer loft became a vent-crawl side room off the lift dock; the clone bay is
@@ -75,7 +76,7 @@ has a vat on the far side, so a death never puts a clone behind a locked door. T
 `vat_m4`, plus the secret `vat_m3b` and `vat_m4b`. With no checkpoint the clone is grown at the
 player's own spawn, never at the first vat in the file. Each vat has a `clone_vat` tank prop (id
 `<vat>_tank`, placeholder glass tank with a glowing ring) beside its marker. The respawn faces into
-the vat's room, fades red on death, and toasts "Clone #n grown. Billed to you." The seals are
+the vat's room, fades red on death, and toasts "Replacement #n grown. Billed to you." The seals are
 `t_g_seal` (closes the blast door without a lock: after the outbreak it refuses "No power"),
 `t_m1_stair_seal`, `t_m2_airlock` and the new `t_m3_cage_foot` at the cage ladder's foot (closes
 and locks `d_m3_cage`). Each seal's intercom line is keyed by its trigger id. The last three also
@@ -344,6 +345,8 @@ Flow:
    fight you cannot walk away from.
 4. Blue keycard in the security office, which is 6 m from the lift doors. The office is the key
    loop in its smallest form: in by the lobby door, out by a second door into the lift lobby.
+   Both doors (`d_0_security`, `d_0_security_lift`) are locked until `t_0_outbreak` unlocks them,
+   so the card is never in reach before the story starts (2026-11-04 play-test).
 5. Lift lobby: lift doors open onto an empty shaft, the lift roof 2.6 m below. Drop. Floor done.
 
 | Spawner | Room | Kinds | Rate | Max | Active | Turned on by |
@@ -378,7 +381,7 @@ emergency lights red on top.
 | Grow hall 2 | B1 to B2 | 12 x 12 | The big one: beds in a grid, half the lights broken. Set piece |
 | Mycology office | D2 | 6 x 6 | Desks, corkboards of pinned photos, terminal (the discovery of the pulsing: "it is not noise, it is a carrier"), **green keycard** |
 | Bathroom | D3 | 3 x 5 | |
-| Clone bay | A1 | 6 x 6 | `vat_m1`, medkit station (3 charges), ammo bench (`station_ammo_type` empty, 2 charges) |
+| Vat bay | A1 | 6 x 6 | `vat_m1`, medkit station (3 charges), ammo bench (`station_ammo_type` empty, 2 charges) |
 | Stair lobby | A2 | 5 x 6 | Fire door `d_m1_stair` (`door_key = green`, `door_power` off; this is the floor's gate), stairs down behind it. `t_m1_stair_seal` (`who = all`, in the stairwell) closes and locks `d_m1_stair` behind the party |
 
 Flow:

@@ -1,7 +1,7 @@
 class_name Ending
 extends Control
 ## The end of the shift: the host works out the payroll statement from the night's accounts (begin:
-## wages, every broken asset by name, purchases by name (vending machines, coffee), clones grown,
+## wages, every broken asset by name, purchases by name (vending machines, coffee), replacements grown,
 ## doors forced, the total owed) and sends it to every peer;
 ## each peer leaves it in Net.pending_statement / pending_total at once, fades to black over
 ## FADE_SECONDS and leaves the session, landing in its own cubicle, which rolls the statement on
@@ -48,10 +48,11 @@ func reset() -> void:
 	total = 0
 	_lines.clear()
 	visible = false
+	Music.release()
 	_black.color = Color(0, 0, 0, 0)
 
 
-## Host: works the statement out and shows it everywhere. clones is how many respawns the night took.
+## Host: works the statement out and shows it everywhere. clones is how many replacements the night took.
 func begin(clones: int) -> void:
 	if not multiplayer.is_server() or shown:
 		return
@@ -80,7 +81,7 @@ func begin(clones: int) -> void:
 			lines.append("   %s|-$%d" % [what.replace("_", " "), dollars])
 	var clone_cost := clones * int(Lines.ENDING.clone_cost)
 	owed += clone_cost
-	lines.append("Clones grown: %d x $%d|-$%d" % [clones, int(Lines.ENDING.clone_cost), clone_cost])
+	lines.append("Replacements grown: %d x $%d|-$%d" % [clones, int(Lines.ENDING.clone_cost), clone_cost])
 	var forced := play.forced_doors.size()
 	owed += forced * LevelPlay.FORCED_DOOR_FEE
 	lines.append("Doors forced: %d x $%d|-$%d" % [forced, LevelPlay.FORCED_DOOR_FEE, forced * LevelPlay.FORCED_DOOR_FEE])
@@ -98,6 +99,7 @@ func _show(lines: Array, net: int) -> void:
 		return
 	shown = true
 	total = net
+	Music.hold(FADE_SECONDS)
 	_lines.assign(lines)
 	# The shift is paid out: the clone on file goes, and nothing saves it again.
 	if multiplayer.is_server() and Net.session.get("shift", false):

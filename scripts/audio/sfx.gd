@@ -30,11 +30,17 @@ const SOUNDS := [
 	"spawn_pop", "burst", "spore_puff", "tentacle_grab", "heartbeat",
 	"intercom_chime", "register_tick", "crash", "zap", "splash", "rain", "emerge",
 	"squeak", "vend", "gas_hiss", "foam_spray", "thud", "printer", "radio_loop",
+	"step_hard", "step_metal", "step_soft", "step_wood", "land",
+	"door_slide", "door_slide_heavy", "door_clunk", "door_buzz",
 ]
 ## Made before the first frame; the rest are made on first use or, a few ms at a time, after startup.
 const EAGER := ["ui_click", "ui_pop", "ui_blip", "amb_day", "terminal_beep", "build_denied", "intercom_chime"]
 
 enum Shape { SINE, TRIANGLE, SAW, SQUARE }
+
+## A sound was started (sound is its name, position where it plays, Vector3.INF for a flat one):
+## the one record of what played, for tests (headless runs start no playback to listen to).
+signal played(sound: String, volume_db: float, position: Vector3)
 
 static var _instance: Sfx
 ## The player's mix, in dB added to every sound (GameSettings' Effects and Music).
@@ -192,6 +198,7 @@ func _play(sound: String, volume_db: float, pitch_jitter: float, pitch: float) -
 	player.pitch_scale = maxf(0.05, pitch * (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)))
 	if not _muted:
 		player.play()
+	played.emit(sound, volume_db, Vector3.INF)
 
 
 func _play_at(sound: String, position: Vector3, volume_db: float, pitch_jitter: float, pitch: float) -> void:
@@ -206,6 +213,7 @@ func _play_at(sound: String, position: Vector3, volume_db: float, pitch_jitter: 
 	player.pitch_scale = maxf(0.05, pitch * (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)))
 	if not _muted:
 		player.play()
+	played.emit(sound, volume_db, position)
 
 
 ## A free player if there is one, otherwise the one that started longest ago.
@@ -861,6 +869,95 @@ func _make_glass_crunch() -> AudioStreamWAV:
 	_add_noise(buf, RATE, 0.03, 0.08, 0.35, 0.02, 0.0, 3000.0)
 	_add_tone(buf, RATE, 0.01, 0.06, 4200.0, 4000.0, 0.06, 0.02, Shape.TRIANGLE)
 	_add_tone(buf, RATE, 0.05, 0.06, 5100.0, 4900.0, 0.05, 0.02, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## Footstep on tile, concrete, rock or a painted floor: a dry heel click with a little low body and
+## a softer toe tap after it. Played with pitch jitter (Player._footstep) so a walk doesn't repeat.
+func _make_step_hard() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.12)
+	_add_noise(buf, RATE, 0.0, 0.06, 0.5, 0.012, 4000.0, 400.0)
+	_add_tone(buf, RATE, 0.0, 0.08, 160.0, 95.0, 0.35, 0.02)
+	_add_noise(buf, RATE, 0.035, 0.05, 0.2, 0.012, 2500.0, 300.0)
+	return _to_wav(buf, RATE)
+
+
+## Footstep on sheet metal, steel, diamond plate or a ladder: a bright tick and two short ringing
+## partials over a low thump, like a step on a hollow deck.
+func _make_step_metal() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.14)
+	_add_noise(buf, RATE, 0.0, 0.04, 0.45, 0.008, 6000.0, 800.0)
+	_add_tone(buf, RATE, 0.0, 0.13, 620.0, 600.0, 0.12, 0.04, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.0, 0.13, 1490.0, 1470.0, 0.07, 0.03, Shape.TRIANGLE)
+	_add_tone(buf, RATE, 0.0, 0.07, 190.0, 120.0, 0.3, 0.02)
+	return _to_wav(buf, RATE)
+
+
+## Footstep on dirt, sand, cloth, substrate or mycelium: a muffled low pad with a faint grit on top,
+## no click (nothing hard to strike).
+func _make_step_soft() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.12)
+	_add_noise(buf, RATE, 0.0, 0.1, 0.5, 0.03, 700.0, 80.0, 0.008)
+	_add_tone(buf, RATE, 0.0, 0.08, 90.0, 55.0, 0.3, 0.03)
+	_add_noise(buf, RATE, 0.02, 0.08, 0.12, 0.03, 3000.0, 1200.0)
+	return _to_wav(buf, RATE)
+
+
+## Footstep on planks or wood: a hollow knock (a falling triangle over a low sine) and a short
+## woody scuff.
+func _make_step_wood() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.13)
+	_add_tone(buf, RATE, 0.0, 0.1, 240.0, 170.0, 0.35, 0.025, Shape.TRIANGLE)
+	_add_noise(buf, RATE, 0.0, 0.06, 0.4, 0.015, 1600.0, 150.0)
+	_add_tone(buf, RATE, 0.0, 0.09, 110.0, 80.0, 0.25, 0.03)
+	return _to_wav(buf, RATE)
+
+
+## Landing from a fall: a soft low body thump and a scuff of the shoes.
+func _make_land() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.25)
+	_add_tone(buf, RATE, 0.0, 0.2, 85.0, 40.0, 0.7, 0.06)
+	_add_noise(buf, RATE, 0.0, 0.12, 0.5, 0.035, 600.0, 50.0)
+	_add_noise(buf, RATE, 0.01, 0.05, 0.15, 0.015, 3000.0, 600.0)
+	return _to_wav(buf, RATE)
+
+
+## A sliding door's motor (LevelPlay._door_motion): a rising servo whine (saw and square) over
+## rail rumble, half a second, the usual door's travel time; it is pitched to fit other durations.
+func _make_door_slide() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.55)
+	_add_tone(buf, RATE, 0.0, 0.55, 210.0, 260.0, 0.12, 0.0, Shape.SAW, 0.05, 0.1, 14.0, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.55, 420.0, 520.0, 0.05, 0.0, Shape.SQUARE, 0.05, 0.1)
+	_add_noise(buf, RATE, 0.0, 0.55, 0.25, 0.0, 900.0, 120.0, 0.04, 0.1, 9.0, 0.4)
+	return _to_wav(buf, RATE)
+
+
+## A blast door's travel: two low saws winding up with a stuttering grind, heavier and slower than
+## door_slide (low material, so rendered at half rate).
+func _make_door_slide_heavy() -> AudioStreamWAV:
+	var buf := _buffer(LOW_RATE, 1.2)
+	_add_tone(buf, LOW_RATE, 0.0, 1.2, 45.0, 60.0, 0.35, 0.0, Shape.SAW, 0.12, 0.2, 9.0, 0.5)
+	_add_tone(buf, LOW_RATE, 0.0, 1.2, 90.0, 118.0, 0.12, 0.0, Shape.SAW, 0.15, 0.2, 6.0, 0.5)
+	_add_noise(buf, LOW_RATE, 0.0, 1.2, 0.3, 0.0, 700.0, 0.0, 0.12, 0.2, 11.0, 0.6)
+	return _to_wav(buf, LOW_RATE)
+
+
+## A door coming to rest (LevelPlay._door_settled): a heavy falling thunk, a latch clack and a
+## faint metallic tick. Pitched down for blast doors.
+func _make_door_clunk() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.3)
+	_add_tone(buf, RATE, 0.0, 0.25, 130.0, 60.0, 0.6, 0.05)
+	_add_noise(buf, RATE, 0.0, 0.08, 0.55, 0.02, 2200.0, 100.0)
+	_add_tone(buf, RATE, 0.0, 0.06, 900.0, 800.0, 0.08, 0.02, Shape.TRIANGLE)
+	return _to_wav(buf, RATE)
+
+
+## A door refusing (locked, no keycard, no power): one low buzzing square, warbling, with a saw a
+## fifth above. Lower and rougher than build_denied, so it reads as the door, not the build tool.
+func _make_door_buzz() -> AudioStreamWAV:
+	var buf := _buffer(RATE, 0.25)
+	_add_tone(buf, RATE, 0.0, 0.22, 110.0, 110.0, 0.2, 0.0, Shape.SQUARE, 0.004, 0.03, 30.0, 0.5)
+	_add_tone(buf, RATE, 0.0, 0.22, 165.0, 165.0, 0.1, 0.0, Shape.SAW, 0.004, 0.03)
 	return _to_wav(buf, RATE)
 
 

@@ -6,7 +6,8 @@ extends SceneTree
 ## capture: A in the room gives play focus, X on the computer zooms onto SPLASH, Y signs in, arcade
 ## entry spells a name (up / down turn and wrap, the stick too, right adds, left and X erase) and A
 ## submits it to MAIN; the D-pad moves the caret, A opens SINGLEPLAYER, B backs out, the settings
-## menu takes the pad, B from MAIN zooms out; the footers and prompts read the pad's buttons while
+## menu takes the pad, its Controls row opens CONTROLS (A listens, a raw B binds, Start cancels,
+## Reset, B back to SETTINGS), B from MAIN zooms out; the footers and prompts read the pad's buttons while
 ## it is in use and the keys' when not; APPLY FOR JOB by pad runs the log (Y advances, A opens
 ## the email, X declines, A at the go-back prompt returns to it, B does nothing there, A accepts);
 ## B at the go-back prompt finishes declined; Y steps off NEW LEVEL's name field; Start in the
@@ -118,6 +119,7 @@ func _run() -> void:
 	var row: int = cubicle._settings_menu.selected
 	await _press(JOY_BUTTON_DPAD_DOWN)
 	_check("D-pad down moves the settings row", cubicle._settings_menu.selected == row + 1, str(cubicle._settings_menu.selected))
+	await _check_controls_page(cubicle, settings)
 	await _press(JOY_BUTTON_B)
 	_check("B closes the settings: MAIN", cubicle.page == cubicle.Page.MAIN)
 
@@ -235,6 +237,48 @@ func _run() -> void:
 	_pad.active = false
 	print("pad_console_test: %s" % ("PASS" if _failures == 0 else "FAIL (%d)" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+## SETTINGS' Controls row opens CONTROLS by pad (docs/controls.md, section 5): the bindings menu
+## fits the screen, A listens on Jump, a raw B binds it (not back), A on Reset clears it, B backs
+## out to SETTINGS on the Controls row. Leaves the settings menu on its first row.
+func _check_controls_page(cubicle, settings) -> void:
+	var kept_bindings = settings.get_value("bindings")
+	settings.set_value("bindings", {})
+	var last: int = cubicle._settings_menu.rows.size() - 1
+	while cubicle._settings_menu.selected != last:
+		await _press(JOY_BUTTON_DPAD_UP)
+	_check("the settings end on Controls", cubicle._settings_menu.rows[last].label == "Controls")
+	await _press(JOY_BUTTON_A)
+	var menu = cubicle._bindings_menu
+	_check("A on Controls opens CONTROLS", cubicle.page == cubicle.Page.CONTROLS and menu != null and menu.visible)
+	_check("its title and pad footer", cubicle._header.text == "FUNG AI  |  CONTROLS" and cubicle._footer.text == "A: rebind    B: back", cubicle._footer.text)
+	await _frames(2)
+	_check("the bindings menu fits the screen", menu.get_combined_minimum_size().y <= cubicle._body.size.y,
+			"%s of %s" % [menu.get_combined_minimum_size().y, cubicle._body.size.y])
+	for i in 4:
+		await _press(JOY_BUTTON_DPAD_DOWN)
+	_check("D-pad down to Jump", menu.actions[menu.selected] == "jump", str(menu.selected))
+	await _press(JOY_BUTTON_A)
+	_check("A listens", menu.listening == "jump")
+	await _press(JOY_BUTTON_B)
+	_check("B binds Jump, the page stays", cubicle.page == cubicle.Page.CONTROLS and menu.listening == "" and InputSetup.binding_name("jump", "pad") == "B")
+	_check("...and crouch swaps to A", InputSetup.binding_name("crouch", "pad") == "A")
+	_pad.active = false
+	_check("keys: the footer", cubicle._footer.text == "Enter: rebind    Esc: back", cubicle._footer.text)
+	_pad.active = true
+	await _press(JOY_BUTTON_A)
+	await _press(JOY_BUTTON_START)
+	_check("Start cancels listening", cubicle.page == cubicle.Page.CONTROLS and menu.listening == "" and cubicle.state == cubicle.State.SCREEN)
+	while not menu.on_reset():
+		await _press(JOY_BUTTON_DPAD_UP)
+	await _press(JOY_BUTTON_A)
+	_check("A on Reset clears it", settings.get_value("bindings") == {} and InputSetup.binding_name("jump", "pad") == "A")
+	await _press(JOY_BUTTON_B)
+	_check("B backs out to SETTINGS on Controls", cubicle.page == cubicle.Page.SETTINGS and cubicle._bindings_menu == null and cubicle._settings_menu.visible and cubicle._settings_menu.selected == last)
+	settings.set_value("bindings", kept_bindings)
+	while cubicle._settings_menu.selected != 0:
+		await _press(JOY_BUTTON_DPAD_DOWN)
 
 
 func _new_cubicle():

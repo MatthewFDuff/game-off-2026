@@ -171,6 +171,29 @@ const PLAY_CONTROLS := [
 const CONTROL_TEXT := {Look = "Mouse / arrows"}
 ## The same rows' words when the sheet lists the pad too.
 const PAD_CONTROL_TEXT := {Look = "Mouse / arrows / right stick"}
+## The actions the player can rebind (docs/controls.md, section 5), in the bindings menu's order,
+## and the devices each takes: "kb" (a key or mouse button) and "pad" (a pad button or trigger).
+## The move keys are keyboard only (the left stick stays); look, pause and the menus' keys are fixed.
+const REBINDABLE := {
+	move_forward = ["kb"],
+	move_back = ["kb"],
+	move_left = ["kb"],
+	move_right = ["kb"],
+	jump = ["kb", "pad"],
+	crouch = ["kb", "pad"],
+	fire = ["kb", "pad"],
+	alt_fire = ["kb", "pad"],
+	melee = ["kb", "pad"],
+	cycle_flask = ["kb", "pad"],
+	cycle_ammo = ["kb", "pad"],
+	ammo_1 = ["kb", "pad"],
+	ammo_2 = ["kb", "pad"],
+	ammo_3 = ["kb", "pad"],
+	ammo_4 = ["kb", "pad"],
+	interact = ["kb", "pad"],
+	toggle_flashlight = ["kb", "pad"],
+	show_controls = ["kb", "pad"],
+}
 ## Actions bound only when the game is launched with the dev flag (DEV_FLAG); otherwise they exist
 ## with no keys, so checking them is harmless and never true.
 const DEV_ACTIONS := ["toggle_fly"]
@@ -363,6 +386,157 @@ static func _pad_ui_actions() -> void:
 		var accept := InputEventJoypadButton.new()
 		accept.button_index = JOY_BUTTON_A
 		InputMap.action_add_event("ui_accept", accept)
+
+
+## The device an event belongs to for bindings: "kb" for a key or mouse button, "pad" for a pad
+## button or axis, "" for anything else.
+static func device_of(event: InputEvent) -> String:
+	if event is InputEventKey or event is InputEventMouseButton:
+		return "kb"
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		return "pad"
+	return ""
+
+
+## A binding as text, the way the bindings setting stores it: "key:<physical keycode>",
+## "mouse:<button>", "joy:<button>" or "axis:<axis>:<+1|-1>"; "" for anything else.
+static func serialize(event: InputEvent) -> String:
+	if event is InputEventKey:
+		var code: Key = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
+		return "key:%d" % code if code != KEY_NONE else ""
+	if event is InputEventMouseButton:
+		return "mouse:%d" % event.button_index
+	if event is InputEventJoypadButton:
+		return "joy:%d" % event.button_index
+	if event is InputEventJoypadMotion:
+		return "axis:%d:%s" % [event.axis, "+1" if event.axis_value >= 0.0 else "-1"]
+	return ""
+
+
+## The event a serialized binding stands for (serialize's inverse), or null when spec isn't one.
+static func deserialize(spec: String) -> InputEvent:
+	var parts := spec.split(":")
+	if parts.size() < 2 or not parts[1].is_valid_int():
+		return null
+	var number := parts[1].to_int()
+	match parts[0]:
+		"key":
+			if parts.size() != 2 or number <= 0:
+				return null
+			var key := InputEventKey.new()
+			key.physical_keycode = number as Key
+			return key
+		"mouse":
+			if parts.size() != 2 or number < MOUSE_BUTTON_LEFT or number > MOUSE_BUTTON_XBUTTON2:
+				return null
+			var mouse := InputEventMouseButton.new()
+			mouse.button_index = number as MouseButton
+			return mouse
+		"joy":
+			if parts.size() != 2 or number < 0 or number >= JOY_BUTTON_SDL_MAX:
+				return null
+			var button := InputEventJoypadButton.new()
+			button.button_index = number as JoyButton
+			return button
+		"axis":
+			if parts.size() != 3 or number < 0 or number >= JOY_AXIS_SDL_MAX or not parts[2] in ["+1", "-1", "1"]:
+				return null
+			var motion := InputEventJoypadMotion.new()
+			motion.axis = number as JoyAxis
+			motion.axis_value = -1.0 if parts[2] == "-1" else 1.0
+			return motion
+	return null
+
+
+## True for an event that can be a binding: a key, a mouse button other than the wheel, a pad
+## button or a trigger pulled forward. Esc and Start cancel the bindings menu's listening, so they
+## never bind; the sticks are refused (they move and look).
+static func bindable(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var code: Key = event.physical_keycode if event.physical_keycode != KEY_NONE else event.keycode
+		return code != KEY_NONE and code != KEY_ESCAPE
+	if event is InputEventMouseButton:
+		return not event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]
+	if event is InputEventJoypadButton:
+		return event.button_index != JOY_BUTTON_START
+	if event is InputEventJoypadMotion:
+		return event.axis in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT] and event.axis_value > 0.0
+	return false
+
+
+## The default binding of action on device ("kb" or "pad"), serialized: its first key or mouse
+## button, or its first pad binding; "" when it has none there.
+static func default_binding(action: String, device: String) -> String:
+	var specs := _default_specs(action, device)
+	return specs[0] if not specs.is_empty() else ""
+
+
+## Every default binding of action on device, serialized (crouch has two keys).
+static func _default_specs(action: String, device: String) -> Array[String]:
+	var specs: Array[String] = []
+	if device == "kb":
+		for button in MOUSE_BUTTONS.get(action, []):
+			specs.append("mouse:%d" % button)
+		for keycode in KEYS.get(action, []):
+			specs.append("key:%d" % keycode)
+	elif device == "pad":
+		for spec: Variant in PAD.get(action, []):
+			if spec is Array:
+				specs.append("axis:%d:%s" % [spec[0], "+1" if spec[1] >= 0.0 else "-1"])
+			else:
+				specs.append("joy:%d" % spec)
+	return specs
+
+
+## The bindings in effect on action for device, serialized, in the input map's order.
+static func current_bindings(action: String, device: String) -> Array[String]:
+	var specs: Array[String] = []
+	if InputMap.has_action(action):
+		for event in InputMap.action_get_events(action):
+			if device_of(event) == device:
+				specs.append(serialize(event))
+	return specs
+
+
+## Applies the player's bindings (the bindings setting: action -> {kb?, pad?}, serialized): each
+## override replaces that device's events on the action, and every rebindable action or device
+## without one gets its defaults back, so apply_bindings({}) is Reset. Creates the actions first
+## (ensure_actions), so it works however early it runs. Actions outside REBINDABLE are untouched.
+static func apply_bindings(overrides: Dictionary) -> void:
+	ensure_actions()
+	for action: String in REBINDABLE:
+		if not InputMap.has_action(action):
+			continue
+		var entry: Variant = overrides.get(action, {})
+		for device: String in REBINDABLE[action]:
+			var desired := _default_specs(action, device)
+			if entry is Dictionary and entry.has(device):
+				var spec := str(entry[device])
+				var event := deserialize(spec)
+				if event != null and device_of(event) == device:
+					desired = [spec]
+			if current_bindings(action, device) == desired:
+				continue
+			for event in InputMap.action_get_events(action):
+				if device_of(event) == device:
+					InputMap.action_erase_event(action, event)
+			for spec in desired:
+				InputMap.action_add_event(action, deserialize(spec))
+		# A trigger presses at its own deadzone, whatever the action had before.
+		var on_trigger := current_bindings(action, "pad").any(func(spec: String) -> bool:
+			return spec.begins_with("axis:%d:" % JOY_AXIS_TRIGGER_LEFT) or spec.begins_with("axis:%d:" % JOY_AXIS_TRIGGER_RIGHT))
+		InputMap.action_set_deadzone(action, TRIGGER_DEADZONE if on_trigger else _deadzone(action))
+
+
+## The name of action's binding on device ("kb" or "pad") for people: "E", "LMB", "Shift", "X",
+## "RT", "Left stick"; "" when it has none there.
+static func binding_name(action: String, device: String) -> String:
+	if not InputMap.has_action(action):
+		return ""
+	for event in InputMap.action_get_events(action):
+		if device_of(event) == device:
+			return _event_name(event)
+	return ""
 
 
 static func _key_event(spec: String) -> InputEventKey:

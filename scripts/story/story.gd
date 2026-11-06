@@ -11,6 +11,9 @@ extends Node
 const CONTROLS_SECONDS := 6.0
 const YARD_ROOM := "yard"
 const RAIN_MARGIN := 2.0
+## Meters over the yard's floor the drops start from, and how far inside its walls they stay.
+const RAIN_HEIGHT := 12.0
+const RAIN_INSET := 1.0
 
 var lab: Lab
 var intercom: Intercom
@@ -128,11 +131,17 @@ func _make_rain() -> GPUParticles3D:
 	var rain := GPUParticles3D.new()
 	rain.amount = 1200
 	rain.lifetime = 1.6
-	rain.visibility_aabb = AABB(Vector3(-size.x, -2.0, -size.z), Vector3(size.x * 2.0, 16.0, size.z * 2.0))
-	rain.position = Vector3(center.x, lab.world.global_position.y + room.from.y * lab.world.voxel_size + 12.0, center.z)
+	# The drops start RAIN_HEIGHT over the yard's floor and fall below it in their lifetime, so
+	# the visibility box (local to the emitter) reaches from a little above it to the ground and
+	# below: a box that only covered the air above the drops had the whole sheet culled whenever
+	# the camera didn't look up at it (rain that came and went with the view angle).
+	rain.visibility_aabb = AABB(Vector3(-size.x, -RAIN_HEIGHT - 4.0, -size.z), Vector3(size.x * 2.0, RAIN_HEIGHT + 6.0, size.z * 2.0))
+	rain.position = Vector3(center.x, lab.world.global_position.y + room.from.y * lab.world.voxel_size + RAIN_HEIGHT, center.z)
 	var material := ParticleProcessMaterial.new()
 	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	material.emission_box_extents = Vector3(size.x * 0.6, 0.2, size.z * 0.6)
+	# Inside the yard's walls with a margin, not over them: drops have no collision, so any that
+	# started past the yard fell through the gatehouse roof and showed indoors.
+	material.emission_box_extents = Vector3(maxf(size.x * 0.5 - RAIN_INSET, 1.0), 0.2, maxf(size.z * 0.5 - RAIN_INSET, 1.0))
 	material.direction = Vector3.DOWN
 	material.spread = 2.0
 	material.initial_velocity_min = 7.0

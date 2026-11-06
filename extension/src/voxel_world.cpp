@@ -890,10 +890,30 @@ void VoxelWorld::detach_fragments(const std::vector<Vector3i> &removed, Vector3i
 			Vector3i lo = piece[0];
 			Vector3i hi = piece[0];
 			for (const Vector3i &p : piece) {
-				counts[read(p.x, p.y, p.z)]++;
-				write(p.x, p.y, p.z, 0);
 				lo = lo.min(p);
 				hi = hi.max(p);
+			}
+			// The piece's voxels as a dense box (stamp's x, then y, then z order), captured before
+			// they go to air, so a script can drop the piece and stamp it back where it lands. A
+			// sprawling piece whose box would pass MAX_FRAGMENT_BOX voxels reports an empty box.
+			constexpr int64_t MAX_FRAGMENT_BOX = int64_t(1) << 18;
+			const Vector3i box_size = hi - lo + Vector3i(1, 1, 1);
+			const int64_t box_volume = int64_t(box_size.x) * box_size.y * box_size.z;
+			PackedByteArray box_voxels;
+			uint8_t *box_write = nullptr;
+			if (box_volume <= MAX_FRAGMENT_BOX) {
+				box_voxels.resize(box_volume);
+				box_voxels.fill(0);
+				box_write = box_voxels.ptrw();
+			}
+			for (const Vector3i &p : piece) {
+				const uint8_t m = read(p.x, p.y, p.z);
+				counts[m]++;
+				if (box_write != nullptr) {
+					const Vector3i local = p - lo;
+					box_write[local.x + local.y * box_size.x + int64_t(local.z) * box_size.x * box_size.y] = m;
+				}
+				write(p.x, p.y, p.z, 0);
 			}
 			if (detached != nullptr) {
 				detached->insert(detached->end(), piece.begin(), piece.end());
@@ -912,6 +932,9 @@ void VoxelWorld::detach_fragments(const std::vector<Vector3i> &removed, Vector3i
 			fragment["aabb"] = AABB(world_lo, Vector3(hi - lo + Vector3i(1, 1, 1)) * voxel_size);
 			fragment["voxel_count"] = int(piece.size());
 			fragment["materials"] = materials;
+			fragment["origin"] = lo;
+			fragment["size"] = box_size;
+			fragment["voxels"] = box_voxels;
 			fragments.push_back(fragment);
 		}
 	}

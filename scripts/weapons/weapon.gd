@@ -286,6 +286,9 @@ func fire(direction := Vector3.ZERO) -> bool:
 	Sfx.play(type.sound, type.sound_db, 0.08, type.sound_pitch)
 	player.add_recoil(type.recoil)
 	player.add_shake(type.shake)
+	# A heavier ammo buzzes harder and longer; a fast one stays inside its cooldown.
+	var heft := clampf(maxf(type.shake / 0.4, type.recoil / 0.07), 0.0, 1.0)
+	player.rumble(lerpf(0.25, 0.5, heft), 0.0, minf(lerpf(0.06, 0.1, heft), 0.75 / type.rate))
 	_kick = 1.0
 	return true
 
@@ -547,6 +550,7 @@ func melee() -> bool:
 	_melee_hit_in = MELEE_HIT_AT
 	_play_swing()
 	Sfx.play("melee_swing", -2.0, 0.1)
+	player.rumble(0.3, 0.0, 0.08)
 	for peer_id in player.net_peers:
 		_remote_melee.rpc_id(peer_id)
 	return true
@@ -594,6 +598,8 @@ func _melee_strike() -> void:
 	if hits > 0 or voxel.hit:
 		Sfx.play("melee_hit" if hits > 0 else "chip", -2.0 if hits > 0 else 0.0, 0.1)
 		player.add_shake(0.25 if hits > 0 else 0.12)
+	if hits > 0:
+		player.rumble(0.0, 0.5, 0.12)
 	meleed.emit(hits)
 
 
@@ -667,6 +673,7 @@ func throw_flask(direction := Vector3.ZERO) -> bool:
 		_remote_projectile.rpc_id(peer_id, id, type.name, from, velocity)
 	Sfx.play(type.sound, -4.0, 0.1)
 	player.add_shake(type.shake)
+	player.rumble(0.2, 0.0, 0.06)
 	return true
 
 

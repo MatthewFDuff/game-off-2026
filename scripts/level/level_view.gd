@@ -53,6 +53,8 @@ const NO_CUT := 1 << 30
 var mycelium_meshes := {}
 var _mycelium_ids := {}
 var _mycelium_dirty := false
+## Play: the moving parts of props (the security cameras' heads), started and stopped with the mode.
+var motion := PropMotion.new()
 
 
 func _ready() -> void:
@@ -60,11 +62,15 @@ func _ready() -> void:
 	_selection.material_override = _line_material(Color(1.0, 0.85, 0.2))
 	_selection.visible = false
 	add_child(_selection)
+	motion.name = "PropMotion"
+	motion.view = self
+	add_child(motion)
 
 
 func set_mode(new_mode: String) -> void:
 	mode = new_mode
 	rebuild()
+	motion.set_active(mode == "play")
 
 
 func rebuild() -> void:
@@ -95,6 +101,10 @@ func object_set(remove_id: String, object: Dictionary) -> void:
 
 ## Live reload: redraw every placement of a prop.
 func reload_prop(prop_name: String) -> void:
+	# A moving part's file (a camera head) is drawn into its body's mesh too.
+	for body: String in PropMotion.PARTS:
+		if PropMotion.PARTS[body].part == prop_name:
+			reload_prop(body)
 	for facing in 4:
 		_prop_meshes.erase("%s:%d" % [prop_name, facing])
 	for object: Dictionary in lab.level.objects.values():
@@ -117,11 +127,12 @@ func set_selected(id: String) -> void:
 	draw_box(_selection.mesh, box.grow(0.3))
 
 
-## A prop's mesh, turned to face `facing`, built once and shared.
+## A prop's mesh, turned to face `facing`, built once and shared. A prop with a moving part
+## (PropMotion) is drawn whole, its part at rest, as editor views show it.
 func prop_mesh(prop_name: String, facing: int) -> ArrayMesh:
 	var key := "%s:%d" % [prop_name, facing]
 	if not _prop_meshes.has(key):
-		var turned := Props.oriented(prop_name, facing)
+		var turned := PropMotion.display_model(prop_name, facing)
 		if turned.is_empty():
 			return null
 		_prop_meshes[key] = lab.world.build_model_mesh(turned.size, turned.voxels)

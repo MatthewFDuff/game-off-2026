@@ -2,7 +2,7 @@ class_name ShiftSave
 extends RefCounted
 ## The one saved shift on this machine (docs/shift-save.md): the host writes it at every clone vat,
 ## seal, the generator, leaving and closing the window, and the cubicle's Continue resumes it. In
-## the fiction it is the clone Fung AI keeps on file. One folder, no slots:
+## the fiction it is the shift Fung AI keeps on file. One folder, no slots:
 ##   shift.json   the record (Lab.save_shift builds it; section 1 of the doc lists the keys)
 ##   voxels.bin   an 8-byte size header plus zstd of: (format 1) VoxelWorld.get_data() at the save;
 ##                (format 2, what Lab writes) only the chunks changed since the level was built for

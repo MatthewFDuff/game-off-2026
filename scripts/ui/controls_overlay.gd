@@ -2,7 +2,8 @@ class_name ControlsOverlay
 extends Control
 ## F1 controls cheat sheet, listing the bindings from InputSetup so it never goes stale; with a pad
 ## plugged in or in use it lists the pad's buttons too (and Back toggles it), rebuilt when the
-## device changes. Esc closes it too, and B or Start on a pad.
+## device changes or the player rebinds. Esc closes it too, and B or Start on a pad. It leaves alone
+## the press a listening bindings menu takes (BindingsMenu.capturing), F1 and Back among them.
 
 var _title := Label.new()
 var _grid := GridContainer.new()
@@ -32,6 +33,7 @@ func _ready() -> void:
 	column.add_child(_grid)
 	_rebuild()
 	Pad.device_changed.connect(_rebuild)
+	GameSettings.changed.connect(_on_setting_changed)
 
 
 ## The title and rows for the device in use (InputSetup.describe_play_controls).
@@ -50,6 +52,11 @@ func _rebuild() -> void:
 		_grid.add_child(keys)
 
 
+func _on_setting_changed(key: String) -> void:
+	if key == "bindings":
+		_rebuild()
+
+
 ## Shows the sheet for a few seconds (the story does this when the player first gets the gun).
 func show_for(seconds: float) -> void:
 	visible = true
@@ -58,6 +65,8 @@ func show_for(seconds: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if BindingsMenu.capturing or event == BindingsMenu.last_taken:
+		return
 	if event.is_action_pressed("show_controls"):
 		visible = not visible
 		get_viewport().set_input_as_handled()

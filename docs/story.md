@@ -58,7 +58,7 @@ After line 4 a notification slides in: `1 new email`. Opening it (click, or E):
 > substrate program. Lab coat provided. Science permitted.
 >
 > *Fine print (scroll):* By accepting you assign to Fung AI all rights to your DNA, likeness,
-> thoughts (recorded or inferred), and any clones derived therefrom; damage to Fung AI property
+> thoughts (recorded or inferred); damage to Fung AI property
 > is recovered from wages; clones are property; Fung AI is not liable for anything, ever; the
 > coffee machine is property.
 >
@@ -90,8 +90,8 @@ a chime, from the nearest speaker marker; only the host advances them.
 - After the outbreak (backup power): `Facility power has failed. Backup power is running the
   intercom and emergency lighting. The exit is locked. Please restore facility power at the
   generator, Level -4. Fung AI thanks you for your flexibility.`
-- Clone bay (first vat): `A clone vat. Should you die, a replacement will be grown at this
-  location and billed to you.`
+- Vat bay (first vat): `A growth vat. Should you die, a replacement is grown here and billed to
+  you.`
 - Each gate: `Clearance required.` / `Clearance accepted. Thank you.`
 - Generator: `Generator start detected. Please hold.`
 - Finale survived: `Facility power restored. The freight elevator is available. Please
@@ -125,7 +125,7 @@ shows for a few seconds; the lobby vent wakes as they leave.
 ### The ending
 
 The elevator rises (a fade). The payroll statement, one line at a time with a cash-register
-tick: wages for one shift, then every broken asset by name and price, every clone, every forced
+tick: wages for one shift, then every broken asset by name and price, every replacement, every forced
 door, the total owed. Then: `From: Guy Fung. Thanks for your service. Your next shift starts
 tomorrow at 22:00. Please bring your own coffee.` Then you are back in your cubicle, as if nothing changed; the
 statement waits on the computer's screen.

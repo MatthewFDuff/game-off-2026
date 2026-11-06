@@ -137,7 +137,8 @@ tests in `tests/fire_test.gd`):
   shroom material. Burning voxels are the `EMBER` / `EMBER_DEEP` materials, and they go out to air
   or `CHAR`. Heat rises: fire catches upward twice as readily as sideways.
 - Only voxels with air on a face catch, so solid things burn from the outside in. Burnt-through
-  supports drop what they held (the play-mode `detach_floating` falling pieces), and burnt assets
+  supports drop what they held (the play-mode `detach_floating` loose pieces: `FallingPieces`
+  drops one of 10 voxels or more straight down and stamps it back where it lands), and burnt assets
   cost payroll like any other damage.
 - What lights it: the fire flask (the pool engulfs everything flammable in it), flame ammo (what
   the cone licks), explosive ammo and exploding shrooms (around the blast), and burning shrooms,

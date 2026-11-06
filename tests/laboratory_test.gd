@@ -23,7 +23,8 @@ const DROP := 24
 const BREAKABLE := [M.GLASS, M.PLANK, M.PLASTIC, M.WOOD]
 ## Story-locked doors and what opens them: a prop (terminal used) or a room entered.
 ## (The sign-in terminal stands on the gatehouse desk, so reaching the desk is reaching it.)
-const UNLOCKS := {d_g_blast = {prop = "desk_gatehouse"}, d_0_grow = {prop = "term_training"}, d_m2_airlock_in = {room = "airlock"}, d_m4_exit = {prop = "generator"}}
+const UNLOCKS := {d_g_blast = {prop = "desk_gatehouse"}, d_0_grow = {prop = "term_training"}, d_0_security = {prop = "term_training"},
+		d_0_security_lift = {prop = "term_training"}, d_m2_airlock_in = {room = "airlock"}, d_m4_exit = {prop = "generator"}}
 const ROUTE_VATS := ["vat_0", "vat_m1_dock", "vat_m1", "vat_m2_lobby", "vat_m2", "vat_m3_decon", "vat_m3", "vat_m4_foot", "vat_m4"]
 ## Meters a clone vat marker keeps from every prop (its tank included), so a clone isn't grown inside one.
 const VAT_CLEAR := 0.4
@@ -303,11 +304,14 @@ func _check_vats() -> void:
 
 # --- The walk ---------------------------------------------------------------------------------------
 
-## Breadth-first over floor cells from the spawn, re-run as keys and events open doors.
+## Breadth-first over floor cells from the spawn, re-run as keys and events open doors. Each pass
+## opens the doors the last one reached the key or event for, so the cap must cover the longest
+## chain (blast door, training terminal, the security office, the lift, each floor's gate, the
+## airlock's two doors, the cage, the exit: nine passes) with room to spare.
 func _walk() -> void:
 	var spawn := _cell_of(_level.objects.values().filter(func(o) -> bool: return o.kind == "marker" and o.type == "spawn")[0].position)
 	var open := {}
-	for i in 8:
+	for i in 14:
 		_reached.clear()
 		_flood(spawn, open)
 		var changed := false

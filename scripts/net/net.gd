@@ -224,6 +224,8 @@ func leave(reason := "") -> void:
 	_reset()
 	end_reason = reason
 	session_ended.emit(reason)
+	# The solo pause panel pauses the tree (LabHud); the cubicle must never inherit that.
+	get_tree().paused = false
 	var scene := get_tree().current_scene
 	if scene == null or scene.scene_file_path != MENU_SCENE:
 		get_tree().change_scene_to_file(MENU_SCENE)

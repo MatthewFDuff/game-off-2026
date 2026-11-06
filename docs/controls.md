@@ -102,7 +102,8 @@ shared `SettingsMenu` (2.4).
 Godot `Button`s: Resume, Settings, Invite (a co-op host), Leave shift, and Back on the invite
 page. Mouse clicks today; on a pad the first button takes focus when the panel opens, the stick
 and D-pad move focus (`ui_up` / `ui_down`), A presses (`ui_accept`), B goes back a page, Start
-resumes. The hint under the title says "Click to resume." or "Press Start to resume." by device.
+resumes. There is no "how to resume" line under the title (the Resume button says it; a co-op
+player sees "The shift does not pause for you." there).
 
 ### 2.6 Overlays
 
@@ -229,3 +230,52 @@ on the computer, Y to SIGN IN, arcade entry to MAIN, the caret, SETTINGS and B b
 and key wordings, the log (Y), the email (A opens, X declines, A at the go-back prompt, A
 accepts, B declines there), Start's clock-out prompt and B, X and B closing a note. The existing `controls_test`, `cubicle_test`, `controller_test`,
 `ui_test`, `story_test` and `weapon_test` keep passing.
+
+## 5. Rebinding
+
+Decided 2026-11-04. The play actions can be rebound, one binding per device: a keyboard or mouse
+binding and a pad binding for each. The look controls (mouse, arrow keys, right stick), pause
+(Esc / Start), the console's own keys and the level editor's shortcuts are fixed.
+
+- **Rebindable.** jump, crouch, fire, alt_fire, melee, cycle_flask, cycle_ammo, ammo_1 .. ammo_4,
+  interact, toggle_flashlight, show_controls on both devices; move_forward / back / left / right
+  on the keyboard only (the left stick stays).
+- **Where.** A **Controls** row at the end of the settings menu (console and pause panel) opens
+  the bindings menu (`scripts/ui/bindings_menu.gd`, `BindingsMenu`, built like `SettingsMenu`):
+  one row per action, its label, its key and its pad binding, the caret on the chosen row. The
+  list scrolls to keep the chosen row on the console's small screen. The last row is **Reset to
+  defaults**.
+- **Capturing.** Enter / A on a row listens ("press a key or button"); the next key, mouse button
+  or pad button rebinds that device's column (the device of the press decides the column, so no
+  column is ever chosen by hand). A pad trigger past 0.5 binds as a button; the sticks and the
+  mouse wheel are refused. Esc or Start cancels listening. A binding already used by another
+  rebindable action on the same device swaps with it, so no action is left without a binding.
+  A clash with a fixed action (the look arrows, the dev-only F) is allowed. One binding per
+  device is stored, so rebinding crouch (Ctrl and C by default) leaves it one key.
+- **Storage.** `GameSettings` key `bindings` (section controls, default `{}`): only overrides,
+  `action -> {kb: "key:<physical keycode>" | "mouse:<button>", pad: "joy:<button>" |
+  "axis:<axis>:<+1|-1>"}`. `InputSetup.apply_bindings(overrides)` runs after `ensure_actions`
+  (and whenever the setting changes) and replaces that device's events on the action; everything
+  that reads the input map (the controls sheet, `Pad.glyph`) follows. `Pad.text` names the
+  current bindings: "[E]" becomes the interact binding of the device in use ("[X]", or "[F]" after
+  a rebind), "[SHIFT]" the cycle_ammo binding. The orientation log's "[SHIFT]" is the console's
+  own Shift, not cycle_ammo, so it stays "[SHIFT]" / "[Y]" whatever the rebind.
+
+## 6. Rumble
+
+Decided 2026-11-04. `Pad.rumble(weak, strong, seconds)` vibrates every connected pad through
+`Input.start_joy_vibration`, only while the pad is the device in use (`Pad.active`) and the
+**Rumble** setting (`rumble`, On by default; a row after Stick sensitivity) is on. A stronger
+request replaces a weaker one in flight; a weaker one waits. Only the local player's events
+rumble; nothing from remote players or the editor.
+
+| Event | Rumble |
+|---|---|
+| A shot (per shot; continuous ammo per tick) | weak 0.25 to 0.5 by ammo type, 0.06 to 0.1 s |
+| Melee swing / hit | weak 0.3, 0.08 s / strong 0.5, 0.12 s |
+| Flask thrown | weak 0.2, 0.06 s |
+| Taking damage | strong 0.4 + 0.6 × share of max health, 0.2 s |
+| Death | strong 1.0, 0.6 s |
+| A hard landing | weak in proportion to the camera dip, 0.1 s |
+| The hallway buzz (cubicle, frozen) | strong 0.7, 0.3 s |
+| The dying heartbeat (each beat) | strong rising with the vignette, 0.1 s |

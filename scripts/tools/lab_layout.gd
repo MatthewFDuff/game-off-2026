@@ -352,8 +352,10 @@ func _floor_0() -> void:
 
 	door("stair_g0", "stair_lobby_0", "door_double", {center = rooms.stair_g0.bottom_center, y = y})
 	door("stair_lobby_0", "lobby", "door_double")
-	door("security", "lobby", "door_single")
-	door("security", "lift_lobby", "door_single")
+	# Locked until the outbreak (t_0_outbreak unlocks them): the blue card inside would otherwise
+	# be in reach before the story starts (2026-11-04 play-test).
+	door("security", "lobby", "door_single", {id = "d_0_security", locked = true})
+	door("security", "lift_lobby", "door_single", {id = "d_0_security_lift", locked = true})
 	door("lift_lobby", "lobby", "door_double")
 	door("lift_lobby", "lift_shaft", "door_double", {id = "d_0_lift", key = "blue", y = y})
 	door("lobby", "open_office", "door_double")
@@ -463,7 +465,7 @@ func _floor_0() -> void:
 	spawner("s_0_office_1", "open_office", 0.9, 0.9, "basic", 6.0, 2, false)
 	# `wake`: the level starts with the director dormant (spawns_dormant), so the office's and the
 	# lower floors' entry triggers can't put anything in the halls before this.
-	trigger("t_0_outbreak", "training", "wake,power=backup,unlock=d_0_grow,open=d_0_grow,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
+	trigger("t_0_outbreak", "training", "wake,power=backup,unlock=d_0_grow,open=d_0_grow,unlock=d_0_security,unlock=d_0_security_lift,on=s_m1_hall1_1,on=s_m1_incub_1,on=s_m3_tc2_1,on=s_m3_diss_1,on=s_m3_tc3_1,on=s_m4_cav_1,on=s_m4_cav_2,on=s_m4_cav_3", {nowhere = true})
 	# The grow beds wake once the player has the spore shooter (Story fires "armed" on the pickup).
 	trigger("armed", "grow_0", "on=s_0_grow_1", {nowhere = true, fx = 0.2, fz = 0.2})
 	trigger("t_0_gun_taken", "grow_0", "on=s_0_lobby_vent_1", {fx = 0.85, fz = 0.7, w = 30, d = 30})
@@ -496,7 +498,7 @@ func _floor_m1() -> void:
 	room("bathroom_m1", "Bathroom", y, 5, 1, 5, 1, {})
 	room("grow_hall_2", "Grow hall 2", y, 2, 0, 3, 1, {route = true, lights = 4, glow = true, floor = M.SUBSTRATE})
 	room("mycology", "Mycology office", y, 4, 0, 4, 0, {})
-	room("clone_bay_m1", "Clone bay", y, 1, 0, 1, 0, {route = true, lights = 2})
+	room("clone_bay_m1", "Vat bay", y, 1, 0, 1, 0, {route = true, lights = 2})
 	stair("stair_m1_m2", "Service stairs", 0, 0, 1, Y.m2, y)
 
 	open("lift_shaft", "dock", "doorway", {w = 24, h = 26, y = y})

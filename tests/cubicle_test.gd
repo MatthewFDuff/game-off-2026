@@ -136,7 +136,8 @@ func _run() -> void:
 	cubicle.handle_key(_key(KEY_DOWN))
 	cubicle.handle_key(_key(KEY_SHIFT))
 	_check("SETTINGS shows the settings menu", cubicle.page == cubicle.Page.SETTINGS and cubicle._settings_menu != null and cubicle._settings_menu.is_inside_tree())
-	cubicle.handle_key(_key(KEY_UP)) # Wraps to the last row: Name.
+	cubicle.handle_key(_key(KEY_UP)) # Wraps to the last row, Controls; Name is above it.
+	cubicle.handle_key(_key(KEY_UP))
 	cubicle.handle_key(_key(KEY_ENTER))
 	_check("Enter on the Name row opens the name field, filled in", cubicle.page == cubicle.Page.SIGN_IN and cubicle._name_field == "Zack 9" and cubicle._header.text.contains("CHANGE NAME"), cubicle._header.text)
 	cubicle.handle_key(_key(KEY_ENTER))
@@ -289,7 +290,7 @@ func _run() -> void:
 	fifth.open_page(fifth.Page.SINGLEPLAYER)
 	var item: Dictionary = fifth._current_item()
 	_check("a save on file: CONTINUE is first and lit", item.text == "CONTINUE" and not item.get("dim", false) and ShiftSave.summary().get("layout_ok", false), str(item))
-	_check("with its note, no money in it", item.get("detail", "") == "clone held at Compute stair lobby, 1:02 on shift", str(item.get("detail", "")))
+	_check("with its note, no money in it", item.get("detail", "") == "shift saved at the Compute stair lobby, 1:02 on shift", str(item.get("detail", "")))
 	fifth.handle_key(_key(KEY_ENTER))
 	_check("Enter on CONTINUE resumes, no orientation", started == [[true, "continue"]] and fifth.page != fifth.Page.LOG, str(started))
 	fifth._done = false
@@ -300,7 +301,7 @@ func _run() -> void:
 	for line in fifth._items():
 		if line.kind == "text":
 			warning += line.text
-	_check("DISCARD names the room, not the owed", warning.contains("held at the Compute stair lobby") and not warning.contains("$") and warning.contains("does not refund clones"), warning)
+	_check("DISCARD names the room, not the owed", warning.contains("saved at the Compute stair lobby") and not warning.contains("$") and warning.contains("does not refund progress"), warning)
 	fifth.handle_key(_key(KEY_ENTER))
 	_check("KEEP IT returns, the save kept", fifth.page == fifth.Page.SINGLEPLAYER and ShiftSave.exists())
 	fifth.handle_key(_key(KEY_DOWN))

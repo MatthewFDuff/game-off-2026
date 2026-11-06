@@ -145,7 +145,7 @@ func _spore_tank() -> void:
 			and lab.play.damage_by_name.get("glass_pane", 0) == pane_bill, str(lab.play.damage_by_name))
 
 
-## Footsteps on shards crunch; on bare floor they don't.
+## Footsteps on shards crunch; on bare floor they are an ordinary step.
 func _crunch() -> void:
 	var sounds := []
 	me.footstep_played.connect(func(sound: String) -> void: sounds.append(sound))
@@ -158,7 +158,7 @@ func _crunch() -> void:
 	me.teleport(PLAYER_SPOT * lab.world.voxel_size + lab.world.global_position)
 	await _frames(2)
 	me._footstep(1.0)
-	_check("bare floor doesn't", sounds.size() == 1, str(sounds))
+	_check("bare floor steps instead of crunching", sounds.size() == 2 and sounds[1] == "step_hard", str(sounds))
 
 
 ## A sheet bigger than PANE_MAX: one hit clears PANE_MAX of it; the fill time is printed.

@@ -26,6 +26,9 @@ const KEYS := {
 	fov = ["display", 80],
 	mouse_sensitivity = ["controls", 1.0],
 	stick_sensitivity = ["controls", 1.0],
+	rumble = ["controls", true],
+	# The player's rebinds (docs/controls.md, section 5): only overrides, action -> {kb?, pad?}.
+	bindings = ["controls", {}],
 	volume_master = ["audio", 10],
 	volume_effects = ["audio", 10],
 	volume_music = ["audio", 10],
@@ -102,7 +105,10 @@ func _apply(key: String) -> void:
 				AudioServer.set_bus_volume_db(0, volume_db(maxi(step, 1)))
 		"volume_effects", "volume_music":
 			Sfx.set_mix(volume_db(get_value("volume_effects")), volume_db(get_value("volume_music")))
-		# mouse_sensitivity, stick_sensitivity and fov: the Player reads them; orientation, address, level and the
+			Music.set_volume_db(volume_db(get_value("volume_music")))
+		"bindings":
+			InputSetup.apply_bindings(get_value("bindings"))
+		# mouse_sensitivity, stick_sensitivity and fov: the Player reads them; rumble: Pad reads it; orientation, address, level and the
 		# nameplate's numbers: the cubicle reads them.
 
 
@@ -119,7 +125,7 @@ func _validate(key: String, value: Variant) -> Variant:
 			return []
 		"orientation":
 			return "skip" if str(value) == "skip" else "play"
-		"fullscreen":
+		"fullscreen", "rumble":
 			return bool(value) if value is bool or value is int else fallback
 		"shifts_worked", "balance_owed":
 			return int(value) if value is int or value is float else fallback
@@ -129,7 +135,35 @@ func _validate(key: String, value: Variant) -> Variant:
 			return int(_snap(value, FOV_RANGE, fallback))
 		"volume_master", "volume_effects", "volume_music":
 			return int(_snap(value, VOLUME_RANGE, fallback))
+		"bindings":
+			return _valid_bindings(value)
 	return value
+
+
+## The bindings setting with everything that isn't a rebind dropped: unknown actions and devices,
+## specs that don't parse or can't bind (InputSetup.bindable), and bindings equal to the default.
+## Specs come back in serialize's spelling.
+static func _valid_bindings(value: Variant) -> Dictionary:
+	var valid := {}
+	if not value is Dictionary:
+		return valid
+	for action: Variant in value:
+		var entry: Variant = value[action]
+		if not InputSetup.REBINDABLE.has(str(action)) or not entry is Dictionary:
+			continue
+		var kept := {}
+		for device: String in InputSetup.REBINDABLE[str(action)]:
+			if not entry.has(device):
+				continue
+			var event := InputSetup.deserialize(str(entry[device]))
+			if event == null or InputSetup.device_of(event) != device or not InputSetup.bindable(event):
+				continue
+			var spec := InputSetup.serialize(event)
+			if spec != InputSetup.default_binding(str(action), device):
+				kept[device] = spec
+		if not kept.is_empty():
+			valid[str(action)] = kept
+	return valid
 
 
 static func _snap(value: Variant, range_: Array, fallback: Variant) -> float:

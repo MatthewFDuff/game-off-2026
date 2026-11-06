@@ -74,6 +74,8 @@ const MYCELIUM_DEAD := 53
 const RED_PAINT := 60
 # Office greenery: a matte leaf green that doesn't glow (the fake plant; the Sample liquids glow).
 const LEAF := 61
+# Drop-ceiling tiles (FallingPieces): a shot tile breaks loose whole and falls as a sheet.
+const CEILING_TILE := 62
 
 const PATTERN_DIR := "res://assets/patterns/"
 ## Largest pattern per side (the shader's pattern layers are this big).
@@ -160,6 +162,9 @@ const DEFS := {
 	RED_PAINT: {name = "Red paint", color = Color(0.72, 0.10, 0.08), hardness = 3},
 	# Plastic foliage: no emission at all, burns like the plastic it is.
 	LEAF: {name = "Leaf", color = Color(0.24, 0.52, 0.27), hardness = 1, burn = 3.0, catch = 0.3, ash = 0.15},
+	# Mineral-fibre ceiling tile, off-white and a touch warm. `tile` marks it for FallingPieces' tile
+	# rule (a hanging tile that loses a voxel drops the rest of itself); it doesn't burn.
+	CEILING_TILE: {name = "Ceiling tile", color = Color(0.86, 0.85, 0.80), hardness = 1, tile = true},
 }
 
 

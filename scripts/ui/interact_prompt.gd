@@ -86,6 +86,7 @@ func _ready() -> void:
 	add_child(_panel)
 	lab.play.reading_changed.connect(_on_reading_changed)
 	Pad.device_changed.connect(_on_device_changed)
+	GameSettings.changed.connect(_on_setting_changed)
 	_on_device_changed()
 
 
@@ -191,9 +192,18 @@ func _on_reading_changed(id: String) -> void:
 
 ## The reader's tokens and close hint for the device in use.
 func _on_device_changed() -> void:
-	_hint.text = "X or Start to close" if Pad.active else "E or Esc to close"
+	# The interact binding closes it (rebindable), as do Start and Esc.
+	var pad_key := InputSetup.binding_name("interact", "pad")
+	var key := InputSetup.binding_name("interact", "kb")
+	_hint.text = "%s or Start to close" % pad_key if Pad.active else "%s or Esc to close" % key
 	if _raw_text != "":
 		_text.text = Pad.text(_raw_text)
+
+
+## A rebind renames the close hint.
+func _on_setting_changed(key: String) -> void:
+	if key == "bindings":
+		_on_device_changed()
 
 
 static func _distance_to_box(point: Vector3, box: AABB) -> float:

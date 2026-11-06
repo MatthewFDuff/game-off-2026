@@ -10,6 +10,10 @@ extends Node3D
 ## Most debris chip sounds per second, however many bursts there are.
 @export var chip_rate := 12.0
 
+## Set by FallingPieces (the Lab has one): detached pieces it drops as objects (FallingPieces.falls)
+## only puff dust here, since the piece itself falls; the rest still crumble.
+var pieces_fall := false
+
 var _cube := BoxMesh.new()
 var _last_chip_msec := -100000
 
@@ -28,11 +32,27 @@ func _on_fragments_detached(fragments: Array) -> void:
 	for fragment in fragments:
 		var bounds: AABB = fragment.aabb
 		var total: int = fragment.voxel_count
+		if pieces_fall and FallingPieces.falls(fragment):
+			dust(bounds, fragment.materials, total)
+			continue
 		var amount := clampi(int(total * 0.25) + 6, 6, max_particles_per_fragment)
 		for id in fragment.materials:
 			var share := maxi(2, int(amount * float(fragment.materials[id]) / total))
 			_spawn(bounds.get_center(), Vector3.DOWN, share, VoxelMaterials.get_color(id), total, bounds.size * 0.5)
 		_chip(bounds.get_center(), -4.0)
+
+
+## A small, slow puff over bounds (world space) in the colors of materials (id -> voxels, total in
+## all): a piece breaking loose or landing, where the piece itself stays whole.
+func dust(bounds: AABB, materials: Dictionary, total: int) -> void:
+	var amount := clampi(int(total * 0.03) + 4, 4, 24)
+	for id in materials:
+		var share := maxi(1, int(amount * float(materials[id]) / maxi(total, 1)))
+		var particles := _spawn(bounds.get_center(), Vector3.UP, share, VoxelMaterials.get_color(id), 0, bounds.size * 0.5)
+		particles.initial_velocity_max = 0.6
+		particles.gravity = Vector3(0, -3, 0)
+		particles.lifetime = 0.8
+	_chip(bounds.get_center(), -10.0)
 
 
 ## removed maps material id -> voxels removed, as returned by VoxelWorld.carve_sphere.
@@ -59,7 +79,7 @@ func _chip(at: Vector3, volume_db: float) -> void:
 
 
 ## box_extents, when set, spawns particles throughout that box instead of from a point.
-func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: int, box_extents := Vector3.ZERO) -> void:
+func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: int, box_extents := Vector3.ZERO) -> CPUParticles3D:
 	var particles := CPUParticles3D.new()
 	particles.mesh = _cube
 	particles.amount = amount
@@ -88,3 +108,4 @@ func _spawn(at: Vector3, normal: Vector3, amount: int, color: Color, size_hint: 
 	particles.global_position = at
 	particles.emitting = true
 	particles.finished.connect(particles.queue_free)
+	return particles

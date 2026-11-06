@@ -77,7 +77,7 @@ const EMAIL_NOTICE_PAD := "1 new email  [A]"
 const EMAIL_FROM := "Fung AI People Operations"
 const EMAIL_SUBJECT := "Opportunity: Laboratory Technician (Expendable Grade), Site 3"
 const EMAIL_BODY := "Congratulations! Your performance as LLM Operator (pressing: 100%) has been noticed. Fung AI is pleased to offer you a transfer to Site 3, where you will continue experiments on our substrate program. Lab coat provided. Science permitted."
-const EMAIL_FINE_PRINT := "Fine print. By accepting you assign to Fung AI all rights to your DNA, likeness, thoughts (recorded or inferred), and any clones derived therefrom; damage to Fung AI property is recovered from wages; clones are property; Fung AI is not liable for anything, ever; the coffee machine is property. This offer expires when you do."
+const EMAIL_FINE_PRINT := "Fine print. By accepting you assign to Fung AI all rights to your DNA, likeness, thoughts (recorded or inferred); damage to Fung AI property is recovered from wages; clones are property; Fung AI is not liable for anything, ever; the coffee machine is property. This offer expires when you do."
 const ACCEPT_TEXT := "Transfer accepted. Report to Site 3 tonight.\n\nA car has been sent."
 const WAITING_TEXT := "Waiting for the host to begin the shift..."
 const TRASH_TEXT := "Later.\n\nA robot drags a heavy trash bag out of the cubicle row.\nBehind it, a screen blinks: PRESS SHIFT."
@@ -101,9 +101,9 @@ const NEW_GAME := "APPLY FOR JOB"
 const OLD_LAYOUT := "recorded against an older site layout"
 ## The shift on file (docs/shift-save.md): its room, h:mm on shift, the owed total.
 ## The money is never shown before the statement (it would give the ending away).
-const CLONE_NOTE := "clone held at %s, %s on shift"
+const CLONE_NOTE := "shift saved at the %s, %s on shift"
 ## New game (or begin orientation) with a shift on file: its room and owed total.
-const DISCARD_TEXT := "A shift is in progress. Your clone held at the %s will be discarded. Fung AI does not refund clones."
+const DISCARD_TEXT := "A shift is in progress. The shift saved at the %s will be discarded. Fung AI does not refund progress."
 const DESKTOP_ONLY := "needs the desktop build"
 const STATEMENT_NOTICE := "1 new statement"
 
@@ -163,7 +163,7 @@ const BLUE := Color(0.6, 0.75, 1.0)
 const BACKGROUND := Color(0.02, 0.05, 0.03)
 
 enum State { ROOM, FROZEN, READING, CLOCK_OUT, CLOSING, ZOOM, SCREEN, LOG, DYING, DEAD, TRASH, GO_BACK, ACCEPTED }
-enum Page { SPLASH, SIGN_IN, MAIN, SINGLEPLAYER, MULTIPLAYER, HOST, JOIN, SETTINGS, LOG, STATEMENT, MAINTENANCE, NEW_LEVEL, TRANSFER, DISCARD }
+enum Page { SPLASH, SIGN_IN, MAIN, SINGLEPLAYER, MULTIPLAYER, HOST, JOIN, SETTINGS, LOG, STATEMENT, MAINTENANCE, NEW_LEVEL, TRANSFER, DISCARD, CONTROLS }
 
 ## Multiplies every pause (tests set it near zero).
 var pause_scale := 1.0
@@ -262,6 +262,8 @@ var _prompt := Label.new()
 var _notification := Label.new()
 var _footer := Label.new()
 var _settings_menu: SettingsMenu
+## The CONTROLS page's bindings menu (docs/controls.md, section 5), built like _settings_menu.
+var _bindings_menu: BindingsMenu
 ## Labels and blocks that blink on the current page.
 var _blinkers: Array[CanvasItem] = []
 var _cursor_block: ColorRect
@@ -303,6 +305,7 @@ func _ready() -> void:
 	Net.session_started.connect(_on_session_started)
 	Net.session_ended.connect(_on_session_ended)
 	Pad.device_changed.connect(_on_device_changed)
+	GameSettings.changed.connect(_on_setting_changed)
 	_device_texts()
 	if not Net.pending_statement.is_empty():
 		_statement = "waiting"
@@ -374,7 +377,7 @@ func _process(delta: float) -> void:
 				_prompt.text = "thinking" + ".".repeat(1 + int(fmod(_blink * 2.0, 3.0)))
 				_prompt.visible = true
 				if _pause_left <= 0.0:
-					_prompt.text = Pad.text("[SHIFT]")
+					_prompt.text = _shift_token()
 			else:
 				_prompt.visible = fmod(_blink, 1.0) < 0.6
 		State.DYING:
@@ -383,6 +386,7 @@ func _process(delta: float) -> void:
 			_beat_left -= delta
 			if _beat_left <= 0.0:
 				Sfx.play("heartbeat", lerpf(-14.0, 0.0, t), 0.0)
+				Pad.rumble(0.0, lerpf(0.3, 1.0, t), 0.1)
 				_beat_left = lerpf(BEAT_SLOW, BEAT_FAST, t) * maxf(pause_scale, 0.02)
 			if t >= 1.0:
 				_enter(State.DEAD)
@@ -407,6 +411,15 @@ func _process(delta: float) -> void:
 					_overlay_text.visible = true
 				else:
 					get_tree().quit()
+
+
+## While the CONTROLS page listens for a binding, every press goes to its menu first, raw: B,
+## X and the mouse buttons are bindings there, not the console's back, erase or click.
+func _input(event: InputEvent) -> void:
+	if state == State.SCREEN and page == Page.CONTROLS and _bindings_menu and _bindings_menu.listening != "":
+		if _bindings_menu.listen(event):
+			_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+			get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -546,6 +559,7 @@ func _on_leave() -> void:
 	_state_time = 0.0
 	_freeze_left = FREEZE_SECONDS
 	_hall_light.light_energy = FLASH_ENERGY
+	Pad.rumble(0.0, 0.7, 0.3)
 
 
 func _unfreeze_after_leaving() -> void:
@@ -752,6 +766,9 @@ func handle_key(event: InputEventKey) -> bool:
 		return true
 	if page == Page.SETTINGS and _settings_menu and _settings_menu.handle_key(event):
 		return true
+	if page == Page.CONTROLS and _bindings_menu and _bindings_menu.handle_key(event):
+		_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+		return true
 	match event.keycode:
 		KEY_ESCAPE:
 			if not event.echo:
@@ -881,6 +898,8 @@ func back() -> void:
 			open_page(_name_from)
 		Page.SINGLEPLAYER, Page.MULTIPLAYER, Page.SETTINGS:
 			open_page(Page.MAIN)
+		Page.CONTROLS:
+			open_page(Page.SETTINGS)
 		Page.HOST:
 			Net.close_session()
 			_host_error = ""
@@ -1590,6 +1609,11 @@ func _go_back_names() -> PackedStringArray:
 	return PackedStringArray(["Yes [A]", "No [B]"] if Pad.active else ["Yes (Y)", "No (N)"])
 
 
+## The log's prompt: the console's SHIFT (fixed, not the rebindable cycle_ammo), by device.
+func _shift_token() -> String:
+	return "[Y]" if Pad.active else "[SHIFT]"
+
+
 ## The prompts outside the console that name keys, by the device in use (the console's own are
 ## worked out as it renders).
 func _device_texts() -> void:
@@ -1597,12 +1621,15 @@ func _device_texts() -> void:
 	_click_hint.text = CLICK_HINT_PAD if InputSetup.shows_pad() else CLICK_HINT
 	_notification.text = EMAIL_NOTICE_PAD if pad else EMAIL_NOTICE
 	_clock_keys.text = CLOCK_OUT_PAD_KEYS if pad else CLOCK_OUT_KEYS
-	_reader_hint.text = "X or B to close" if pad else "E or Esc to close"
+	# The reader closes on the interact binding (rebindable) or the console's back.
+	var interact_pad := InputSetup.binding_name("interact", "pad")
+	var interact_key := InputSetup.binding_name("interact", "kb")
+	_reader_hint.text = "%s or B to close" % interact_pad if pad else "%s or Esc to close" % interact_key
 	if _email_buttons.size() == 2:
 		_email_buttons[0].text = "ACCEPT [A]" if pad else "ACCEPT (A)"
 		_email_buttons[1].text = "DECLINE [X]" if pad else "DECLINE (D)"
 	if _prompt.text in ["[SHIFT]", "[Y]"]:
-		_prompt.text = Pad.text("[SHIFT]")
+		_prompt.text = _shift_token()
 	if state == State.GO_BACK and _buttons.get_child_count() == 2:
 		# Renamed, not rebuilt: the click that switched back to the mouse may be on one of them.
 		var names := _go_back_names()
@@ -1615,6 +1642,12 @@ func _device_texts() -> void:
 func _on_device_changed() -> void:
 	_device_texts()
 	_render()
+
+
+## A rebind renames the prompts that show play keys (the reader's close hint).
+func _on_setting_changed(key: String) -> void:
+	if key == "bindings":
+		_device_texts()
 
 
 ## The current page's lines: {kind: "title" / "text" / "item" / "field" / "pair" / "gap", text, color,
@@ -1696,8 +1729,8 @@ func _items() -> Array[Dictionary]:
 						_address_field = str(address)
 						_dial()
 					items.append({kind = "item", text = str(address), action = dial_it})
-		Page.SETTINGS:
-			pass # The SettingsMenu control (_render).
+		Page.SETTINGS, Page.CONTROLS:
+			pass # The SettingsMenu and BindingsMenu controls (_render).
 		Page.STATEMENT:
 			if _statement == "waiting":
 				items.append({kind = "gap"})
@@ -1773,6 +1806,7 @@ func _page_title() -> String:
 		Page.HOST: return "FUNG AI  |  HOST A SHIFT"
 		Page.JOIN: return "FUNG AI  |  JOIN A SHIFT"
 		Page.SETTINGS: return "FUNG AI  |  SETTINGS"
+		Page.CONTROLS: return "FUNG AI  |  CONTROLS"
 		Page.STATEMENT: return str(Lines.ENDING.title)
 		Page.MAINTENANCE: return "FUNG AI  |  SITE MAINTENANCE"
 		Page.NEW_LEVEL: return "FUNG AI  |  NEW LEVEL"
@@ -1794,6 +1828,7 @@ func _footer_text() -> String:
 			Page.SPLASH: return "Y: sign in    B: step away"
 			Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "turn: up/down    A: select    B: back"
 			Page.SETTINGS: return "arrows: change    B: back"
+			Page.CONTROLS: return "A: rebind    B: back"
 			Page.STATEMENT: return "Y: sign in" if _statement == "done" else ""
 			Page.LOG, Page.TRANSFER: return ""
 			Page.MAIN, Page.MAINTENANCE: return "A: select    B: step away"
@@ -1802,6 +1837,7 @@ func _footer_text() -> String:
 		Page.SPLASH: return "SHIFT: sign in    Esc: step away"
 		Page.SIGN_IN, Page.JOIN, Page.NEW_LEVEL: return "type    Enter: select    Esc: back"
 		Page.SETTINGS: return "arrows: change    Esc: back"
+		Page.CONTROLS: return "Enter: rebind    Esc: back"
 		Page.STATEMENT: return "SHIFT: sign in" if _statement == "done" else ""
 		Page.LOG, Page.TRANSFER: return ""
 		Page.MAIN, Page.MAINTENANCE: return "arrows    SHIFT: select    Esc: step away"
@@ -1824,13 +1860,29 @@ func _render() -> void:
 	if on_log:
 		return
 	for child in _body.get_children():
-		if child != _settings_menu:
+		if child != _settings_menu and child != _bindings_menu:
 			child.free()
+	if page != Page.CONTROLS and _bindings_menu:
+		# Queued, like the settings menu below: its closed signal is what brings us here.
+		_body.remove_child(_bindings_menu)
+		_bindings_menu.queue_free()
+		_bindings_menu = null
+	if page == Page.CONTROLS:
+		# The settings menu waits hidden, so back lands on its Controls row again.
+		if _settings_menu:
+			_settings_menu.visible = false
+		if _bindings_menu == null:
+			_bindings_menu = BindingsMenu.create(1, GREEN)
+			_bindings_menu.closed.connect(func() -> void: open_page(Page.SETTINGS))
+			_body.add_child(_bindings_menu)
+		_bindings_menu.visible = true
+		return
 	if page == Page.SETTINGS:
 		if _settings_menu == null:
 			_settings_menu = SettingsMenu.create(1, GREEN, true)
 			_settings_menu.closed.connect(func() -> void: open_page(Page.MAIN))
 			_settings_menu.rename.connect(_change_name)
+			_settings_menu.controls.connect(func() -> void: open_page(Page.CONTROLS))
 			_body.add_child(_settings_menu)
 		_settings_menu.visible = true
 		return
