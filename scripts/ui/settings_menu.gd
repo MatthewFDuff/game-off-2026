@@ -8,9 +8,12 @@ extends Control
 ## right change it, Enter flips a two-state row (or, on the console's Name row, emits rename),
 ## Esc or Backspace emits closed; the last row, Controls, emits controls on Enter (the holder opens
 ## its BindingsMenu, docs/controls.md section 5). A pad works too: handle_key reads its presses as
-## keys (Pad.to_key: the D-pad and left stick are the arrows, A Enter, B Esc). Every change goes
-## straight to GameSettings.set_value, which saves and applies it. Hard pixels only: no panel of its
-## own, so it takes the background of whatever holds it.
+## keys (Pad.to_key: the D-pad and left stick are the arrows, A Enter, B Esc). With mouse_enabled
+## (the pause panel; the console's screen gets no mouse) the mouse works it too: hovering a row
+## chooses it, a click on `<` or `>` steps the value, on the value flips a two-state row or steps
+## it up, on Controls (or Name) opens it, and a Back line under the rows emits closed. Every change
+## goes straight to GameSettings.set_value, which saves and applies it. Hard pixels only: no panel
+## of its own, so it takes the background of whatever holds it.
 
 signal closed
 ## Enter on the Name row (the console's menu only): the holder opens its name field.
@@ -39,6 +42,8 @@ const NAME_ROW: Dictionary = {key = "name", label = "Name", kind = "name"}
 const CONTROLS_ROW: Dictionary = {key = "controls", label = "Controls", kind = "page"}
 ## The widest values the rows show, so the arrows line up down the column.
 const WIDE_VALUES := ["Attend", "0.00x", "110"]
+## What the mouse's Back line reads.
+const BACK_LABEL := "< Back"
 
 ## Font pixels per screen pixel: 1 on the console, 2 on the pause panel.
 var pixel_scale := 1
@@ -47,7 +52,24 @@ var color := Color(0.75, 0.95, 0.8)
 ## The rows this menu shows: ROWS, NAME_ROW when created with_name, then CONTROLS_ROW.
 var rows: Array[Dictionary] = []
 var selected := 0
+## Mouse support: hover, clicks and the Back line (the pause panel sets it; the console doesn't).
+var mouse_enabled := false:
+	set(value):
+		mouse_enabled = value
+		mouse_filter = Control.MOUSE_FILTER_STOP if value else Control.MOUSE_FILTER_IGNORE
+		if _back_line:
+			_back_line.visible = value
+		_back_hover = false
+		if is_inside_tree():
+			update_minimum_size()
+			_refresh()
 var _column := VBoxContainer.new()
+var _lines: Array[HBoxContainer] = []
+var _back_line: HBoxContainer
+var _back_caret: Label
+var _back_label: Label
+## The mouse is over the Back line.
+var _back_hover := false
 var _carets: Array[Label] = []
 var _names: Array[Label] = []
 var _values: Array[Label] = []
@@ -75,7 +97,7 @@ func _get_minimum_size() -> Vector2:
 
 func _ready() -> void:
 	name = "SettingsMenu"
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP if mouse_enabled else Control.MOUSE_FILTER_IGNORE
 	if _carets.is_empty():
 		_build()
 	_column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -177,11 +199,103 @@ func _build() -> void:
 		var right := _label(">", color, font_size)
 		line.add_child(right)
 		_column.add_child(line)
+		_lines.append(line)
 		_carets.append(caret)
 		_names.append(label)
 		_lefts.append(left)
 		_values.append(value)
 		_rights.append(right)
+	_back_line = HBoxContainer.new()
+	_back_line.add_theme_constant_override("separation", 3 * pixel_scale)
+	_back_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_back_caret = _label(">", CARET_COLOR, font_size)
+	_back_caret.custom_minimum_size.x = font_size
+	_back_line.add_child(_back_caret)
+	_back_label = _label(BACK_LABEL, color, font_size)
+	_back_line.add_child(_back_label)
+	_back_line.visible = mouse_enabled
+	var back_gap := Control.new()
+	back_gap.custom_minimum_size.y = 2 * pixel_scale
+	back_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	back_gap.visible = mouse_enabled
+	_back_line.visibility_changed.connect(func() -> void: back_gap.visible = _back_line.visible)
+	_column.add_child(back_gap)
+	_column.add_child(_back_line)
+	_refresh()
+
+
+## The mouse (mouse_enabled): motion chooses the row under it, a left click acts on the part of the
+## row under it (_click); every mouse button is taken, so a click on the menu never reaches the
+## game behind it (the Player resumes play on a stray click).
+func _gui_input(event: InputEvent) -> void:
+	if not mouse_enabled:
+		return
+	if event is InputEventMouseMotion:
+		_hover(event.position)
+	elif event is InputEventMouseButton:
+		accept_event()
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_click(event.position)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_MOUSE_EXIT and _back_hover:
+		_back_hover = false
+		_refresh()
+
+
+## The row under point (menu coordinates), rows.size() for the Back line, -1 for none.
+func row_at(point: Vector2) -> int:
+	var gap := pixel_scale # Half the rows' separation: no dead line between rows.
+	for i in _lines.size():
+		if local_rect(_lines[i]).grow_individual(0, gap, 0, gap).has_point(point):
+			return i
+	if _back_line.visible and local_rect(_back_line).grow_individual(0, gap, 0, gap).has_point(point):
+		return rows.size()
+	return -1
+
+
+## A child control's rect in this menu's coordinates.
+func local_rect(control: Control) -> Rect2:
+	return Rect2(control.get_global_rect().position - get_global_rect().position, control.size)
+
+
+func _hover(point: Vector2) -> void:
+	var row := row_at(point)
+	var back := row == rows.size()
+	var changed := back != _back_hover
+	_back_hover = back
+	if row >= 0 and row < rows.size() and row != selected:
+		selected = row
+		_blip()
+		changed = true
+	if changed:
+		_refresh()
+
+
+## A left click: `<` steps down, `>` up, the value flips a two-state row (steps others up), the
+## Controls and Name rows open their page, the Back line emits closed; anywhere else on a row just
+## chooses it.
+func _click(point: Vector2) -> void:
+	var row := row_at(point)
+	if row < 0:
+		return
+	if row == rows.size():
+		closed.emit()
+		return
+	selected = row
+	var kind: String = rows[row].kind
+	var reach := 3 * pixel_scale # The arrows' hit boxes take in the gap beside them.
+	if kind == "page":
+		controls.emit()
+	elif kind == "name":
+		rename.emit()
+	elif local_rect(_lefts[row]).grow_individual(reach, 0, 0, 0).has_point(point):
+		_step(-1)
+	elif local_rect(_rights[row]).grow_individual(0, 0, reach, 0).has_point(point):
+		_step(1)
+	elif local_rect(_values[row]).has_point(point):
+		_step(1, kind == "choice" and rows[row].values.size() == 2)
 	_refresh()
 
 
@@ -227,10 +341,14 @@ func _on_changed(_key: String) -> void:
 
 func _refresh() -> void:
 	var settings := _settings()
+	if _back_line:
+		_back_caret.modulate.a = 1.0 if _back_hover else 0.0
+		_back_label.modulate = Color(1, 1, 1, 1.0 if _back_hover else 0.7)
 	for i in _carets.size():
 		var row: Dictionary = rows[i]
 		var chosen := i == selected
-		_carets[i].modulate.a = 1.0 if chosen else 0.0
+		# One caret: the Back line's while the mouse is on it.
+		_carets[i].modulate.a = 1.0 if chosen and not _back_hover else 0.0
 		var dim := Color(1, 1, 1, 1.0 if chosen else 0.7)
 		_names[i].modulate = dim
 		_values[i].modulate = dim

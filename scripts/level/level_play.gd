@@ -399,7 +399,6 @@ func _door_motion(id: String, from: Vector3i, to: Vector3i, duration: float, ope
 	door.target_open = open
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = lab.view.prop_mesh(door.object.name, door.object.facing)
-	mesh.material_override = lab.world.material
 	mesh.position = lab.view.to_world(Vector3(from))
 	lab.view.add_child(mesh)
 	var tween := mesh.create_tween()

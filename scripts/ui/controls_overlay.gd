@@ -3,10 +3,12 @@ extends Control
 ## F1 controls cheat sheet, listing the bindings from InputSetup so it never goes stale; with a pad
 ## plugged in or in use it lists the pad's buttons too (and Back toggles it), rebuilt when the
 ## device changes or the player rebinds. Esc closes it too, and B or Start on a pad. It leaves alone
-## the press a listening bindings menu takes (BindingsMenu.capturing), F1 and Back among them.
+## the press a listening bindings menu takes (BindingsMenu.capturing), F1 and Back among them. The
+## sheet is centered inside the viewport (PanelFit) whenever it shows, changes or the window does.
 
 var _title := Label.new()
 var _grid := GridContainer.new()
+var _panel := PanelContainer.new()
 
 
 func _ready() -> void:
@@ -15,10 +17,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 
-	var panel := PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	var panel := _panel
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -34,6 +34,8 @@ func _ready() -> void:
 	_rebuild()
 	Pad.device_changed.connect(_rebuild)
 	GameSettings.changed.connect(_on_setting_changed)
+	visibility_changed.connect(_fit)
+	get_viewport().size_changed.connect(_fit)
 
 
 ## The title and rows for the device in use (InputSetup.describe_play_controls).
@@ -50,6 +52,13 @@ func _rebuild() -> void:
 		keys.text = row.keys
 		keys.modulate = Color(0.75, 1.0, 0.8)
 		_grid.add_child(keys)
+	_fit()
+
+
+## Centers the sheet inside the viewport.
+func _fit() -> void:
+	if is_inside_tree():
+		PanelFit.center(_panel)
 
 
 func _on_setting_changed(key: String) -> void:

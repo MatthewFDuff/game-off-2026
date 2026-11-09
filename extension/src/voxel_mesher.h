@@ -43,7 +43,15 @@ struct MeshBuffers {
 
 // Greedy mesher with per-vertex ambient occlusion. Faces only merge when they share a material and
 // all four corners have the same AO, so the merged quad looks identical to the unmerged faces.
-// Material 0 is air; every other id is opaque. Vertices are in chunk-local units scaled by voxel_size.
-void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out);
+// Material 0 is air. translucent holds 256 flags (nonzero: see-through, like pane glass); every
+// other id is opaque. A face is drawn where a voxel meets:
+//   air                              always;
+//   a translucent voxel              from an opaque voxel (it shows through the glass), and from a
+//                                    translucent voxel of another material (cracked next to tempered);
+//   an opaque voxel, or its own      never.
+// Faces of translucent voxels go to translucent_out, the rest to out (two surfaces, so only the glass
+// is drawn blended). AO counts every solid voxel, glass included. Vertices are in chunk-local units
+// scaled by voxel_size.
+void mesh_padded_chunk(const uint8_t *padded, float voxel_size, const uint8_t *translucent, MeshBuffers &out, MeshBuffers &translucent_out);
 
 } // namespace voxel

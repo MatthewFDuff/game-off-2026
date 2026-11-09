@@ -955,7 +955,7 @@ func _floor_dig() -> void:
 	prop("survey_tunnel", "terminal", 0.9, 0.7, P.WEST, {text = "SURVEY LOG, day 3\nLamp died at 40 m. The walls kept glowing. The glow moved when I talked. It repeated the pattern of my words back, slower. I have stopped talking.\n\nday 4: it says hello now.\n\n(Fung AI acquired the claim the following week.)"})
 	item("survey_tunnel", 0.5, 0.5, "ammo_homing")
 	vat("vat_m4b", "survey_tunnel", 0.6, 0.5, 90.0)
-	prop("generator_hall", "generator", 0.5, 0.5, P.NORTH, {id = "generator", finale_seconds = 150.0, on_use = "t_m4_generator"})
+	prop("generator_hall", "generator", 0.5, 0.5, P.NORTH, {id = "generator", finale_seconds = 90.0, on_use = "t_m4_generator"})
 	prop("generator_hall", "sandbags", 0.3, 0.3, P.NORTH)
 	prop("generator_hall", "sandbags", 0.7, 0.3, P.NORTH)
 	prop("generator_hall", "sandbags", 0.3, 0.7, P.NORTH)

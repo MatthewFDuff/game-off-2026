@@ -42,6 +42,11 @@ extends Node
 ## budget, and horde spawns go back in the queue. Spawned enemies emerge (Enemy.begin_emerge): out
 ## of the floor, or out of the ceiling for on_ceiling spawners.
 ##
+## Room to move: the kind is rolled first and a spot must have room for that kind's body
+## (spawn_clearance: its collision box plus SPAWN_MARGIN each side, full height), so a giant never
+## appears wedged into a corridor. If the rolled kind has no fair spot, the spawner's smaller kinds
+## are tried before it defers.
+##
 ## Player count: the level's rates and caps are tuned for two players; with scale_per_player > 0
 ## they scale by (1 - s + s x players) / (1 + s), so one player gets less and four get more.
 ##
@@ -100,6 +105,15 @@ signal finale_event(kind: String)
 
 ## Random spots tried within a spawner's radius (and as many again within twice it).
 const SPAWN_TRIES := 8
+## Meters of floor clear of solids each side of a spawning enemy's body (spawn_clearance), so it
+## has room to step out: a giant needs 2.6 x 2.6 m of floor, a mommy 3 x 3, a tentacle 2.2 x 2.2.
+## Small kinds (footprint up to MARKER_FALLBACK_SIZE) only need SMALL_SPAWN_MARGIN (a basic shroom
+## 0.9 x 0.9 m), so they still fit along walls and in corridors.
+const SPAWN_MARGIN := 0.5
+const SMALL_SPAWN_MARGIN := 0.1
+## Kinds whose footprint is at most this wide (m) may still spawn on the marker itself when no spot
+## around it has room (the marker is placed by hand); bigger ones never squeeze in.
+const MARKER_FALLBACK_SIZE := 0.9
 ## Seconds before a spawner with no fair spot looks again (its budget kept).
 const SPAWN_RETRY := 0.25
 ## Spawners with ids starting with this are always in the finale, however far (the generator hall's).
@@ -527,21 +541,30 @@ func _trickle(id: String, spawner: Dictionary, delta: float) -> void:
 
 
 ## Spawns one enemy at a spawner: a random kind from its list, somewhere on the floor within its
-## radius that is fair to the players (_spawn_point). It emerges out of the floor (or the ceiling,
-## for on_ceiling spawners). Counts it against the spawner. Returns null when there's no fair spot
-## (the spawner's `deferred` is then true, and deferred_spawns counts it) or the enemy cap is hit.
+## radius with room for that kind's body (spawn_clearance) that is fair to the players
+## (_spawn_point). When the picked kind has no such spot, the list's other kinds with a smaller
+## body are tried, biggest first (so a "basic,fast,giant" spawner in a tight corridor still makes
+## something). It emerges out of the floor (or the ceiling, for on_ceiling spawners). Counts it
+## against the spawner. Returns null when no kind has a fair spot (the spawner's `deferred` is then
+## true, and deferred_spawns counts it) or the enemy cap is hit.
 func _spawn_from(id: String) -> Enemy:
 	var spawner: Dictionary = spawners.get(id, {})
 	if spawner.is_empty():
 		return null
 	var object: Dictionary = spawner.object
-	var point := _spawn_point(object)
+	var kinds := spawner_kinds(object)
+	var picked: String = kinds.pick_random()
+	var point := {}
+	var kind := picked
+	for candidate in _fallback_kinds(picked, kinds):
+		point = _spawn_point(object, candidate)
+		if not point.is_empty():
+			kind = candidate
+			break
 	spawner.deferred = point.is_empty()
 	if point.is_empty():
 		deferred_spawns += 1
 		return null
-	var kinds := Array(str(object.get("kinds", "basic")).split(",", false)).map(func(k: String) -> String: return k.strip_edges())
-	var kind: String = kinds.pick_random() if not kinds.is_empty() else "basic"
 	var enemy := enemies.spawn(kind, point.position, randf() * TAU, point.emerge)
 	if enemy:
 		spawner.alive.append(enemy.id)
@@ -549,36 +572,80 @@ func _spawn_from(id: String) -> Enemy:
 	return enemy
 
 
-## A fair spot for a spawner's next enemy: {position (feet; for ceiling spawners just under the
-## ceiling), emerge (1 floor, -1 ceiling)}, or {} when there's none right now. Up to SPAWN_TRIES
-## random spots within the marker's radius, then as many within twice it, then the marker itself;
-## the first clear one that is_fair wins.
-func _spawn_point(object: Dictionary) -> Dictionary:
+## A spawner marker's kinds (its comma-separated `kinds`), never empty (basic).
+static func spawner_kinds(object: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	for k in str(object.get("kinds", "basic")).split(",", false):
+		if k.strip_edges() != "":
+			out.append(k.strip_edges())
+	if out.is_empty():
+		out.append("basic")
+	return out
+
+
+## The kinds to try for a spawn when picked was rolled: picked, then the list's other kinds whose
+## body is smaller (narrower or lower), biggest footprint first, so the smallest is the last resort.
+static func _fallback_kinds(picked: String, kinds: Array[String]) -> Array[String]:
+	var size := EnemyManager.body_size_of(picked)
+	var others: Array[String] = []
+	for kind in kinds:
+		var other := EnemyManager.body_size_of(kind)
+		if kind not in others and kind != picked and (maxf(other.x, other.z) < maxf(size.x, size.z) or other.y < size.y):
+			others.append(kind)
+	others.sort_custom(func(a: String, b: String) -> bool:
+		var sa := EnemyManager.body_size_of(a)
+		var sb := EnemyManager.body_size_of(b)
+		return sa.x * sa.z > sb.x * sb.z)
+	var out: Array[String] = [picked]
+	out.append_array(others)
+	return out
+
+
+## The box (width, height, depth; centered on the feet) that must be clear of solids for a kind to
+## spawn: its body (EnemyManager.body_size_of) plus SPAWN_MARGIN each side (SMALL_SPAWN_MARGIN for
+## small kinds), at its full height, so it can step out.
+static func spawn_clearance(kind: String) -> Vector3:
+	var body := EnemyManager.body_size_of(kind)
+	var margin := SMALL_SPAWN_MARGIN if maxf(body.x, body.z) <= MARKER_FALLBACK_SIZE else SPAWN_MARGIN
+	return Vector3(body.x + margin * 2.0, body.y, body.z + margin * 2.0)
+
+
+## A fair spot for a spawner's next enemy of a kind: {position (feet; for ceiling spawners just
+## under the ceiling), emerge (1 floor, -1 ceiling)}, or {} when there's none right now. Up to
+## SPAWN_TRIES random spots within the marker's radius, then as many within twice it, then (small
+## kinds only, footprint up to MARKER_FALLBACK_SIZE) the marker itself; the first with room for
+## the kind (spawn_clearance) that is_fair wins.
+func _spawn_point(object: Dictionary, kind := "basic") -> Dictionary:
 	var base := lab.view.to_world(object.position)
 	var ceiling_spawner: bool = object.get("on_ceiling", false)
 	var radius := float(object.get("radius", 1.5))
+	var clearance := spawn_clearance(kind)
+	var body_size := EnemyManager.body_size_of(kind)
+	var small := maxf(body_size.x, body_size.z) <= MARKER_FALLBACK_SIZE
 	for attempt in SPAWN_TRIES * 2 + 1:
 		var offset := Vector3.ZERO
 		if attempt < SPAWN_TRIES * 2:
 			var angle := randf() * TAU
 			var reach := radius * (1.0 if attempt < SPAWN_TRIES else 2.0)
 			offset = Vector3(cos(angle), 0.0, sin(angle)) * reach * sqrt(randf())
-		var spot := _ceiling_spot(base + offset) if ceiling_spawner else _floor_spot(base + offset, attempt == SPAWN_TRIES * 2)
+		var spot := _ceiling_spot(base + offset) if ceiling_spawner else _floor_spot(base + offset, small and attempt == SPAWN_TRIES * 2, clearance)
 		if spot.is_empty():
 			continue
-		var body: Vector3 = spot.position + (Vector3.ZERO if ceiling_spawner else Vector3.UP * 0.6)
+		var body: Vector3 = spot.position + (Vector3.ZERO if ceiling_spawner else Vector3.UP * minf(body_size.y * 0.5, 1.2))
 		if is_fair(spot.position, body):
 			return spot
 	return {}
 
 
-## A clear floor spot under at (the marker itself, last: anywhere it stands), or {}.
-func _floor_spot(at: Vector3, is_marker: bool) -> Dictionary:
+## A floor spot under at with a clearance-sized box (centered on the feet) clear of solids (the
+## marker itself, last: anywhere it stands), or {}.
+func _floor_spot(at: Vector3, is_marker: bool, clearance := Vector3(0.7, 1.2, 0.7)) -> Dictionary:
 	var world := lab.world
 	var down: Dictionary = world.raycast(at + Vector3.UP * 1.0, Vector3.DOWN, 3.0)
 	if down.hit and down.distance >= 0.05:
 		var feet: Vector3 = down.position
-		if not world.box_overlaps_solid(AABB(feet + Vector3(-0.35, 0.02, -0.35), Vector3(0.7, 1.2, 0.7))):
+		var box := AABB(feet + Vector3(-clearance.x * 0.5, 0.02, -clearance.z * 0.5), clearance)
+		if not world.box_overlaps_solid(box):
 			return {position = feet, emerge = 1}
 	if is_marker:
 		return {position = at + Vector3.UP * 0.05, emerge = 1}

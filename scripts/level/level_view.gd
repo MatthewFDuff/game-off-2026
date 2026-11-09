@@ -259,7 +259,6 @@ func _add(object: Dictionary) -> void:
 	if object.kind == "prop":
 		var mesh_instance := MeshInstance3D.new()
 		mesh_instance.mesh = prop_mesh(object.name, object.facing)
-		mesh_instance.material_override = lab.world.material
 		mesh_instance.position = to_world(Vector3(object.origin))
 		node = mesh_instance
 	else:
@@ -291,7 +290,6 @@ func refresh_mycelium() -> void:
 		for model: Dictionary in Mycelium.cluster_models(plan, cluster, lab.world):
 			var mesh_instance := MeshInstance3D.new()
 			mesh_instance.mesh = lab.world.build_model_mesh(model.size, model.voxels)
-			mesh_instance.material_override = lab.world.material
 			mesh_instance.position = to_world(Vector3(model.origin))
 			add_child(mesh_instance)
 			parts.append(mesh_instance)

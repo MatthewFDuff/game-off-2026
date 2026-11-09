@@ -43,6 +43,9 @@ struct Keys {
 	godot::StringName cut_height = "cut_height";
 	godot::StringName walls_down_dir = "walls_down_dir";
 	godot::StringName walls_down_height = "walls_down_height";
+	// The terrain uniforms the glass material shares (VoxelWorld::sync_glass_uniforms).
+	godot::StringName shared_uniforms[13] = { "palette", "patterns", "voxel_size", "ao_strength", "voxel_variation", "edge_darkening",
+		"emission_energy", "facility_power", "pulse_amount", "cut_height", "walls_down_point", "walls_down_dir", "walls_down_height" };
 };
 const Keys &keys();
 void free_keys();
@@ -71,8 +74,10 @@ private:
 		// Written since load (set_data / fill_all) or clear_changed_chunks().
 		bool changed = false;
 		MeshInstance3D *mesh_instance = nullptr;
-		// Reused across rebuilds: only its surface is replaced.
+		// Reused across rebuilds: only its surfaces are replaced. Opaque faces first, then the
+		// translucent ones (glass_surface, -1 when the chunk has none).
 		Ref<ArrayMesh> mesh;
+		int glass_surface = -1;
 		int triangle_count = 0;
 	};
 
@@ -80,7 +85,12 @@ private:
 	float voxel_size = 0.1f;
 	bool out_of_bounds_solid = true;
 	Ref<Material> material;
+	// Drawn on the translucent faces (see mesh_padded_chunk); material when unset.
+	Ref<Material> glass_material;
 	PackedByteArray material_hardness;
+	// Nonzero per material id: see-through (pane glass). translucent is the same as 256 flags.
+	PackedByteArray material_translucency;
+	uint8_t translucent[256] = {};
 	float remesh_budget_ms = 4.0f;
 	// Of the chunks edits dirtied since the last flush, how many (nearest the camera first) are
 	// rebuilt in the flush before the frame is drawn; the rest go through the budgeted queue.
@@ -140,6 +150,7 @@ private:
 	std::vector<uint32_t> touch_mark;
 	uint32_t touch_epoch = 0;
 	voxel::MeshBuffers mesh_buffers;
+	voxel::MeshBuffers glass_buffers;
 	std::vector<uint8_t> padded;
 
 	// Stats for the debug overlay.
@@ -194,12 +205,21 @@ private:
 	int flush_pending(int max_chunks);
 	void on_frame_pre_draw();
 	void update_terrain_shader();
+	// Copies the terrain uniforms (palette, patterns, power, cutaway...) from material to
+	// glass_material where they differ, so GDScript only ever sets them on material.
+	void sync_glass_uniforms();
+	// The glass surface's material: glass_material, or material while it is unset.
+	Ref<Material> surface_glass_material() const { return glass_material.is_valid() ? glass_material : material; }
+	// Points every chunk mesh's surfaces at material / the glass material.
+	void apply_chunk_materials();
 	bool chunk_needs_mesh(int slot) const;
 	// True when every voxel in the chunk is solid (uniform solid, or expanded with no air).
 	bool chunk_fully_solid(int slot) const;
-	Ref<ArrayMesh> arrays_to_mesh(const voxel::MeshBuffers &buffers) const;
-	// Replaces mesh's surfaces with the buffers (none when they are empty).
-	void fill_mesh(const Ref<ArrayMesh> &mesh, const voxel::MeshBuffers &buffers) const;
+	Ref<ArrayMesh> arrays_to_mesh(const voxel::MeshBuffers &buffers, const voxel::MeshBuffers &glass) const;
+	// Replaces mesh's surfaces with the buffers: the opaque faces (with material), then the glass
+	// faces (with the glass material), each only when it has any. Returns the glass surface's index,
+	// or -1.
+	int fill_mesh(const Ref<ArrayMesh> &mesh, const voxel::MeshBuffers &buffers, const voxel::MeshBuffers &glass) const;
 	void build_host_table(const PackedByteArray &hosts, bool table[256]) const;
 	// The chunk plus its one-voxel apron into padded, a row at a time.
 	void copy_padded(int slot);
@@ -261,6 +281,11 @@ public:
 	bool get_out_of_bounds_solid() const { return out_of_bounds_solid; }
 	void set_material(const Ref<Material> &value);
 	Ref<Material> get_material() const { return material; }
+	void set_glass_material(const Ref<Material> &value);
+	Ref<Material> get_glass_material() const { return glass_material; }
+	// Remeshes every chunk when the flags change.
+	void set_material_translucency(const PackedByteArray &value);
+	PackedByteArray get_material_translucency() const { return material_translucency; }
 	void set_material_hardness(const PackedByteArray &value) {
 		if (value == material_hardness) {
 			return;
@@ -347,7 +372,9 @@ public:
 	void fill_layers(const Vector3i &from, const Vector3i &to, const PackedByteArray &materials, const PackedFloat32Array &tops, float undulation, float wavelength, int seed);
 
 	// Meshes a standalone voxel model (each side at most 256) with the same format as the world's
-	// chunks, so it can use the world's material. Vertices start at the model's corner.
+	// chunks: surface 0 the opaque faces with the world's material, then the glass faces with its
+	// glass material (a model without one of the two has only the other). The materials are on the
+	// mesh, so instances need no override. Vertices start at the model's corner.
 	Ref<ArrayMesh> build_model_mesh(const Vector3i &size, const PackedByteArray &voxels);
 
 	// Model voxels are indexed x + y * size.x + z * size.x * size.y; 0 entries are skipped.

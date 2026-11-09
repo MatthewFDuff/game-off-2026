@@ -4,7 +4,10 @@ extends SceneTree
 ## The interact prompt fills the viewport and centers its label under the crosshair, a long note's
 ## reader panel stays inside the viewport, the intercom subtitle moves off the reader while it's
 ## open, delayed lines (say_after) fire and cancel, the training nudge is dropped by the outbreak,
-## a door refusal plays the generic line (or the door's hint), the ending's fade covers the viewport
+## a door refusal plays the generic line (or the door's hint), the intercom's first fit wraps at its
+## width (not one word a line, its top far above the screen) and stays inside the viewport, the
+## pause panel's Settings and Controls pages work by mouse (hover, arrows, value, page row, wheel,
+## click to listen without binding the click, Reset, Back), the ending's fade covers the viewport
 ## with the HUD hidden under it, a mode change resets the intercom and the ending, and F doesn't fly
 ## without --dev. Run windowed with `-- --shots=<dir>` to also save screenshots of the prompt at the
 ## training terminal, the reader with the subtitle above it, and the ending's fade.
@@ -136,6 +139,18 @@ func _run() -> void:
 			_check("a door's hint plays instead of the generic line (%s)" % key, key in intercom._queue and "gate_locked" not in intercom._queue, str(intercom._queue))
 			break
 
+	# The intercom's fit: wrapped at its width the first time, and inside the viewport.
+	intercom.reset()
+	intercom._label.size = Vector2(1, 1)
+	intercom.say_text("Welcome to the night shift. Please sign in at the desk before the doors lock for the evening.")
+	await _frames(2)
+	var line: Rect2 = intercom._panel.get_global_rect()
+	_check("a subtitle laid out from a narrow label is a line or two tall", line.size.y < 120.0, str(line))
+	_check("the subtitle is inside the viewport", Rect2(Vector2.ZERO, viewport).encloses(line), "%s in %s" % [line, viewport])
+	intercom.reset()
+
+	await _check_pause_mouse(hud)
+
 	# Fly mode is a dev key.
 	_check("F has no key without --dev", InputMap.action_get_events("toggle_fly").is_empty())
 	var press := InputEventKey.new()
@@ -179,6 +194,128 @@ func _run() -> void:
 
 	print("ui_test: %d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)
+
+
+## The pause panel's Settings and Controls pages by mouse (pushed through the viewport).
+func _check_pause_mouse(hud) -> void:
+	var settings = root.get_node("GameSettings")
+	var kept := {}
+	for key: String in ["mouse_sensitivity", "rumble", "bindings"]:
+		kept[key] = settings.get_value(key)
+	settings.set_value("mouse_sensitivity", 1.5)
+	settings.set_value("rumble", true)
+	settings.set_value("bindings", {})
+	InputSetup.headless_plays = false
+	InputSetup.release_play()
+	await _frames(4)
+	_check("the pause panel shows", hud._pause.visible)
+	await _click(_center(hud._buttons.get_child(1)))
+	var menu = hud._settings_menu
+	_check("a click on Settings opens the settings page", menu.visible and not hud._buttons.visible)
+	_check("the settings page has a Back line", menu._back_line.visible)
+	await _move(_center(menu._lines[2]))
+	_check("hovering a row chooses it", menu.selected == 2, str(menu.selected))
+	await _click(_center(menu._rights[2]))
+	_check("a click on > steps the value up", is_equal_approx(float(settings.get_value("mouse_sensitivity")), 1.75), str(settings.get_value("mouse_sensitivity")))
+	await _click(_center(menu._lefts[2]))
+	await _click(_center(menu._lefts[2]))
+	_check("a click on < steps it down", is_equal_approx(float(settings.get_value("mouse_sensitivity")), 1.25), str(settings.get_value("mouse_sensitivity")))
+	await _click(_center(menu._values[2]))
+	_check("a click on a range's value steps it up", is_equal_approx(float(settings.get_value("mouse_sensitivity")), 1.5), str(settings.get_value("mouse_sensitivity")))
+	var rumble := -1
+	for i in menu.rows.size():
+		if menu.rows[i].key == "rumble":
+			rumble = i
+	await _click(_center(menu._values[rumble]))
+	_check("a click on a two-state value flips it", settings.get_value("rumble") == false and menu.selected == rumble, "%s, row %d" % [settings.get_value("rumble"), menu.selected])
+	await _click(_center(menu._values[rumble]))
+	_check("...and back", settings.get_value("rumble") == true)
+	_check("clicks on the menu don't resume play", hud._pause.visible and not InputSetup.is_playing())
+	await _click(hud._pause.get_global_rect().position + Vector2(20, 20))
+	_check("a click on the panel's edge doesn't resume play", hud._pause.visible and not InputSetup.is_playing())
+
+	await _click(_center(menu._lines[menu.rows.size() - 1]))
+	var bindings = hud._bindings_menu
+	_check("a click on the Controls row opens the bindings page", bindings.visible and not menu.visible)
+	_check("the bindings page has a Back line", bindings._back_line.visible)
+	await _wheel(_center(bindings._lines[2]), MOUSE_BUTTON_WHEEL_DOWN)
+	_check("the wheel scrolls the window", bindings.top == 1 and bindings.selected >= 1, "top %d, selected %d" % [bindings.top, bindings.selected])
+	await _wheel(_center(bindings._lines[2]), MOUSE_BUTTON_WHEEL_UP)
+	_check("...and back", bindings.top == 0, str(bindings.top))
+	await _move(_center(bindings._lines[4]))
+	_check("hovering a bindings row chooses it", bindings.selected == 4, str(bindings.selected))
+	var action: String = bindings.actions[4]
+	var before: String = InputSetup.binding_name(action, "kb")
+	await _click(_center(bindings._lines[4]))
+	_check("a click on a row listens", bindings.listening == action, bindings.listening)
+	_check("...and the click isn't the binding", InputSetup.binding_name(action, "kb") == before and (settings.get_value("bindings") as Dictionary).is_empty(), str(settings.get_value("bindings")))
+	await _key(KEY_K)
+	_check("the next key binds", bindings.listening == "" and InputSetup.binding_name(action, "kb") == "K", InputSetup.binding_name(action, "kb"))
+	await _click(_center(bindings._lines[3]))
+	await _click(_center(bindings._lines[3]))
+	_check("while listening the next click is the binding", bindings.listening == "" and InputSetup.binding_name(bindings.actions[3], "kb") == "LMB", InputSetup.binding_name(bindings.actions[3], "kb"))
+	for i in bindings.row_count():
+		await _wheel(_center(bindings._lines[bindings.top]), MOUSE_BUTTON_WHEEL_DOWN, 1)
+	await _frames(2)
+	var reset_line = bindings._lines[bindings.row_count() - 1]
+	_check("the wheel reaches Reset", reset_line.visible, "top %d" % bindings.top)
+	await _click(_center(reset_line))
+	_check("a click on Reset resets", (settings.get_value("bindings") as Dictionary).is_empty() and InputSetup.binding_name(action, "kb") == before, str(settings.get_value("bindings")))
+	await _click(_center(bindings._back_label))
+	_check("Back returns to the settings", menu.visible and not bindings.visible)
+	await _click(_center(menu._back_label))
+	_check("Back returns to the buttons", hud._buttons.visible and not menu.visible)
+	_check("...still paused", hud._pause.visible and not InputSetup.is_playing())
+	InputSetup.resume_play()
+	InputSetup.headless_plays = true
+	for key: String in kept:
+		settings.set_value(key, kept[key])
+	await _frames(3)
+
+
+func _center(control: Control) -> Vector2:
+	return control.get_global_rect().get_center()
+
+
+func _move(point: Vector2) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = point
+	motion.global_position = point
+	root.push_input(motion, true)
+	await _frames(2)
+
+
+func _click(point: Vector2, button := MOUSE_BUTTON_LEFT) -> void:
+	await _move(point)
+	for pressed: bool in [true, false]:
+		var click := InputEventMouseButton.new()
+		click.button_index = button
+		click.pressed = pressed
+		click.position = point
+		click.global_position = point
+		root.push_input(click, true)
+	await _frames(3)
+
+
+func _wheel(point: Vector2, button: MouseButton, settle := 3) -> void:
+	for pressed: bool in [true, false]:
+		var wheel := InputEventMouseButton.new()
+		wheel.button_index = button
+		wheel.pressed = pressed
+		wheel.position = point
+		wheel.global_position = point
+		root.push_input(wheel, true)
+	await _frames(settle)
+
+
+func _key(keycode: Key) -> void:
+	for pressed: bool in [true, false]:
+		var key := InputEventKey.new()
+		key.keycode = keycode
+		key.physical_keycode = keycode
+		key.pressed = pressed
+		root.push_input(key)
+	await _frames(3)
 
 
 func _said(intercom, id: String) -> bool:

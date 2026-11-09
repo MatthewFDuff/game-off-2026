@@ -47,11 +47,11 @@ const MELEE_SWING := 0.25
 const MELEE_HIT_AT := 0.1
 const MELEE_DAMAGE := 35.0
 ## The hit box: from the camera MELEE_REACH meters forward, this wide and tall.
-const MELEE_REACH := 1.6
-const MELEE_WIDTH := 1.2
-const MELEE_HEIGHT := 1.6
+const MELEE_REACH := 2.0
+const MELEE_WIDTH := 2.2
+const MELEE_HEIGHT := 2.0
 ## Voxel chip: radius (meters) and the hardest material it breaks (glass, planks: 1).
-const MELEE_CARVE_RADIUS := 0.25
+const MELEE_CARVE_RADIUS := 0.35
 const MELEE_CARVE_POWER := 1
 ## Grip of the axe model, in its voxels.
 const AXE_GRIP := Vector3(1.5, 3.5, 7.5)

@@ -97,10 +97,17 @@ shared `SettingsMenu` (2.4).
 | Enter, Space | A | Flip a two-state row; on the console's Name row, open the name field |
 | Esc, Backspace | B | Close |
 
+On the pause panel the mouse works it too (`SettingsMenu.mouse_enabled`; the console's screen
+gets no mouse): hovering a row chooses it, a click on `<` or `>` steps the value, a click on the
+value flips a two-state row (steps a range up), a click on Controls opens the bindings page, and
+a **< Back** line under the rows closes.
+
 ### 2.5 The pause panel (`LabHud`)
 
 Godot `Button`s: Resume, Settings, Invite (a co-op host), Leave shift, and Back on the invite
-page. Mouse clicks today; on a pad the first button takes focus when the panel opens, the stick
+page. The mouse clicks them, and works the Settings and Controls pages (2.4, 5); a click on the
+panel outside a control does nothing (only a click off the panel resumes, through the Player). The
+panel is kept inside the viewport (`PanelFit`). On a pad the first button takes focus when the panel opens, the stick
 and D-pad move focus (`ui_up` / `ui_down`), A presses (`ui_accept`), B goes back a page, Start
 resumes. There is no "how to resume" line under the title (the Resume button says it; a co-op
 player sees "The shift does not pause for you." there).
@@ -245,6 +252,11 @@ binding and a pad binding for each. The look controls (mouse, arrow keys, right 
   one row per action, its label, its key and its pad binding, the caret on the chosen row. The
   list scrolls to keep the chosen row on the console's small screen. The last row is **Reset to
   defaults**.
+- **Mouse (pause panel only).** Hovering a row chooses it, a click on an action row listens, a
+  click on Reset resets, the wheel scrolls the window of rows, and a **< Back to settings** line
+  under the rows goes back (Esc, Backspace and B still do). The click that starts listening is not
+  the binding (it reaches the menu after the panel's `_input`, and its release is swallowed);
+  the next press, a mouse button included, is. The console's copy is keyboard and pad only.
 - **Capturing.** Enter / A on a row listens ("press a key or button"); the next key, mouse button
   or pad button rebinds that device's column (the device of the press decides the column, so no
   column is ever chosen by hand). A pad trigger past 0.5 binds as a button; the sticks and the

@@ -18,8 +18,9 @@ inline int vertex_ao(bool side1, bool side2, bool corner) {
 
 } // namespace
 
-void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out) {
+void mesh_padded_chunk(const uint8_t *padded, float voxel_size, const uint8_t *translucent, MeshBuffers &out, MeshBuffers &translucent_out) {
 	out.clear();
+	translucent_out.clear();
 
 	int32_t mask[CHUNK_SIZE * CHUNK_SIZE];
 
@@ -46,7 +47,9 @@ void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out
 						const int idx = row + i * su;
 						const uint8_t m = padded[idx];
 						const int n = idx + to_neighbor;
-						if (m == 0 || padded[n] != 0) {
+						const uint8_t facing = padded[n];
+						// Hidden unless the neighbour is air, or glass of another material than this voxel.
+						if (m == 0 || (facing != 0 && (!translucent[facing] || facing == m))) {
 							mask_row[i] = NO_FACE;
 							continue;
 						}
@@ -100,8 +103,9 @@ void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out
 						const int ao3 = (key >> 14) & 3;
 						const float material = float(key & 0xFF) / 255.0f;
 						const float plane = float(k + (s > 0 ? 1 : 0));
+						MeshBuffers &dst = translucent[key & 0xFF] ? translucent_out : out;
 
-						const int32_t base = int32_t(out.vertices.size());
+						const int32_t base = int32_t(dst.vertices.size());
 						const int qu[4] = { i, i + w, i + w, i };
 						const int qv[4] = { j, j, j + h, j + h };
 						const int aos[4] = { ao0, ao1, ao2, ao3 };
@@ -110,9 +114,9 @@ void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out
 							pos[d] = plane * voxel_size;
 							pos[u] = float(qu[c]) * voxel_size;
 							pos[v] = float(qv[c]) * voxel_size;
-							out.vertices.push_back(pos);
-							out.normals.push_back(normal);
-							out.colors.push_back(Color(float(aos[c]) / 3.0f, material, 0.0f, 1.0f));
+							dst.vertices.push_back(pos);
+							dst.normals.push_back(normal);
+							dst.colors.push_back(Color(float(aos[c]) / 3.0f, material, 0.0f, 1.0f));
 						}
 
 						// Godot treats clockwise triangles as front-facing. (u, v, d) is right-handed, so
@@ -125,7 +129,7 @@ void mesh_padded_chunk(const uint8_t *padded, float voxel_size, MeshBuffers &out
 						static const int NEG_B[6] = { 0, 1, 3, 1, 2, 3 };
 						const int *tri = s > 0 ? (flip ? POS_B : POS_A) : (flip ? NEG_B : NEG_A);
 						for (int t = 0; t < 6; t++) {
-							out.indices.push_back(base + tri[t]);
+							dst.indices.push_back(base + tri[t]);
 						}
 
 						for (int y = 0; y < h; y++) {

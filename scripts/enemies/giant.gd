@@ -66,16 +66,15 @@ func _ready() -> void:
 			manager.lab.peer_entered.connect(_on_peer_entered)
 
 
-## The model's mesh, minus the antennae once they've broken off.
-func build_body() -> void:
-	super()
-	if antennae_broken and _mesh and world:
-		var model := EnemyModels.model(kind, variant)
-		if not model.is_empty():
-			var key := mesh_key(model) + ":antennaless"
-			if not _meshes.has(key):
-				_meshes[key] = world.build_model_mesh(model.size, without_antennae(model))
-			_mesh.mesh = _meshes[key]
+## The model's voxels, minus the antennae once they've broken off (Enemy.build_body builds the
+## shared mesh from this, and a carved copy loses them too).
+func body_voxels(model: Dictionary) -> PackedByteArray:
+	return without_antennae(model) if antennae_broken else super(model)
+
+
+## Its own key for the antennaless mesh.
+func body_key(model: Dictionary) -> String:
+	return mesh_key(model) + (":antennaless" if antennae_broken else "")
 
 
 func _setup_hit_zones(model: Dictionary) -> void:

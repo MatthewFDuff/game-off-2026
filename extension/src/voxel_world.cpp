@@ -122,6 +122,7 @@ void VoxelWorld::on_frame_pre_draw() {
 
 void VoxelWorld::_process(double delta) {
 	update_terrain_shader();
+	sync_glass_uniforms();
 	// Edits since the last flush (frame_pre_draw flushes when a frame is drawn; headless runs never
 	// draw).
 	Time *time = Time::get_singleton();
@@ -219,6 +220,22 @@ void VoxelWorld::update_terrain_shader() {
 	}
 }
 
+// The glass shader is one variant with the cutaway built in (a blended surface writes no depth, so
+// its discard costs no early-Z), so only the uniforms need following.
+void VoxelWorld::sync_glass_uniforms() {
+	ShaderMaterial *from = Object::cast_to<ShaderMaterial>(material.ptr());
+	ShaderMaterial *to = Object::cast_to<ShaderMaterial>(glass_material.ptr());
+	if (from == nullptr || to == nullptr || from == to) {
+		return;
+	}
+	for (const StringName &name : voxel::keys().shared_uniforms) {
+		const Variant value = from->get_shader_parameter(name);
+		if (value != to->get_shader_parameter(name)) {
+			to->set_shader_parameter(name, value);
+		}
+	}
+}
+
 // --- Properties -------------------------------------------------------------------------------
 
 void VoxelWorld::set_size_in_chunks(const Vector3i &value) {
@@ -236,10 +253,45 @@ void VoxelWorld::set_voxel_size(float value) {
 
 void VoxelWorld::set_material(const Ref<Material> &value) {
 	material = value;
+	apply_chunk_materials();
+	sync_glass_uniforms();
+}
+
+void VoxelWorld::set_glass_material(const Ref<Material> &value) {
+	glass_material = value;
+	apply_chunk_materials();
+	sync_glass_uniforms();
+}
+
+void VoxelWorld::apply_chunk_materials() {
+	const Ref<Material> glass = surface_glass_material();
 	for (Chunk &c : chunks) {
-		if (c.mesh_instance != nullptr) {
-			c.mesh_instance->set_material_override(material);
+		if (c.mesh.is_null()) {
+			continue;
 		}
+		for (int i = 0; i < int(c.mesh->get_surface_count()); i++) {
+			c.mesh->surface_set_material(i, i == c.glass_surface ? glass : material);
+		}
+	}
+}
+
+void VoxelWorld::set_material_translucency(const PackedByteArray &value) {
+	if (value == material_translucency) {
+		return;
+	}
+	material_translucency = value;
+	uint8_t table[256] = {};
+	for (int i = 0; i < 256 && i < value.size(); i++) {
+		table[i] = value[i] != 0 ? 1 : 0;
+	}
+	table[0] = 0;
+	table[BOUNDARY_MATERIAL] = 0;
+	if (std::memcmp(table, translucent, sizeof(table)) == 0) {
+		return;
+	}
+	std::memcpy(translucent, table, sizeof(table));
+	for (int slot = 0; slot < int(chunks.size()); slot++) {
+		mark_dirty(slot);
 	}
 }
 
@@ -1557,18 +1609,16 @@ bool VoxelWorld::chunk_fully_solid(int slot) const {
 	return std::memchr(c.data.data(), 0, c.data.size()) == nullptr;
 }
 
-Ref<ArrayMesh> VoxelWorld::arrays_to_mesh(const MeshBuffers &buffers) const {
+Ref<ArrayMesh> VoxelWorld::arrays_to_mesh(const MeshBuffers &buffers, const MeshBuffers &glass) const {
 	Ref<ArrayMesh> mesh;
 	mesh.instantiate();
-	fill_mesh(mesh, buffers);
+	fill_mesh(mesh, buffers, glass);
 	return mesh;
 }
 
-void VoxelWorld::fill_mesh(const Ref<ArrayMesh> &mesh, const MeshBuffers &buffers) const {
-	mesh->clear_surfaces();
-	if (buffers.indices.empty()) {
-		return;
-	}
+namespace {
+
+void add_surface(const Ref<ArrayMesh> &mesh, const MeshBuffers &buffers) {
 	PackedColorArray colors;
 	colors.resize(int64_t(buffers.colors.size()));
 	std::memcpy(colors.ptrw(), buffers.colors.data(), buffers.colors.size() * sizeof(Color));
@@ -1583,6 +1633,23 @@ void VoxelWorld::fill_mesh(const Ref<ArrayMesh> &mesh, const MeshBuffers &buffer
 	arrays[Mesh::ARRAY_COLOR] = colors;
 	arrays[Mesh::ARRAY_INDEX] = indices;
 	mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
+}
+
+} // namespace
+
+int VoxelWorld::fill_mesh(const Ref<ArrayMesh> &mesh, const MeshBuffers &buffers, const MeshBuffers &glass) const {
+	mesh->clear_surfaces();
+	if (!buffers.indices.empty()) {
+		add_surface(mesh, buffers);
+		mesh->surface_set_material(0, material);
+	}
+	if (glass.indices.empty()) {
+		return -1;
+	}
+	const int surface = int(mesh->get_surface_count());
+	add_surface(mesh, glass);
+	mesh->surface_set_material(surface, surface_glass_material());
+	return surface;
 }
 
 bool VoxelWorld::chunk_needs_mesh(int slot) const {
@@ -1658,39 +1725,41 @@ void VoxelWorld::build_chunk_mesh(int slot) {
 	uint64_t greedy_at = start;
 
 	mesh_buffers.clear();
+	glass_buffers.clear();
 	if (chunk_needs_mesh(slot)) {
 		copy_padded(slot);
 		padded_at = time->get_ticks_usec();
-		mesh_padded_chunk(padded.data(), voxel_size, mesh_buffers);
+		mesh_padded_chunk(padded.data(), voxel_size, translucent, mesh_buffers, glass_buffers);
 		greedy_at = time->get_ticks_usec();
 	}
 
-	if (mesh_buffers.indices.empty()) {
+	if (mesh_buffers.indices.empty() && glass_buffers.indices.empty()) {
 		if (c.mesh_instance != nullptr) {
 			c.mesh_instance->queue_free();
 			c.mesh_instance = nullptr;
 		}
 		c.mesh.unref();
+		c.glass_surface = -1;
 		c.triangle_count = 0;
 	} else {
 		const int cx = slot % size_in_chunks.x;
 		const int cz = (slot / size_in_chunks.x) % size_in_chunks.z;
 		const int cy = slot / (size_in_chunks.x * size_in_chunks.z);
 		if (c.mesh_instance == nullptr) {
+			// The materials are on the mesh surfaces (fill_mesh), not an override.
 			c.mesh_instance = memnew(MeshInstance3D);
-			c.mesh_instance->set_material_override(material);
 			add_child(c.mesh_instance, false, INTERNAL_MODE_BACK);
 		}
 		// voxel_size can change after the instance was made.
 		c.mesh_instance->set_position(Vector3(cx, cy, cz) * (CHUNK_SIZE * voxel_size));
 		if (c.mesh.is_null()) {
 			c.mesh.instantiate();
-			fill_mesh(c.mesh, mesh_buffers);
+			c.glass_surface = fill_mesh(c.mesh, mesh_buffers, glass_buffers);
 			c.mesh_instance->set_mesh(c.mesh);
 		} else {
-			fill_mesh(c.mesh, mesh_buffers);
+			c.glass_surface = fill_mesh(c.mesh, mesh_buffers, glass_buffers);
 		}
-		c.triangle_count = int(mesh_buffers.indices.size() / 3);
+		c.triangle_count = int((mesh_buffers.indices.size() + glass_buffers.indices.size()) / 3);
 	}
 
 	const uint64_t end = time->get_ticks_usec();
@@ -1969,6 +2038,10 @@ void VoxelWorld::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_out_of_bounds_solid"), &VoxelWorld::get_out_of_bounds_solid);
 	ClassDB::bind_method(D_METHOD("set_material", "value"), &VoxelWorld::set_material);
 	ClassDB::bind_method(D_METHOD("get_material"), &VoxelWorld::get_material);
+	ClassDB::bind_method(D_METHOD("set_glass_material", "value"), &VoxelWorld::set_glass_material);
+	ClassDB::bind_method(D_METHOD("get_glass_material"), &VoxelWorld::get_glass_material);
+	ClassDB::bind_method(D_METHOD("set_material_translucency", "value"), &VoxelWorld::set_material_translucency);
+	ClassDB::bind_method(D_METHOD("get_material_translucency"), &VoxelWorld::get_material_translucency);
 	ClassDB::bind_method(D_METHOD("set_material_hardness", "value"), &VoxelWorld::set_material_hardness);
 	ClassDB::bind_method(D_METHOD("get_material_hardness"), &VoxelWorld::get_material_hardness);
 	ClassDB::bind_method(D_METHOD("set_remesh_budget_ms", "value"), &VoxelWorld::set_remesh_budget_ms);
@@ -1980,6 +2053,8 @@ void VoxelWorld::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "voxel_size", PROPERTY_HINT_RANGE, "0.01,1.0,0.01,suffix:m"), "set_voxel_size", "get_voxel_size");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "out_of_bounds_solid"), "set_out_of_bounds_solid", "get_out_of_bounds_solid");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_material", "get_material");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "glass_material", PROPERTY_HINT_RESOURCE_TYPE, "Material"), "set_glass_material", "get_glass_material");
+	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "material_translucency"), "set_material_translucency", "get_material_translucency");
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_BYTE_ARRAY, "material_hardness"), "set_material_hardness", "get_material_hardness");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "remesh_budget_ms", PROPERTY_HINT_RANGE, "0.5,16,0.5,suffix:ms"), "set_remesh_budget_ms", "get_remesh_budget_ms");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "immediate_remesh_limit", PROPERTY_HINT_RANGE, "0,64,1"), "set_immediate_remesh_limit", "get_immediate_remesh_limit");

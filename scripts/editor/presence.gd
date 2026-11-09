@@ -162,7 +162,6 @@ func _show() -> void:
 	_ghost.visible = not ghost.is_empty()
 	if _ghost.visible and ghost != _drawn_ghost:
 		_ghost.mesh = lab.view.prop_mesh(ghost.name, ghost.facing)
-		_ghost.material_override = lab.world.material
 		_ghost.global_position = lab.view.to_world(Vector3(ghost.origin))
 	_drawn_ghost = ghost
 	var selected: Dictionary = lab.level.objects.get(state.get("selected", ""), {}) if editing and lab.level else {}

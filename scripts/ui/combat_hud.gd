@@ -5,7 +5,7 @@ extends Control
 ## next), the selected flask left of it (its name in its color and the count, Q to cycle), a toast
 ## with the type's name when it changes, a hit marker on the crosshair when one of this peer's
 ## shots lands on an enemy, a red screen flash when the player takes damage, and a vignette while
-## a status is on the player (green poisoned, orange burning), and during the generator finale a
+## a status is on the player (orange burning, strong; green poisoned, faint), and during the generator finale a
 ## "SURVIVE m:ss" countdown at the top with "power restoring" under it (pulsing in the last 10 s)
 ## and SURVIVE / SHIFT SURVIVED / SHIFT FAILED banners. Hidden while editing and while LabHud
 ## suppresses it (the ending's statement). Added by LabHud.
@@ -16,8 +16,12 @@ const DAMAGE_FLASH_TIME := 0.4
 const AMMO_TOAST_TIME := 1.5
 const BANNER_TIME := 6.0
 const FINALE_COLOR := Color(1.0, 0.35, 0.2)
-## Player status -> vignette color, strongest first.
-const STATUS_VIGNETTES := {burning = Color(1.0, 0.45, 0.1), poisoned = Color(0.35, 0.95, 0.25)}
+## Player status -> vignette color, strongest (opacity, 0..1) and how far in the glow starts (a
+## larger inner keeps the centre clearer), strongest status first.
+const STATUS_VIGNETTES := {
+	burning = {color = Color(1.0, 0.45, 0.1), strength = 0.65, inner = 0.5},
+	poisoned = {color = Color(0.35, 0.95, 0.25), strength = 0.3, inner = 0.6},
+}
 
 var lab: Lab
 ## Set by LabHud while the ending's statement shows: the whole combat HUD hides.
@@ -235,9 +239,10 @@ func _update_vignette(me: Player) -> void:
 		if me.statuses.has(status):
 			# The pulse moves the rings in a block at a time.
 			var pulse := 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.006)
-			_vignette.modulate = Color(STATUS_VIGNETTES[status], 1.0)
-			_vignette_material.set_shader_parameter("amount", ceilf(pulse * 4.0) / 4.0 * 0.65)
-			_vignette_material.set_shader_parameter("inner", 0.5 - 0.1 * ceilf(pulse * 4.0) / 4.0)
+			var look: Dictionary = STATUS_VIGNETTES[status]
+			_vignette.modulate = Color(look.color, 1.0)
+			_vignette_material.set_shader_parameter("amount", ceilf(pulse * 4.0) / 4.0 * float(look.strength))
+			_vignette_material.set_shader_parameter("inner", float(look.inner) - 0.1 * ceilf(pulse * 4.0) / 4.0)
 			_vignette.visible = true
 			return
 

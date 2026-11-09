@@ -162,7 +162,7 @@ Ref<ArrayMesh> VoxelWorld::build_model_mesh(const Vector3i &size, const PackedBy
 	ERR_FAIL_COND_V_MSG(int64_t(size.x) * size.y * size.z != voxels.size(), Ref<ArrayMesh>(), "build_model_mesh: voxels.size() must equal size.x * size.y * size.z.");
 
 	// Mesh the model in chunk-sized blocks, each padded with its neighbors' voxels so faces and AO
-	// are seamless across blocks, then merge them into one surface.
+	// are seamless across blocks, then merge them into one opaque and one glass surface.
 	const uint8_t *src = voxels.ptr();
 	auto at = [&](int x, int y, int z) -> uint8_t {
 		if (x < 0 || y < 0 || z < 0 || x >= size.x || y >= size.y || z >= size.z) {
@@ -171,8 +171,8 @@ Ref<ArrayMesh> VoxelWorld::build_model_mesh(const Vector3i &size, const PackedBy
 		return src[x + y * size.x + z * size.x * size.y];
 	};
 	std::vector<uint8_t> block(PADDED_VOLUME);
-	MeshBuffers merged;
-	MeshBuffers buffers;
+	MeshBuffers merged[2];
+	MeshBuffers buffers[2];
 	for (int by = 0; by < size.y; by += CHUNK_SIZE) {
 		for (int bz = 0; bz < size.z; bz += CHUNK_SIZE) {
 			for (int bx = 0; bx < size.x; bx += CHUNK_SIZE) {
@@ -189,20 +189,22 @@ Ref<ArrayMesh> VoxelWorld::build_model_mesh(const Vector3i &size, const PackedBy
 				if (!any) {
 					continue;
 				}
-				buffers.clear();
-				mesh_padded_chunk(block.data(), voxel_size, buffers);
+				mesh_padded_chunk(block.data(), voxel_size, translucent, buffers[0], buffers[1]);
 				const Vector3 offset = Vector3(bx, by, bz) * voxel_size;
-				const int32_t base = int32_t(merged.vertices.size());
-				for (const Vector3 &v : buffers.vertices) {
-					merged.vertices.push_back(v + offset);
-				}
-				merged.normals.insert(merged.normals.end(), buffers.normals.begin(), buffers.normals.end());
-				merged.colors.insert(merged.colors.end(), buffers.colors.begin(), buffers.colors.end());
-				for (int32_t i : buffers.indices) {
-					merged.indices.push_back(base + i);
+				for (int b = 0; b < 2; b++) {
+					MeshBuffers &into = merged[b];
+					const int32_t base = int32_t(into.vertices.size());
+					for (const Vector3 &v : buffers[b].vertices) {
+						into.vertices.push_back(v + offset);
+					}
+					into.normals.insert(into.normals.end(), buffers[b].normals.begin(), buffers[b].normals.end());
+					into.colors.insert(into.colors.end(), buffers[b].colors.begin(), buffers[b].colors.end());
+					for (int32_t i : buffers[b].indices) {
+						into.indices.push_back(base + i);
+					}
 				}
 			}
 		}
 	}
-	return arrays_to_mesh(merged);
+	return arrays_to_mesh(merged[0], merged[1]);
 }

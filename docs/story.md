@@ -21,7 +21,7 @@ triggers and systems are the part to build against.
 | 9 | They're awake | `laboratory`, grow room 0 | Turns around; breaks the case; shoots | The grow beds glow; shrooms climb out; the emergency case with the spore shooter; the first fight; the controls overlay |
 | 10 | No way out | `laboratory`, admin | Tries the blast door | "Needs power". The intercom (still on backup) says to restore power at the generator, level -4 |
 | 11 | The lab | `laboratory`, -1 to -4 | Keycard loops, descents | As built (`docs/lab-design.md`) |
-| 12 | The generator | `laboratory`, generator hall | Starts it | Finale: survive 150 s |
+| 12 | The generator | `laboratory`, generator hall | Starts it | Finale: survive 90 s |
 | 13 | The elevator | `laboratory`, elevator | Rides up | The payroll statement: what they owe Fung AI; a note from Guy Fung with the next shift's date |
 
 ## 2. Script (placeholder text)

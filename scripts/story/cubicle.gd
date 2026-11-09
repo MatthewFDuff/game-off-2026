@@ -128,6 +128,8 @@ const SKIP_HINT_SECONDS := 4.0
 const SCREEN_DISTANCE := 0.35
 ## Meters from the eye that E reaches.
 const REACH := 2.5
+## The note reader's text width (less on a narrow viewport).
+const READER_WIDTH := 480.0
 ## The leaving freeze, and how far inside the opening the player is set back (voxels).
 const FREEZE_SECONDS := 1.5
 ## How far into the hallway the player may go past the opening (meters, straight out and to the
@@ -280,7 +282,11 @@ var _subtitle := Label.new()
 var _reader: PanelContainer
 var _reader_title := Label.new()
 var _reader_text := Label.new()
+## The note's text scrolls in this past PanelFit.body_cap (wheel, arrows, Page Up / Down, D-pad).
+var _reader_scroll := ScrollContainer.new()
 var _reader_hint := Label.new()
+## What _fit_reader last fitted (text and viewport size).
+var _reader_fit_key := ""
 var _clock_panel: PanelContainer
 var _clock_keys := Label.new()
 var _email: PanelContainer
@@ -362,6 +368,7 @@ func _process(delta: float) -> void:
 			if _freeze_left <= 0.0:
 				_unfreeze_after_leaving()
 		State.READING:
+			_fit_reader()
 			if player and _interactables.has(_reading):
 				var box: AABB = _interactables[_reading].box
 				if _distance_to_box(player.camera.global_position, box) > REACH + 1.0:
@@ -434,6 +441,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			if event.is_action_pressed("interact") or event.is_action_pressed("ui_cancel") or _is_key(key, KEY_BACKSPACE) or _is_key(key, KEY_ESCAPE):
 				close_reader()
 				handled = true
+			else:
+				handled = _scroll_reader(event)
 		State.CLOCK_OUT:
 			# A reads as Enter (clock out), B and Start as Esc and X as Backspace (stay).
 			var key := _as_key(event)
@@ -583,6 +592,7 @@ func open_clock_out() -> void:
 	_freeze_player(true)
 	InputSetup.release_play()
 	_clock_panel.visible = true
+	PanelFit.center(_clock_panel)
 	Sfx.play("ui_blip", -6.0, 0.0)
 
 
@@ -616,7 +626,9 @@ func _open_reader(id: String) -> void:
 	_reader_title.text = "Nameplate" if id == NAMEPLATE_ID else "Note"
 	_reader_text.text = text if text != "" else "(blank)"
 	_reader.visible = true
-	_fit_center(_reader)
+	_reader_fit_key = ""
+	_fit_reader()
+	_reader_scroll.scroll_vertical = 0
 
 
 func close_reader() -> void:
@@ -1363,6 +1375,7 @@ func open_email() -> void:
 	email_open = true
 	_notification.visible = false
 	_email.visible = true
+	PanelFit.center(_email)
 	_prompt.visible = false
 	Sfx.play("ui_pop", -6.0, 0.0)
 
@@ -2242,8 +2255,13 @@ func _build_overlay() -> void:
 	reader_column.add_child(_reader_title)
 	_reader_text.label_settings = _label(16, Color(0.85, 0.95, 0.9))
 	_reader_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_reader_text.custom_minimum_size = Vector2(480, 0)
-	reader_column.add_child(_reader_text)
+	_reader_text.custom_minimum_size = Vector2(READER_WIDTH, 0)
+	_reader_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_reader_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_reader_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_reader_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reader_scroll.add_child(_reader_text)
+	reader_column.add_child(_reader_scroll)
 	_reader_hint.text = "E or Esc to close"
 	_reader_hint.label_settings = _label(16, Color(1, 1, 1, 0.5))
 	_reader_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -2374,6 +2392,8 @@ func subtitle_text() -> String:
 	return _subtitle.text if _subtitle_panel.visible else ""
 
 
+## The subtitle at the bottom center, as wide as its text (at most 900 px), never past the
+## viewport's edges: the label is laid out at its width before the panel takes its height.
 func _fit_subtitle() -> void:
 	var viewport := get_viewport().get_visible_rect().size
 	if _subtitle.text == _fit_key and viewport == _fit_size:
@@ -2381,15 +2401,48 @@ func _fit_subtitle() -> void:
 	_fit_key = _subtitle.text
 	_fit_size = viewport
 	var width := minf(900.0, viewport.x - 40.0)
-	_subtitle.custom_minimum_size.x = minf(width - 24.0, _subtitle.label_settings.font.get_string_size(_subtitle.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _subtitle.label_settings.font_size).x + 4.0)
-	_subtitle_panel.size = _subtitle_panel.get_combined_minimum_size()
-	_subtitle_panel.position = Vector2((viewport.x - _subtitle_panel.size.x) * 0.5, viewport.y - _subtitle_panel.size.y - 96.0)
+	PanelFit.wrap(_subtitle, minf(width - 24.0, _subtitle.label_settings.font.get_string_size(_subtitle.text, HORIZONTAL_ALIGNMENT_LEFT, -1, _subtitle.label_settings.font_size).x + 4.0))
+	var size := _subtitle_panel.get_combined_minimum_size()
+	PanelFit.place(_subtitle_panel, Vector2((viewport.x - size.x) * 0.5, viewport.y - size.y - 96.0))
 
 
-func _fit_center(panel: Control) -> void:
+## The note reader centered and inside the viewport: its text wrapped at READER_WIDTH (less on a
+## narrow viewport) and, past what the viewport leaves, scrolling.
+func _fit_reader() -> void:
 	var viewport := get_viewport().get_visible_rect().size
-	panel.size = panel.get_combined_minimum_size()
-	panel.position = (viewport - panel.size) * 0.5
+	var key := "%s|%s" % [_reader_text.text, viewport]
+	if key == _reader_fit_key:
+		return
+	_reader_fit_key = key
+	var width := minf(READER_WIDTH, viewport.x - 2.0 * PanelFit.MARGIN - 36.0)
+	_reader_scroll.custom_minimum_size = Vector2(width, 0.0)
+	var text_height := PanelFit.wrap(_reader_text, width)
+	var chrome := _reader.get_combined_minimum_size().y
+	_reader_scroll.custom_minimum_size.y = minf(text_height, PanelFit.body_cap(viewport, chrome))
+	PanelFit.center(_reader)
+
+
+## Scrolls a long note (wheel, up / down, Page Up / Down, the D-pad); true when it took event.
+func _scroll_reader(event: InputEvent) -> bool:
+	var step := 0
+	if event is InputEventMouseButton and event.pressed:
+		match event.button_index:
+			MOUSE_BUTTON_WHEEL_DOWN: step = 40
+			MOUSE_BUTTON_WHEEL_UP: step = -40
+	elif event is InputEventJoypadButton and event.pressed:
+		match event.button_index:
+			JOY_BUTTON_DPAD_DOWN: step = 40
+			JOY_BUTTON_DPAD_UP: step = -40
+	elif event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_DOWN: step = 40
+			KEY_UP: step = -40
+			KEY_PAGEDOWN: step = int(_reader_scroll.size.y)
+			KEY_PAGEUP: step = -int(_reader_scroll.size.y)
+	if step == 0:
+		return false
+	_reader_scroll.scroll_vertical += step
+	return true
 
 
 ## The pixel font (PixelFont) at about size px.

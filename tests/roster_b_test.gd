@@ -121,11 +121,12 @@ func _spores() -> void:
 	var cleared := await _wait_until(func() -> bool: return not me.statuses.has("blinded") and me.blind_amount == 0.0, 5.0)
 	_check("blindness wears off and the fog clears", cleared and not me._blind_overlay.visible, "%s %.2f" % [me.statuses, me.blind_amount])
 
-	var puff = enemies.spawn("spore", _home + Vector3(0.0, 0.0, -3.0), 0.0)
+	var puff = enemies.spawn("spore", _home + Vector3(0.0, 0.0, -2.0), 0.0)
 	puff.damage = 0.0
 	_check("spore shroom: 25 health, slow", puff.max_health == 25.0 and puff.speed == 1.5, "%s %s" % [puff.max_health, puff.speed])
 	var vented := await _wait_until(func() -> bool: return _clouds_of("spore") > 0, 1.0)
 	_check("a spore shroom vents spores when the player comes within 4 m", vented)
+	# Spore hits reach 2.4 m (the puff is drawn 4 m wide), so the shroom starts 2 m off.
 	await _wait_seconds(0.8)
 	_check("which blind the player", me.statuses.has("blinded"))
 	_clear()

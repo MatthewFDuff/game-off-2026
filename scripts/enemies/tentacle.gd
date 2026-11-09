@@ -1,6 +1,6 @@
 class_name Tentacle
 extends Enemy
-## Tentacle fungi: a rooted mass with tentacles sprawled on the floor. Every GRAB_INTERVAL it
+## Tentacle fungi: a rooted mass with tentacles reaching up into the air. Every GRAB_INTERVAL it
 ## looks for the nearest player within REACH (and in sight) who isn't already held and grabs them
 ## (tentacle_grab): the player's own peer drags them toward it at Player.HELD_PULL m/s and holds
 ## them there (no walking or jumping; shooting, melee and throwing still work), and once they're
@@ -40,7 +40,7 @@ func _init() -> void:
 	knockback_scale = 0.0
 	damage = 0.0
 	attack_range = 0.0
-	body_size = Vector3(1.2, 0.8, 1.2)
+	body_size = Vector3(1.2, 2.2, 1.2)
 	attack_sound = "tentacle_grab"
 
 

@@ -582,7 +582,7 @@ Flow:
    cavern's tendrils and glow shrivel to dark substrate from the dais outward (section 11). The
    exit tunnel to the generator hall leaves from the ledge.
 4. Generator hall. Set up: sandbags, stations, the four mouths. Using the generator: power
-   restored, lights up for the first time since floor 0, finale for 150 s (set
+   restored, lights up for the first time since floor 0, finale for 90 s (set
    `finale_seconds`). Every spawner in the level turns on, but the ones that matter are the
    six in the hall; the flow field keeps the others busy walking.
 5. Survive: the elevator opens. Fail: back to backup power, enemies cleared, generator usable

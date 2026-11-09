@@ -88,6 +88,12 @@ const EMERGENCY_ONLY := 2
 ## (Mycelium.pulse). Palette row 2, blue.
 const PULSING := 3
 
+## See-through panes (VoxelWorld.material_translucency): their faces are meshed into the chunks'
+## second surface and drawn with the glass shader, and the faces behind them are kept. Shards are a
+## heap, not a pane: opaque.
+const TRANSLUCENT: Array[int] = [GLASS, GLASS_TEMPERED, GLASS_CRACKED]
+const GLASS_SHADER := preload("res://shaders/voxel_terrain_glass.gdshader")
+
 ## Hardness 255 can never be carved. Shrooms dig through hardness 2 and below.
 ##
 ## Fire (Fire): `burn` is the seconds a voxel of it burns, `catch` how readily it catches from a
@@ -186,6 +192,15 @@ static func build_hardness() -> PackedByteArray:
 	return hardness
 
 
+## 1 per see-through material id (TRANSLUCENT), 0 for the rest: VoxelWorld.material_translucency.
+static func build_translucency() -> PackedByteArray:
+	var flags := PackedByteArray()
+	flags.resize(256)
+	for id in TRANSLUCENT:
+		flags[id] = 1
+	return flags
+
+
 ## Materials that use a pattern, in a fixed order: their index + 1 is their pattern layer.
 static func patterned() -> Array[int]:
 	var ids: Array[int] = []
@@ -258,10 +273,18 @@ static func build_patterns() -> Texture2DArray:
 	return texture
 
 
+## Sets up a world's materials: hardness, which ids are see-through, the terrain material's palette
+## and patterns, and a glass material for the see-through faces (once; VoxelWorld copies the terrain
+## material's uniforms onto it, so scripts set them on world.material only).
 static func apply_to(world: VoxelWorld) -> void:
 	world.material_hardness = build_hardness()
+	world.material_translucency = build_translucency()
 	var shader_material := world.material as ShaderMaterial
 	if shader_material:
 		shader_material.set_shader_parameter("palette", build_palette())
 		shader_material.set_shader_parameter("patterns", build_patterns())
 		shader_material.set_shader_parameter("voxel_size", world.voxel_size)
+	if world.glass_material == null:
+		var glass := ShaderMaterial.new()
+		glass.shader = GLASS_SHADER
+		world.glass_material = glass

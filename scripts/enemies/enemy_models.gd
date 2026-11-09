@@ -194,40 +194,67 @@ static func _ceiling_cloud(variant: int) -> Dictionary:
 		return _BROOD_M.AIR)
 
 
-## Tentacle fungi: a lumpy central mass with 4 to 6 voxel tentacles sprawled out on the floor,
-## thinning and curling toward the tips.
+## Tentacle fungi: a lumpy central mass with 5 to 7 voxel tentacles rising out of it into the air
+## like an anemone's: each leans out a little, arcs up and curls over near its thinning tip (length,
+## lean, curl and twist vary per arm). About 2.2 m tall and 2.5 to 3 m across (the box fits the arms).
 static func _tentacle(variant: int) -> Dictionary:
 	var rng := _brood_rng("tentacle", variant)
-	var size := Vector3i(31, 9, 31)
-	var c := 15.0
-	var count := 4 + variant % 3 + (1 if rng.randf() < 0.5 else 0)
-	count = clampi(count, 4, 6)
+	var count := clampi(5 + variant % 2 + (1 if rng.randf() < 0.5 else 0), 5, 7)
 	var arms: Array[PackedVector3Array] = []
 	for i in count:
-		var angle := TAU * i / count + rng.randf_range(-0.3, 0.3)
-		var curl := rng.randf_range(-0.08, 0.08)
+		var angle := TAU * i / count + rng.randf_range(-0.35, 0.35)
+		var twist := rng.randf_range(-0.5, 0.5)
+		var lean := rng.randf_range(0.05, 0.28)
+		var curl := rng.randf_range(1.5, 2.4)
+		var length := rng.randf_range(19.0, 25.0)
+		var steps := 30
+		var point := Vector3(cos(angle) * 2.4, rng.randf_range(3.5, 5.0), sin(angle) * 2.4)
 		var points := PackedVector3Array()
-		var length := rng.randf_range(11.0, 14.5)
-		for step in 30:
-			var t := step / 29.0
-			var a := angle + curl * t * length
-			var d := 3.0 + t * length
-			points.append(Vector3(c + cos(a) * d, 1.0 + sin(t * PI * 2.0) * 0.8 * (1.0 - t), c + sin(a) * d))
+		for step in steps:
+			points.append(point)
+			var t := step / float(steps - 1)
+			# Tilt from straight up: a slight lean at the root, bending over hard toward the tip.
+			var tilt := lean + curl * pow(t, 3.0)
+			var a := angle + twist * t
+			point += Vector3(sin(tilt) * cos(a), cos(tilt), sin(tilt) * sin(a)) * (length / steps)
 		arms.append(points)
-	return _brood_fill(size, func(x: int, y: int, z: int) -> int:
-		var p := Vector3(x, y, z)
-		var core := Vector3(c, 3.0, c)
-		var offset := p - core
+	# The box fits the arms (centered on the mass, which stands on the bottom center).
+	var reach := 6.0
+	var top := 8.0
+	for points in arms:
+		for p in points:
+			reach = maxf(reach, maxf(absf(p.x), absf(p.z)) + 1.6)
+			top = maxf(top, p.y + 1.6)
+	var half := ceili(reach)
+	var size := Vector3i(half * 2 + 1, ceili(top) + 1, half * 2 + 1)
+	var c := float(half)
+	for points in arms:
+		for i in points.size():
+			points[i] += Vector3(c, 0.0, c)
+	var model := _brood_fill(size, func(x: int, y: int, z: int) -> int:
+		var offset := Vector3(x, y, z) - Vector3(c, 3.0, c)
 		if Vector3(offset.x, offset.y * 1.3, offset.z).length() <= 4.6:
 			if y >= 6 and (x + z) % 3 == 0:
 				return _BROOD_M.SHROOM_EYE
 			return _BROOD_M.SHROOM_GILL if (x * 7 + y * 3 + z) % 6 == 0 else _BROOD_M.SHROOM_CAP
-		for points in arms:
-			for i in points.size():
-				var radius := lerpf(1.6, 0.5, float(i) / (points.size() - 1))
-				if p.distance_to(points[i]) <= radius:
-					return _BROOD_M.SHROOM_SPOT if i % 5 == 0 else _BROOD_M.SHROOM_STEM
 		return _BROOD_M.AIR)
+	# Stamp the arms as chains of spheres (into air only: the mass wins), thick at the root.
+	var voxels: PackedByteArray = model.voxels
+	for points in arms:
+		for i in points.size():
+			var radius := lerpf(1.6, 0.5, float(i) / (points.size() - 1))
+			var material := _BROOD_M.SHROOM_SPOT if i % 5 == 0 else _BROOD_M.SHROOM_STEM
+			var p := points[i]
+			var low := Vector3i((p - Vector3.ONE * radius).floor()).max(Vector3i.ZERO)
+			var high := Vector3i((p + Vector3.ONE * radius).ceil()).min(size - Vector3i.ONE)
+			for z in range(low.z, high.z + 1):
+				for y in range(low.y, high.y + 1):
+					for x in range(low.x, high.x + 1):
+						var index := x + y * size.x + z * size.x * size.y
+						if voxels[index] == _BROOD_M.AIR and p.distance_to(Vector3(x, y, z)) <= radius:
+							voxels[index] = material
+	model.voxels = voxels
+	return model
 
 
 # --- Roster placeholders: fast, exploding, alarm, giant, ranged ------------------------------------

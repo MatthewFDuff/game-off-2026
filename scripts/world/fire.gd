@@ -5,7 +5,7 @@ extends Node3D
 ## drops loose pieces (VoxelWorld.detach_floating), so a burnt-through shelf or wall falls.
 ##
 ## The host owns it. Only burning voxels cost anything: each is visited once every TICK (spread
-## over the physics frames), rolls its neighbours (heat rises: SPREAD), and its edits pile up and go
+## over the physics frames), rolls its neighbours (heat rises: SPREAD, scaled by SPREAD_RATE), and its edits pile up and go
 ## out as one WorldSync.set_voxels every FLUSH, so a whole room on fire is a few RPCs a second.
 ## Every peer keeps the burning set from those batches (for flames, lights and crackle), and the
 ## host also burns what stands in it (enemies and players get "burning"), lets burning enemies
@@ -26,6 +26,9 @@ const MAX_BURNING := 2500
 ## Most voxels one ignite can light, and its largest radius (meters).
 const MAX_IGNITE := 400
 const MAX_IGNITE_RADIUS := 3.0
+## Scales every spread roll (burn rate): above 1 fire runs through a room faster. The cost stays
+## bounded by MAX_BURNING.
+const SPREAD_RATE := 1.75
 ## Neighbours a burning voxel can light, and how much more (or less) likely than `catch`.
 const SPREAD := [[Vector3i.UP, 1.0], [Vector3i.LEFT, 0.5], [Vector3i.RIGHT, 0.5], [Vector3i.FORWARD, 0.5],
 		[Vector3i.BACK, 0.5], [Vector3i.DOWN, 0.25]]
@@ -307,7 +310,7 @@ func _visit(key: int) -> void:
 			if next == VoxelMaterials.WATER:
 				doused = true
 			elif _catch[next] > 0.0:
-				if _rng.randf() < _catch[next] * spread[1] * TICK and _exposed(q):
+				if _rng.randf() < _catch[next] * spread[1] * SPREAD_RATE * TICK and _exposed(q):
 					_light(q, next)
 			elif _reacts.has(next) and _rng.randf() < BOIL * TICK:
 				_boil(q, _reacts[next])

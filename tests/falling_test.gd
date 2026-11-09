@@ -11,6 +11,10 @@ extends SceneTree
 ##      and shooting the sheet on the floor only carves it.
 ##   3. A piece smaller than FallingPieces.MIN_PIECE (a 2 x 2 x 2 cube hung on one steel voxel)
 ##      still crumbles: nothing falls, nothing is stamped.
+##   4. A plate (a 1 x 12 x 6 sign) held off the room's -x wall by two steel brackets: cutting the
+##      brackets topples it away from the wall, and it lands as a flat 12 x 1 x 6 sheet on the
+##      floor, lying out from the wall; the crush column covers both where it stood and where it lay.
+##   5. A squat piece (4 x 3 x 2, thin but not tall) hung on one steel voxel drops straight.
 ##
 ## Game types are left unnamed (see editor_test.gd): naming them would compile those scripts before
 ## the autoloads they use are registered.
@@ -35,6 +39,12 @@ const CRATE_AREA := [Vector3i(24, FLOOR, 24), Vector3i(38, FLOOR + 22, 38)]
 const TILES := Vector3i(60, CEILING - 4, 60)
 ## The tiny cube, hung on one steel voxel under the ceiling.
 const TINY := Vector3i(90, CEILING - 3, 90)
+## The sign: PLASTIC [SIGN, SIGN + (1, 12, 6)), one voxel off the -x wall (the room starts at x 8),
+## held by STEEL brackets at x 8.
+const SIGN := Vector3i(9, FLOOR + 10, 70)
+const BRACKETS := [Vector3i(8, FLOOR + 16, 72), Vector3i(8, FLOOR + 16, 74)]
+## The squat piece: CLOTH [SQUAT, SQUAT + (4, 3, 2)), hung on one steel voxel.
+const SQUAT := Vector3i(90, CEILING - 6, 60)
 
 var _failures := 0
 var lab
@@ -59,6 +69,8 @@ func _run() -> void:
 	await _crate()
 	await _tiles()
 	await _tiny(started)
+	await _plate(started)
+	await _squat(started)
 
 	print("falling test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -137,6 +149,55 @@ func _tiny(started: Array) -> void:
 			"%d falls" % (started.size() - before))
 
 
+## 4. A sign shot off its wall brackets topples away from the wall and lies flat.
+func _plate(started: Array) -> void:
+	var standing := [SIGN, SIGN + Vector3i(1, 12, 6)]
+	_check("the sign hangs off the wall", _count(standing, M.PLASTIC) == 72)
+	var before := started.size()
+	var points := PackedInt32Array()
+	var air := PackedByteArray()
+	for p: Vector3i in BRACKETS:
+		points.append_array([p.x, p.y, p.z])
+		air.append(M.AIR)
+	lab.world_sync.set_voxels(points, air)
+	await _frames(2)
+	_check("cutting its brackets drops it", _count(standing, M.PLASTIC) == 0 and lab.falling.falling == 1 and lab.falling.meshes.size() == 1,
+			"%d left, %d falling" % [_count(standing, M.PLASTIC), lab.falling.falling])
+	var mesh: MeshInstance3D = lab.falling.meshes.values()[0] if lab.falling.meshes.size() == 1 else null
+	await _wait_seconds(0.2)
+	_check("its mesh turns as it falls", mesh != null and is_instance_valid(mesh) and not mesh.basis.is_equal_approx(Basis.IDENTITY))
+	var sheet := [Vector3i(SIGN.x + 1, FLOOR, SIGN.z), Vector3i(SIGN.x + 13, FLOOR + 1, SIGN.z + 6)]
+	var lying := AABB(lab.view.to_world(Vector3(sheet[0])), Vector3(12, 1, 6) * lab.world.voxel_size)
+	# The host stamps it when the fall's time is up; the mesh lingers a moment, lying right there.
+	await _wait_until(func() -> bool: return lab.falling.falling == 0, 3.0)
+	var shown := mesh.global_transform * mesh.mesh.get_aabb() if is_instance_valid(mesh) else AABB()
+	_check("the mesh ends lying where the sheet is stamped", is_instance_valid(mesh) and shown.position.distance_to(lying.position) < 0.02
+			and shown.size.distance_to(lying.size) < 0.02, "%s vs %s" % [shown, lying])
+	var landed := await _wait_until(func() -> bool: return lab.falling.falling == 0 and lab.falling.meshes.is_empty(), 3.0)
+	_check("and lands", landed)
+	var near := [Vector3i(8, FLOOR, SIGN.z - 13), Vector3i(SIGN.x + 14, FLOOR + 14, SIGN.z + 19)]
+	_check("flat on the floor, 12 long, lying out from the wall", _count(sheet, M.PLASTIC) == 72 and _count(near, M.PLASTIC) == 72,
+			"%d in the sheet, %d around" % [_count(sheet, M.PLASTIC), _count(near, M.PLASTIC)])
+	var fall: Dictionary = started.back() if started.size() > before else {}
+	_check("its crush column covers where it stood and where it lay", not fall.is_empty() and fall.column.grow(0.001).encloses(fall.box)
+			and fall.column.grow(0.001).encloses(lying), str(fall.get("column")))
+
+
+## 5. A squat piece drops straight.
+func _squat(started: Array) -> void:
+	var hung := [SQUAT, SQUAT + Vector3i(4, 3, 2)]
+	_check("the squat piece hangs", _count(hung, M.CLOTH) == 24)
+	var before := started.size()
+	var hook := SQUAT + Vector3i(1, 3, 0)
+	lab.world_sync.set_voxels(PackedInt32Array([hook.x, hook.y, hook.z]), PackedByteArray([M.AIR]))
+	await _frames(2)
+	_check("cutting its hook drops it", started.size() == before + 1 and lab.falling.meshes.size() == 1
+			and lab.falling.meshes.values()[0].basis.is_equal_approx(Basis.IDENTITY))
+	await _wait_until(func() -> bool: return lab.falling.falling == 0 and lab.falling.meshes.is_empty(), 3.0)
+	var floor_box := [Vector3i(SQUAT.x, FLOOR, SQUAT.z), Vector3i(SQUAT.x + 4, FLOOR + 3, SQUAT.z + 2)]
+	_check("straight down, standing as it was", _count(floor_box, M.CLOTH) == 24, "%d on the floor" % _count(floor_box, M.CLOTH))
+
+
 func _make_level() -> void:
 	var level := LevelData.new()
 	level.name = LEVEL
@@ -153,6 +214,12 @@ func _make_level() -> void:
 	world.fill_box(LID[0], LID[1], M.METAL, false)
 	world.fill_box(TINY + Vector3i(0, 2, 0), TINY + Vector3i(1, 3, 1), M.STEEL, false)
 	world.fill_box(TINY, TINY + Vector3i(2, 2, 2), M.CONCRETE, false)
+	world.fill_box(SIGN, SIGN + Vector3i(1, 12, 6), M.PLASTIC, false)
+	for p: Vector3i in BRACKETS:
+		world.set_voxel(p, M.STEEL)
+	world.fill_box(SQUAT, SQUAT + Vector3i(4, 3, 2), M.CLOTH, false)
+	world.set_voxel(SQUAT + Vector3i(1, 3, 0), M.STEEL)
+	world.fill_box(SQUAT + Vector3i(1, 4, 0), Vector3i(SQUAT.x + 2, CEILING, SQUAT.z + 1), M.STEEL, false)
 	level.voxels = world.get_data()
 	world.free()
 

@@ -1,11 +1,15 @@
-// Body of the terrain shader for VoxelWorld chunk meshes, shared by two variants:
-//   voxel_terrain.gdshader       the editor variant (defines VOXEL_TERRAIN_CUTAWAY): the level
-//                                editor's cutaway and walls-down discard fragments.
-//   voxel_terrain_play.gdshader  the play variant: no discard, so the GPU keeps early depth tests on
-//                                the material that covers most of the screen.
-// VoxelWorld swaps its ShaderMaterial between the two by itself (terrain_shader_mode, Auto): the
-// editor variant only while a cutaway uniform is set. Uniform values stay on the material across
-// the swap.
+// Body of the terrain shader for VoxelWorld chunk meshes, shared by three variants:
+//   voxel_terrain.gdshader        the editor variant (defines VOXEL_TERRAIN_CUTAWAY): the level
+//                                 editor's cutaway and walls-down discard fragments.
+//   voxel_terrain_play.gdshader   the play variant: no discard, so the GPU keeps early depth tests on
+//                                 the material that covers most of the screen.
+//   voxel_terrain_glass.gdshader  the see-through faces (VoxelWorld's second surface, its
+//                                 glass_material; defines VOXEL_TERRAIN_GLASS and the cutaway): alpha
+//                                 blended, glossy, a little more opaque at grazing angles.
+// VoxelWorld swaps its ShaderMaterial between the first two by itself (terrain_shader_mode, Auto):
+// the editor variant only while a cutaway uniform is set. Uniform values stay on the material across
+// the swap, and VoxelWorld copies them to the glass material (sync_glass_uniforms), so scripts only
+// set them on VoxelWorld.material.
 // Vertex COLOR.r is baked ambient occlusion (0 = fully occluded), COLOR.g is material id / 255.
 // Pattern materials (palette row 1 blue = layer + 1) take each voxel's color from a tiled image,
 // one pixel per voxel, picked by the face's plane so walls, floors and ceilings all tile.
@@ -22,6 +26,15 @@ uniform float facility_power : hint_range(0.0, 1.0) = 1.0;
 // Mycelium veins (palette row 2 blue = PULSING): emission swings in a slow wave travelling along
 // world x + z, deeper and faster with pulse_amount (Mycelium.pulse raises it for a few seconds).
 uniform float pulse_amount : hint_range(0.0, 1.0) = 0.25;
+#ifdef VOXEL_TERRAIN_GLASS
+// How opaque a clear pane is, and a cracked one (palette row 1 pattern): its pane, and its cracks
+// (pattern pixels away from the material's color).
+uniform float glass_alpha : hint_range(0.0, 1.0) = 0.28;
+uniform float cracked_alpha : hint_range(0.0, 1.0) = 0.5;
+uniform float crack_alpha : hint_range(0.0, 1.0) = 0.85;
+// Extra opacity at grazing angles (Schlick-ish fresnel), so panes read as glass edge-on.
+uniform float glass_fresnel : hint_range(0.0, 1.0) = 0.55;
+#endif
 #ifdef VOXEL_TERRAIN_CUTAWAY
 // Level editor cutaway: nothing above this world height is drawn (EditorCamera sets it; the cut
 // face itself is EditorCamera's cap plane).
@@ -74,6 +87,9 @@ void fragment() {
 	float ao = mix(1.0, 0.25 + 0.75 * COLOR.r, ao_strength);
 	vec3 base = entry.rgb;
 	int layer = int(round(flags.b * 255.0));
+#ifdef VOXEL_TERRAIN_GLASS
+	float alpha = layer > 0 ? cracked_alpha : glass_alpha;
+#endif
 	if (layer > 0) {
 		ivec2 size = max(ivec2(round(extra.rg * 255.0)), ivec2(1));
 		ivec3 c = ivec3(cell);
@@ -84,11 +100,27 @@ void fragment() {
 		uv = ((uv % size) + size) % size;
 		base = texelFetch(patterns, ivec3(uv, layer - 1), 0).rgb;
 		variation *= 0.4; // The pattern already varies; keep a little per-voxel life.
+#ifdef VOXEL_TERRAIN_GLASS
+		alpha = mix(alpha, crack_alpha, step(0.06, distance(base, entry.rgb)));
+#endif
 	}
+#ifdef VOXEL_TERRAIN_GLASS
+	// A pane stays even: little per-voxel variation, and faint seams (strong ones read as leading).
+	variation *= 0.3;
+	edge *= 0.5;
+#endif
 	vec3 albedo = base * (1.0 + variation) * (1.0 - edge * edge_darkening);
 
 	ALBEDO = albedo * ao;
+#ifdef VOXEL_TERRAIN_GLASS
+	float fresnel = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 4.0);
+	ALPHA = mix(alpha, 1.0, fresnel * glass_fresnel);
+	ROUGHNESS = 0.08;
+	SPECULAR = 0.9;
+	METALLIC = 0.0;
+#else
 	ROUGHNESS = 0.9;
+#endif
 	float pulse = 1.0;
 	if (extra.b > 0.5) {
 		float wave = 0.5 + 0.5 * sin((world_position.x + world_position.z) * 1.3 - TIME * (1.2 + 3.0 * pulse_amount));

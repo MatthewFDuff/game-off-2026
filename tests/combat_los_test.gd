@@ -7,7 +7,8 @@ extends SceneTree
 ## the slab are muffled; a giant's swing doesn't reach through a wall but does without it; a basic
 ## shroom doesn't bite through a thin wall; a spawner the player is looking at (or within 6 m of)
 ## defers and keeps its budget, one behind the player spawns, and the deferred one spawns once the
-## player turns away; a spawned enemy emerges out of the floor (unhittable, no attack) before its
+## player turns away; a giant spawner in a 1 m corridor defers (one that also lists basic spawns a
+## basic) while one in the open room spawns a giant with its body clear; a spawned enemy emerges out of the floor (unhittable, no attack) before its
 ## first bite, and a ceiling one drops in from above. Spawner scope: a spawner on the floor below
 ## (10 m in a straight line, no path) doesn't trickle while the player is upstairs and does once
 ## they're on its floor, and turning it off sinks its enemy (no death). Player attacks: an
@@ -32,6 +33,10 @@ const CLOSE_SPOT := Vector3(100.0, FLOOR, 200.0)
 ## A spawner on the ground floor about 10 m behind the player, and the spot above the player's.
 const BELOW_SPOT := Vector3(60.0, FLOOR, 230.0)
 const UPSTAIRS_SPOT := Vector3(128.0, SLAB_TOP, 160.0)
+## Spawn room (voxels): a 1 m wide corridor (x 195..205, walls either side, from z 190 to the back
+## wall) about 8 m behind-right of the player, and an open spot 8 m behind-left.
+const CORRIDOR_SPOT := Vector3(200.0, FLOOR, 225.0)
+const OPEN_SPOT := Vector3(60.0, FLOOR, 200.0)
 
 var _failures := 0
 var lab
@@ -65,6 +70,7 @@ func _run() -> void:
 	await _giant_wall()
 	await _bite_wall()
 	await _fair_spawns()
+	await _room_to_move()
 	await _emergence()
 	await _wake_by_path()
 	await _blast_wall()
@@ -186,6 +192,45 @@ func _fair_spawns() -> void:
 	director.set_spawner_active("front", false)
 	me.rotation.y = 0.0
 	_clear()
+	await _frames(2)
+
+
+## Room to move: a giant-only spawner in a 1 m corridor never wedges a giant in (it defers), one
+## that also lists basic falls back to a basic, and in the open room a giant spawns clear of solids.
+func _room_to_move() -> void:
+	_reset_player()
+	_clear()
+	var walls := [[Vector3i(180, FLOOR, 190), Vector3i(195, GROUND[1].y, GROUND[1].z)],
+			[Vector3i(205, FLOOR, 190), Vector3i(220, GROUND[1].y, GROUND[1].z)]]
+	for wall in walls:
+		_fill(wall, M.CONCRETE)
+	await _frames(2)
+	var deferred_before: int = director.deferred_spawns
+	var tight = director._spawn_from("corridor_giant")
+	_check("a giant spawner in a 1 m corridor spawns nothing", tight == null and director.spawners.corridor_giant.alive.is_empty()
+			and director.deferred_spawns > deferred_before, str(tight))
+	var fallbacks := 0
+	for i in 6:
+		var mixed = director._spawn_from("corridor_mixed")
+		if mixed != null and mixed.kind == "basic":
+			fallbacks += 1
+		elif mixed != null:
+			_check("a mixed spawner in the corridor never makes a giant", false, mixed.kind)
+	_check("one that also lists basic falls back to a basic", fallbacks == 6, "%d of 6" % fallbacks)
+	_clear()
+	await _frames(2)
+	var giant = director._spawn_from("open_giant")
+	_check("in the open room it spawns a giant", giant != null and giant.kind == "giant")
+	if giant != null:
+		var feet: Vector3 = giant._emerge_goal if giant.emerging > 0.0 else giant.global_position
+		var body: Vector3 = giant.body_size
+		var box := AABB(feet + Vector3(-body.x * 0.5, 0.02, -body.z * 0.5), body)
+		_check("its body box is clear of solids", not lab.world.box_overlaps_solid(box), str(feet))
+		var roomy := AABB(box.position - Vector3(0.45, 0.0, 0.45), box.size + Vector3(0.9, 0.0, 0.9))
+		_check("with room to step out", not lab.world.box_overlaps_solid(roomy))
+	_clear()
+	for wall in walls:
+		_fill(wall, M.AIR)
 	await _frames(2)
 
 
@@ -367,10 +412,12 @@ func _make_level() -> void:
 	var spawn := LevelSchema.new_marker("spawn", PLAYER_SPOT, 0.0)
 	spawn.id = "spawn_1"
 	level.objects[spawn.id] = spawn
-	for entry in [["front", FRONT_SPOT], ["back", BACK_SPOT], ["close", CLOSE_SPOT], ["below", BELOW_SPOT]]:
+	for entry in [["front", FRONT_SPOT], ["back", BACK_SPOT], ["close", CLOSE_SPOT], ["below", BELOW_SPOT],
+			["corridor_giant", CORRIDOR_SPOT, "giant"], ["corridor_mixed", CORRIDOR_SPOT, "giant,basic"],
+			["open_giant", OPEN_SPOT, "giant"]]:
 		var spawner := LevelSchema.new_marker("horde", entry[1])
 		spawner.id = entry[0]
-		spawner.kinds = "basic"
+		spawner.kinds = entry[2] if entry.size() > 2 else "basic"
 		spawner.rate = 600.0
 		spawner.max_alive = 1
 		spawner.radius = 0.5

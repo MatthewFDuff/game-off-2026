@@ -13,8 +13,11 @@ extends Node3D
 ## director wakes spawners by it), and streams positions at STATE_RATE.
 ##
 ## Status effects (Enemy.apply_status) run on the host; each change of an enemy's active set goes
-## to the peers (_statuses) so every peer tints it. Clouds (Cloud) are children here too ("C<id>"):
-## the host owns them and applies their effects, the peers get a spawn message and draw them.
+## to the peers (_statuses) so every peer tints it. Hits blast chunks off enemies (Enemy.chip): the
+## host carves them, batches them to the peers (send_chunks, _chunks) who carve the same and burst
+## the debris, and kills an enemy whose remaining share drops below Enemy.CARVE_DEATH_SHARE.
+## Clouds (Cloud) are children here too ("C<id>"): the host owns them and applies their effects,
+## the peers get a spawn message and draw them.
 
 signal enemy_spawned(enemy: Enemy)
 ## Host: a hit landed. amount includes the crit multiplier; zone is the hit zone name.
@@ -116,6 +119,8 @@ var _targets: Array[Player] = []
 var _targets_frame := -1
 ## Damage kind -> the AmmoType whose status a batched hit of that kind gives (request_hits).
 var _kind_status := {}
+## kind -> its collision box (Enemy.body_size), read once from an unspawned instance (body_size_of).
+static var _body_sizes := {}
 
 
 func _ready() -> void:
@@ -195,6 +200,21 @@ func spawn(kind: String, feet: Vector3, yaw := randf() * TAU, emerge := 0) -> En
 	return enemy
 
 
+## A kind's collision box (Enemy.body_size: width, height, depth) without spawning one: its scene
+## is instanced once (outside the tree, its _configure run as _ready would) and the size cached.
+## Unknown kinds read as basic. HordeDirector sizes its spawn clearance from this.
+static func body_size_of(kind: String) -> Vector3:
+	if not KINDS.has(kind):
+		kind = "basic"
+	if not _body_sizes.has(kind):
+		var enemy: Enemy = (load(KINDS[kind]) as PackedScene).instantiate()
+		if enemy.has_method("_configure"):
+			enemy.call("_configure")
+		_body_sizes[kind] = enemy.body_size
+		enemy.free()
+	return _body_sizes[kind]
+
+
 ## Host: removes an enemy everywhere without a death (fell out of the level, cleanup).
 func despawn(id: int) -> void:
 	if not multiplayer.is_server() or not enemies.has(id):
@@ -220,6 +240,8 @@ func kill(id: int) -> void:
 	var enemy: Enemy = enemies.get(id)
 	if not multiplayer.is_server() or enemy == null or not enemy.alive:
 		return
+	if enemy.has_pending_chunks():
+		send_chunks(enemy) # So every peer's death burst is the same remains.
 	enemy_died.emit(enemy)
 	enemies.erase(id)
 	removed_version += 1
@@ -289,6 +311,8 @@ func _send_roster(peer_id: int) -> void:
 	for enemy: Enemy in enemies.values():
 		if enemy.alive:
 			_spawned.rpc_id(peer_id, enemy.id, enemy.kind, enemy.global_position, enemy.rotation.y, 0)
+			if not enemy.carve_points.is_empty():
+				_chunks.rpc_id(peer_id, enemy.id, enemy.carve_points, enemy.carve_radii, false)
 			if not enemy.shown_statuses.is_empty():
 				_statuses.rpc_id(peer_id, enemy.id, enemy.shown_statuses)
 	for cloud: Cloud in clouds.values():
@@ -417,6 +441,8 @@ func _damage(enemy: Enemy, amount: float, point: Vector3, kind: String, zone: St
 	var strength := float(KNOCKBACK.get(kind, 1.0))
 	var push := away.normalized() * strength + Vector3.UP * strength * 0.3
 	enemy.apply_hit(amount, push)
+	if kind != "status": # Burning and poison ticks don't blast chunks off.
+		enemy.chip(point, amount)
 	enemy._on_damaged(amount, kind, _hit_peer)
 	enemy_damaged.emit(enemy, amount, zone)
 	var now := Time.get_ticks_msec()
@@ -425,8 +451,47 @@ func _damage(enemy: Enemy, amount: float, point: Vector3, kind: String, zone: St
 		_hit_fx(enemy.id, point)
 		for peer_id in _peers():
 			_hit_fx.rpc_id(peer_id, enemy.id, point)
-	if enemy.health <= 0.0:
+	if enemy.health <= 0.0 or enemy.remaining_share() < Enemy.CARVE_DEATH_SHARE:
 		kill(enemy.id)
+
+
+## Host: sends an enemy's queued chunks (Enemy.take_pending_chunks) to every peer in one reliable
+## message, and bursts what they removed here (each peer bursts its own on arrival). Enemy._process
+## calls it at most every Enemy.CHUNK_INTERVAL, kill right before a death.
+func send_chunks(enemy: Enemy) -> void:
+	var pending := enemy.take_pending_chunks()
+	var points: PackedVector3Array = pending[0]
+	if points.is_empty():
+		return
+	for peer_id in _peers():
+		_chunks.rpc_id(peer_id, enemy.id, points, pending[1], true)
+	_burst_chunks(enemy, points, pending[2])
+
+
+## Peers: chunks the host blasted off enemy id (local points and radii, meters). fx: burst their
+## debris (false for a late joiner's catch-up list).
+@rpc("authority", "reliable")
+func _chunks(id: int, points: PackedVector3Array, radii: PackedFloat32Array, fx: bool) -> void:
+	var enemy: Enemy = enemies.get(id)
+	if enemy == null or points.size() != radii.size() or points.size() > 4096:
+		return
+	var removed := enemy.apply_chunks(points, radii)
+	if fx:
+		_burst_chunks(enemy, points, removed)
+
+
+## Every peer: the debris of a batch of chunks, from the middle of where they came off.
+func _burst_chunks(enemy: Enemy, points: PackedVector3Array, removed: Dictionary) -> void:
+	if debris == null or removed.is_empty() or points.is_empty():
+		return
+	var middle := Vector3.ZERO
+	for point in points:
+		middle += point
+	middle /= points.size()
+	var at := enemy.global_transform * middle
+	var out := at - enemy.get_center()
+	out.y = maxf(out.y, 0.0) + 0.5
+	debris.burst(at, out.normalized(), removed)
 
 
 ## Any peer: this peer's attack gave enemy id a status ("burning", "poisoned", ...) for seconds.

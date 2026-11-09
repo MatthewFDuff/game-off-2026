@@ -880,7 +880,6 @@ static func _load_character(name: String) -> Dictionary:
 func _model_instance(model: Dictionary, parent: Node3D) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()
 	instance.mesh = world.build_model_mesh(model.size, model.voxels)
-	instance.material_override = world.material
 	parent.add_child(instance)
 	return instance
 

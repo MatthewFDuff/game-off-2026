@@ -7,6 +7,12 @@ extends Node
 ## again like anything else. A piece resting on the floor is attached to it (the flood fill counts
 ## touching anything solid), so it doesn't fall again.
 ##
+## A plate (a sign or a vent cover shot off a wall, a poster board, a door: at most TOPPLE_THICKNESS
+## thick across x or z and TOPPLE_RATIO times taller than that) topples instead of landing on its
+## edge: it turns a quarter about its bottom edge, toward whichever side has more air next to it
+## (away from the wall it hung on), and falls lying flat on a face. With no room for it lying down
+## on either side it drops straight like the rest.
+##
 ## Ceiling tiles (VoxelMaterials.CEILING_TILE) go the same way: a shot that takes voxels out of a
 ## hanging tile breaks the rest of that tile loose (the connected run of tile voxels, bounded by the
 ## steel T-bars, at most TILE_MAX), and it falls as a flat sheet. The rule only applies to a tile
@@ -42,6 +48,13 @@ const LINGER := 0.1
 ## Compressed boxes bigger than this go without a mesh (the peers see the piece vanish and land): an
 ## RPC near ~48 KB is silently dropped by ENet (WorldSync.PART_SIZE).
 const MAX_SEND := 32000
+## Plates: thinnest horizontal side at most this many voxels, and at least TOPPLE_RATIO times as tall.
+const TOPPLE_THICKNESS := 4
+const TOPPLE_RATIO := 3
+## Shortest fall (seconds) of a piece that topples, so the quarter turn reads.
+const TOPPLE_SECONDS := 0.35
+## How far out from each face (voxels) a plate looks for air, in three columns at mid height.
+const TOPPLE_PROBE := 6
 const FACES := [Vector3i.UP, Vector3i.DOWN, Vector3i.LEFT, Vector3i.RIGHT, Vector3i.FORWARD, Vector3i.BACK]
 
 ## Host, as a piece starts to fall: {box: AABB (world space, where it was), column: AABB (the space
@@ -230,45 +243,145 @@ func _break_tile(voxels: Array[Vector3i]) -> void:
 
 ## Host: drops a box of voxels (origin and size in voxels, voxels dense in VoxelWorld.stamp's
 ## layout, 0 = air) that is no longer in the world: straight down to where it lands, then stamped
-## there. Any source: a detached fragment, a broken ceiling tile.
+## there; a plate topples over flat first (topple). Any source: a detached fragment, a broken
+## ceiling tile.
 func drop(origin: Vector3i, size: Vector3i, voxels: PackedByteArray) -> void:
 	if not _playing():
 		return
-	var distance := drop_distance(origin, size, voxels)
-	if distance <= 0:
+	var turn := topple(origin, size, voxels)
+	var lying_origin: Vector3i = turn.get("origin", origin)
+	var lying_size: Vector3i = turn.get("size", size)
+	var lying: PackedByteArray = turn.get("voxels", voxels)
+	var distance := drop_distance(lying_origin, lying_size, lying)
+	if distance <= 0 and turn.is_empty():
 		_settle(origin, size, voxels)
 		return
-	var landing := origin + Vector3i(0, -distance, 0)
+	var landing := lying_origin + Vector3i(0, -distance, 0)
 	var voxel := lab.world.voxel_size
 	var duration := maxf(sqrt(2.0 * distance * voxel / FALL_ACCELERATION), MIN_FALL_SECONDS)
+	if not turn.is_empty():
+		duration = maxf(duration, TOPPLE_SECONDS)
 	var count := 0
 	var materials := {}
 	for m in voxels:
 		if m != 0:
 			count += 1
 			materials[m] = int(materials.get(m, 0)) + 1
-	var start := lab.view.to_world(Vector3(origin))
+	var box := AABB(lab.view.to_world(Vector3(origin)), Vector3(size) * voxel)
+	var start := lab.view.to_world(Vector3(lying_origin))
 	var bottom := lab.view.to_world(Vector3(landing))
-	var extent := Vector3(size) * voxel
-	piece_falling.emit({box = AABB(start, extent), column = AABB(bottom, extent + Vector3(0, start.y - bottom.y, 0)),
-			voxel_count = count, materials = materials})
+	var extent := Vector3(lying_size) * voxel
+	# A plate sweeps the square between standing and lying on its way down: the column covers both.
+	var column := AABB(bottom, extent + Vector3(0, start.y - bottom.y, 0)).merge(box)
+	piece_falling.emit({box = box, column = column, voxel_count = count, materials = materials})
 
 	var id := _next_id
 	_next_id += 1
+	var pivot: Vector3 = turn.get("pivot", Vector3.ZERO)
+	var axis: Vector3 = turn.get("axis", Vector3.ZERO)
 	var packed := voxels.compress(FileAccess.COMPRESSION_ZSTD)
 	if packed.size() <= MAX_SEND:
-		_fall(id, origin, size, packed, voxels.size(), landing, duration)
+		_fall(id, origin, size, packed, voxels.size(), landing, duration, pivot, axis)
 		for peer_id in lab.world_sync.synced_peers():
-			_fall.rpc_id(peer_id, id, origin, size, packed, voxels.size(), landing, duration)
+			_fall.rpc_id(peer_id, id, origin, size, packed, voxels.size(), landing, duration, pivot, axis)
 	falling += 1
 	# A Timer child, not an awaited SceneTreeTimer: a coroutine left waiting when the Lab goes (a
 	# test quitting mid-fall, a shift left) leaked the timer and crashed on exit.
 	var timer := Timer.new()
 	timer.one_shot = true
 	timer.wait_time = duration
-	timer.timeout.connect(_on_fall_ended.bind(landing, size, voxels, _generation, timer))
+	timer.timeout.connect(_on_fall_ended.bind(landing, lying_size, lying, _generation, timer))
 	add_child(timer)
 	timer.start()
+
+
+## A plate's topple: a piece at most TOPPLE_THICKNESS thick across x or z (its thinner horizontal
+## side) and at least TOPPLE_RATIO times as tall turns a quarter about the bottom edge of one face,
+## so it lies flat where it stood, toward the side with more air next to it (the wall it hung on is
+## on the other; a tie goes +x / +z). The other side is tried when the first has no room; {} when
+## neither has (it drops straight) or the piece isn't a plate. Otherwise {origin, size, voxels (the
+## piece lying down, same layout), pivot (voxel space: a point on the edge it turns about), axis
+## (unit: a +90 degree turn about it takes the piece from standing to lying)}.
+func topple(origin: Vector3i, size: Vector3i, voxels: PackedByteArray) -> Dictionary:
+	var thin_z := size.z <= size.x
+	var thickness := size.z if thin_z else size.x
+	if thickness > TOPPLE_THICKNESS or size.y < TOPPLE_RATIO * thickness:
+		return {}
+	var sides := [1, -1] if _room(origin, size, thin_z, 1) >= _room(origin, size, thin_z, -1) else [-1, 1]
+	for side: int in sides:
+		var turned := _turned(origin, size, voxels, thin_z, side)
+		if _fits(turned.origin, turned.size, turned.voxels):
+			return turned
+	return {}
+
+
+## Air voxels out from the plate's face on side (+1: the +x / +z face), up to TOPPLE_PROBE deep, in
+## three columns along it at mid height.
+func _room(origin: Vector3i, size: Vector3i, thin_z: bool, side: int) -> int:
+	var y := origin.y + size.y / 2
+	var length := size.x if thin_z else size.z
+	var room := 0
+	for k in 3:
+		var along := length * (2 * k + 1) / 6
+		for d in TOPPLE_PROBE:
+			var p: Vector3i
+			if thin_z:
+				p = Vector3i(origin.x + along, y, origin.z + size.z + d if side > 0 else origin.z - 1 - d)
+			else:
+				p = Vector3i(origin.x + size.x + d if side > 0 else origin.x - 1 - d, y, origin.z + along)
+			if lab.world.get_voxel(p) != VoxelMaterials.AIR:
+				break
+			room += 1
+	return room
+
+
+## The plate turned a quarter toward side about its bottom edge on that side (see topple): thin in z,
+## size (x, y, z) becomes (x, z, y) lying along z; thin in x, (y, x, z) lying along x.
+func _turned(origin: Vector3i, size: Vector3i, voxels: PackedByteArray, thin_z: bool, side: int) -> Dictionary:
+	var t := size.z if thin_z else size.x
+	var h := size.y
+	var lying_size := Vector3i(size.x, t, h) if thin_z else Vector3i(h, t, size.z)
+	var lying_origin := origin
+	var pivot := Vector3(origin)
+	if thin_z:
+		lying_origin.z = origin.z + t if side > 0 else origin.z - h
+		pivot.z = origin.z + t if side > 0 else origin.z
+	else:
+		lying_origin.x = origin.x + t if side > 0 else origin.x - h
+		pivot.x = origin.x + t if side > 0 else origin.x
+	var lying := PackedByteArray()
+	lying.resize(voxels.size())
+	var layer := size.x * size.y
+	var lying_layer := lying_size.x * lying_size.y
+	for i in voxels.size():
+		var m := voxels[i]
+		if m == 0:
+			continue
+		var x := i % size.x
+		var y := (i / size.x) % size.y
+		var z := i / layer
+		# The face on side ends up underneath, the top farthest out.
+		var q: Vector3i
+		if thin_z:
+			q = Vector3i(x, t - 1 - z, y) if side > 0 else Vector3i(x, z, h - 1 - y)
+		else:
+			q = Vector3i(y, t - 1 - x, z) if side > 0 else Vector3i(h - 1 - y, x, z)
+		lying[q.x + q.y * lying_size.x + q.z * lying_layer] = m
+	var direction := Vector3(0, 0, side) if thin_z else Vector3(side, 0, 0)
+	return {origin = lying_origin, size = lying_size, voxels = lying, pivot = pivot, axis = Vector3.UP.cross(direction)}
+
+
+## Whether every voxel of the box at origin lands on air inside the world.
+func _fits(origin: Vector3i, size: Vector3i, voxels: PackedByteArray) -> bool:
+	var world_size := lab.world.get_size_in_voxels()
+	var end := origin + size
+	if origin.x < 0 or origin.y < 0 or origin.z < 0 or end.x > world_size.x or end.y > world_size.y or end.z > world_size.z:
+		return false
+	var layer := size.x * size.y
+	for i in voxels.size():
+		if voxels[i] != 0 and lab.world.get_voxel(origin + Vector3i(i % size.x, (i / size.x) % size.y, i / layer)) != VoxelMaterials.AIR:
+			return false
+	return true
 
 
 ## Host: the fall's time is up. Something may have been carved out from under the landing while it
@@ -337,19 +450,31 @@ func drop_distance(origin: Vector3i, size: Vector3i, voxels: PackedByteArray) ->
 
 ## Every peer: a mesh of the piece slides from origin down to landing over duration, speeding up
 ## as it goes (constant acceleration), and lingers LINGER past the end while the host's stamp lands.
+## A plate that topples (axis not zero) also turns a quarter about axis through pivot (voxel space,
+## falling with it), faster as it goes, and ends lying where the host stamps it (landing is then the
+## lying box's origin). The mesh carries its own surface materials (VoxelWorld.build_model_mesh).
 @rpc("authority", "reliable")
-func _fall(id: int, origin: Vector3i, size: Vector3i, packed: PackedByteArray, raw_size: int, landing: Vector3i, duration: float) -> void:
+func _fall(id: int, origin: Vector3i, size: Vector3i, packed: PackedByteArray, raw_size: int, landing: Vector3i, duration: float,
+		pivot: Vector3, axis: Vector3) -> void:
 	var voxels := packed.decompress(raw_size, FileAccess.COMPRESSION_ZSTD)
 	if voxels.size() != size.x * size.y * size.z:
 		return
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = lab.world.build_model_mesh(size, voxels)
-	mesh.material_override = lab.world.material
 	mesh.position = lab.view.to_world(Vector3(origin))
 	lab.view.add_child(mesh)
 	meshes[id] = mesh
 	var tween := mesh.create_tween()
-	tween.tween_property(mesh, "position", lab.view.to_world(Vector3(landing)), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if axis.is_zero_approx():
+		tween.tween_property(mesh, "position", lab.view.to_world(Vector3(landing)), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	else:
+		var hinge := lab.view.to_world(pivot)
+		var arm := mesh.position - hinge
+		var fall := Vector3(0.0, float(landing.y - origin.y) * lab.world.voxel_size, 0.0)
+		var place := func(t: float) -> void:
+			var turn := Basis(axis, PI * 0.5 * t * t)
+			mesh.transform = Transform3D(turn, hinge + fall * t * t + turn * arm)
+		tween.tween_method(place, 0.0, 1.0, duration)
 	tween.tween_interval(LINGER)
 	tween.tween_callback(func() -> void:
 		meshes.erase(id)

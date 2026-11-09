@@ -89,7 +89,6 @@ static func build(world: VoxelWorld, model: Dictionary, tint: Color, voxel: floa
 	var body_mesh := MeshInstance3D.new()
 	body_mesh.name = "Body"
 	body_mesh.mesh = meshes[0]
-	body_mesh.material_override = world.material
 	body_mesh.position = shift
 	if model.get("weapon", false):
 		body_mesh.layers = WEAPON_LAYER

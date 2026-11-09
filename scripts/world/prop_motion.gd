@@ -179,7 +179,6 @@ func _add(object: Dictionary) -> void:
 	add_child(pivot)
 	var head := MeshInstance3D.new()
 	head.mesh = mesh
-	head.material_override = view.lab.world.material
 	head.position = (Vector3(spec.at) - pivot_local) * voxel_size
 	pivot.add_child(head)
 	var led := MeshInstance3D.new()

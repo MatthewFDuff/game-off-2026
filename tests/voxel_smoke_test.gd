@@ -149,8 +149,81 @@ func _run() -> void:
 	var from_inside: Dictionary = world.get_flow(inside)
 	_check("room reaches target through planks", from_inside.valid, str(from_inside))
 
+	_glass(world)
+
 	print("voxel smoke test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+## See-through materials mesh into a second surface with the glass material, and the faces behind
+## them are kept: a pair of voxels along x, each case's face area (in voxel faces) per surface.
+func _glass(world: VoxelWorld) -> void:
+	var M := VoxelMaterials
+	_check("the world has a glass material and glass is translucent", world.glass_material is ShaderMaterial
+			and world.material_translucency[M.GLASS] == 1 and world.material_translucency[M.GLASS_SHARDS] == 0)
+	var cases := [
+		["opaque pair: one surface, the shared face hidden", M.CONCRETE, M.CONCRETE, 10.0, -1.0],
+		["concrete behind glass: its face against the glass is kept", M.CONCRETE, M.GLASS, 6.0, 5.0],
+		["a glass pair: the shared face hidden", M.GLASS, M.GLASS, -1.0, 10.0],
+		["plain against tempered: both shared faces drawn", M.GLASS, M.GLASS_TEMPERED, -1.0, 12.0],
+		["shards are opaque", M.CONCRETE, M.GLASS_SHARDS, 10.0, -1.0],
+	]
+	for c: Array in cases:
+		var mesh := world.build_model_mesh(Vector3i(2, 1, 1), PackedByteArray([c[1], c[2]]))
+		var opaque := -1.0
+		var glass := -1.0
+		var materials_ok := true
+		for i in mesh.get_surface_count():
+			var material := mesh.surface_get_material(i)
+			if material == world.material:
+				opaque = _area(mesh, i, world.voxel_size)
+			elif material == world.glass_material:
+				glass = _area(mesh, i, world.voxel_size)
+			else:
+				materials_ok = false
+		_check(c[0], materials_ok and is_equal_approx(opaque, c[3]) and is_equal_approx(glass, c[4]) and (opaque < 0.0 or mesh.surface_get_material(0) == world.material),
+				"opaque %.1f, glass %.1f, %d surfaces" % [opaque, glass, mesh.get_surface_count()])
+
+	# A pane in the world: its chunk's mesh gets a glass surface, which follows set_glass_material.
+	var pane := Vector3i(300, 40, 300)
+	world.fill_box(pane - Vector3i(2, 2, 2), pane + Vector3i(6, 6, 3), M.AIR) # In the open, wherever that is.
+	world.fill_box(pane, pane + Vector3i(4, 4, 1), M.GLASS)
+	world.flush_edits(-1)
+	var chunk_mesh: ArrayMesh = null
+	for child in world.get_children(true):
+		var instance := child as MeshInstance3D
+		if instance and instance.material_override == null and instance.mesh is ArrayMesh:
+			for i in instance.mesh.get_surface_count():
+				if instance.mesh.surface_get_material(i) == world.glass_material:
+					chunk_mesh = instance.mesh
+		if chunk_mesh:
+			break
+	_check("a glass pane gets a glass surface in its chunk", chunk_mesh != null)
+	var swapped := ShaderMaterial.new()
+	var glass_was := world.glass_material
+	world.glass_material = swapped
+	var follows := chunk_mesh != null
+	if chunk_mesh:
+		follows = false
+		for i in chunk_mesh.get_surface_count():
+			follows = follows or chunk_mesh.surface_get_material(i) == swapped
+	_check("chunk surfaces follow set_glass_material", follows)
+	world.glass_material = glass_was
+	world.fill_box(pane, pane + Vector3i(4, 4, 1), M.AIR)
+
+
+## Total area of a mesh surface's triangles, in voxel faces.
+func _area(mesh: ArrayMesh, surface: int, voxel_size: float) -> float:
+	var arrays := mesh.surface_get_arrays(surface)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var area := 0.0
+	for t in indices.size() / 3:
+		var a := vertices[indices[t * 3]]
+		var b := vertices[indices[t * 3 + 1]]
+		var c := vertices[indices[t * 3 + 2]]
+		area += (b - a).cross(c - a).length() * 0.5
+	return snappedf(area / (voxel_size * voxel_size), 0.01)
 
 
 func _filled(count: int, material: int) -> PackedByteArray:

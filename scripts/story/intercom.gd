@@ -5,8 +5,8 @@ extends Control
 ## it together; each peer queues and shows it. Lines live in Lines.INTERCOM and play once each
 ## unless they're in Lines.REPEATABLE (those are rate limited instead). A newer tour line (`say_*`)
 ## drops a tour line still waiting in the queue, so a quick player isn't read the last room's line.
-## While the reader panel or the controls sheet is open, the subtitle moves to the top of the
-## screen so it never covers them. Story wires the triggers to it; it listens to door refusals
+## While the reader panel, the controls sheet or the pause panel is open, the subtitle moves to the
+## top of the screen so it never covers them. Story wires the triggers to it; it listens to door refusals
 ## itself for the per-door hints (`hint_<door id>`), and resets on a mode change (the editor's F5).
 
 ## Seconds a line stays for each character, and the least it stays.
@@ -211,11 +211,14 @@ func _process(delta: float) -> void:
 		_fit()
 
 
-## True while the reader panel or the controls sheet is open: the subtitle goes to the top.
+## True while the reader panel, the controls sheet or the pause panel is open: the subtitle goes
+## to the top.
 func overlay_open() -> bool:
 	if lab.play and lab.play.reading != "":
 		return true
 	var hud := get_parent().get_parent() if get_parent() else null
+	if hud is LabHud and (hud as LabHud).pause_shown():
+		return true
 	if hud:
 		for node in hud.get_children():
 			if node is ControlsOverlay and node.visible:
@@ -223,7 +226,8 @@ func overlay_open() -> bool:
 	return false
 
 
-## Bottom center (top center while overlay_open), never wider than the viewport.
+## Bottom center (top center while overlay_open), never wider than the viewport and never past
+## its edges. The label is laid out at its width before the panel takes its height (PanelFit.wrap).
 func _fit() -> void:
 	var viewport := get_viewport_rect().size
 	var key := "%s|%s|%s" % [_label.text, viewport, overlay_open()]
@@ -231,7 +235,7 @@ func _fit() -> void:
 		return
 	_fit_key = key
 	var width := minf(MAX_WIDTH, viewport.x - 40.0)
-	_label.custom_minimum_size.x = width - 24.0
-	_panel.size = _panel.get_combined_minimum_size()
-	var y := TOP_GAP if overlay_open() else viewport.y - _panel.size.y - BOTTOM_GAP
-	_panel.position = Vector2((viewport.x - _panel.size.x) * 0.5, y)
+	PanelFit.wrap(_label, width - 24.0)
+	var size := _panel.get_combined_minimum_size()
+	var y := TOP_GAP if overlay_open() else viewport.y - size.y - BOTTOM_GAP
+	PanelFit.place(_panel, Vector2((viewport.x - size.x) * 0.5, y), TOP_GAP)

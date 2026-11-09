@@ -107,7 +107,6 @@ func _render(prop_name: String) -> void:
 		return
 	_busy = true
 	_mesh.mesh = mesh
-	_mesh.material_override = view.lab.world.material
 	var box := mesh.get_aabb()
 	var center := box.get_center()
 	var distance := box.size.length() * 2.1

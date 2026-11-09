@@ -24,6 +24,15 @@ extends Node3D
 ## target's chest, so nothing bites through a thin wall, and burning only spreads to enemies in
 ## sight. Its sounds are quieter on a peer whose camera can't see it (play_sound).
 ##
+## Chunks: every hit (EnemyManager._damage, not status ticks) blasts a sphere of voxels out of the
+## body (chip, host), sized by the damage (carve_radius: about max_health of damage takes off
+## CARVE_SHARE of it). The first chunk gives the enemy its own copy of the model's voxels and its own
+## mesh (until then it wears the shared cached one), rebuilt at most every MESH_INTERVAL. The host batches
+## the chunks (local points and radii) to every peer at most every CHUNK_INTERVAL, each peer carves
+## the same and bursts the removed voxels as debris; late joiners get the whole list. Below
+## CARVE_DEATH_SHARE of its voxels left it dies whatever its health, and the death burst is what's
+## left of it. bounds and the hit zones never shrink.
+##
 ## Emerging: spawner enemies (EnemyManager.spawn with emerge) rise EMERGE_DEPTH out of the floor
 ## over EMERGE_TIME (from the ceiling: drop down out of it) before they act. The host moves it (the
 ## position stream shows it to peers); every peer counts `emerging` down, and while it's above zero
@@ -59,6 +68,20 @@ const STATUS_TINTS := {
 	raging = Color(1.0, 0.12, 0.12, 0.38), poisoned = Color(0.35, 1.0, 0.25, 0.35),
 	slowed = Color(0.95, 0.97, 1.0, 0.45),
 }
+## Chunks (see the top): the share of the pristine body that max_health of damage blasts off (each
+## chunk is sized to remove its damage's share of it, _fit_radius), the carve radius range (voxels;
+## the top end is also capped at CARVE_MAX_FRACTION of the model's smallest side, so a small body
+## never loses half of itself to one shot), the share left below which it dies, and the shortest
+## gap (seconds) between two chunk messages for one enemy.
+const CARVE_SHARE := 0.5
+const CARVE_MIN_RADIUS := 1.0
+const CARVE_MAX_RADIUS := 7.0
+const CARVE_MAX_FRACTION := 0.4
+const CARVE_DEATH_SHARE := 0.35
+const CHUNK_INTERVAL := 0.1
+## Shortest gap (seconds) between two rebuilds of one enemy's own carved mesh (a flamethrower
+## carves many times a second; the giant's mesh takes a couple of ms).
+const MESH_INTERVAL := 0.05
 ## Speed multiplier while slowed (foam).
 const FOAM_SLOW := 0.5
 ## Simulation LOD (host): an enemy farther than this many meters from every target player thinks
@@ -166,6 +189,27 @@ var _breach_wait := -1.0
 var last_hit_fx_msec := -1000000
 ## The body's bounding sphere radius around get_center() (ray_test's quick reject).
 var _bound_radius := 1.0
+## Every chunk taken out of it so far, oldest first: local points (meters, the node's space) and
+## radii (meters). On the host, re-sent to late joiners (EnemyManager._send_roster).
+var carve_points := PackedVector3Array()
+var carve_radii := PackedFloat32Array()
+## Chunks: its own copy of the body's voxels once one was carved (empty: still the shared mesh),
+## that copy's size, voxel count and material id -> count, the pristine model's voxel count, and
+## its own mesh (rebuilt in _process when _body_dirty; freed with the node).
+var _body := PackedByteArray()
+var _body_size := Vector3i.ZERO
+var _body_count := 0
+var _body_counts := {}
+var _full_count := 0
+var _body_dirty := false
+var _rebuild_msec := -1000000
+var _own_mesh: ArrayMesh
+## Host: chunks not yet sent to the peers, the material counts they removed (for the burst) and
+## when (msec) the last batch went.
+var _pending_points := PackedVector3Array()
+var _pending_radii := PackedFloat32Array()
+var _pending_removed := {}
+var _chunk_msec := -1000000
 
 ## "<kind>:<model key>" -> ArrayMesh (EnemyModels.model's key: its file), shared by every enemy
 ## wearing that model. Bounded by the number of model files.
@@ -193,21 +237,27 @@ func _ready() -> void:
 	_last_position = global_position
 
 
-## (Re)builds the body mesh from the kind's model, and the bounds and hit zones from its size.
+## (Re)builds the body mesh from the kind's model (body_voxels: the shared cached mesh, or its own
+## once chunks were carved out), and the bounds and hit zones from its size.
 func build_body() -> void:
 	if world == null:
 		return
 	var model := EnemyModels.model(kind, variant)
 	if model.is_empty():
 		return
-	var key := mesh_key(model)
-	if not _meshes.has(key):
-		_meshes[key] = world.build_model_mesh(model.size, model.voxels)
 	if _mesh == null:
 		_mesh = MeshInstance3D.new()
 		_visual.add_child(_mesh)
-	_mesh.mesh = _meshes[key]
-	_mesh.material_override = world.material
+	if not _body.is_empty() and _body_size != model.size:
+		_reset_body() # Live reload to a different-sized model: the chunks no longer line up.
+	if _body.is_empty():
+		var key := body_key(model)
+		if not _meshes.has(key):
+			_meshes[key] = world.build_model_mesh(model.size, body_voxels(model))
+		_mesh.mesh = _meshes[key]
+	else:
+		_mask_body(body_voxels(model))
+		_rebuild_own_mesh()
 	var size := Vector3(model.size) * world.voxel_size
 	_mesh.position = Vector3(-size.x * 0.5, 0.0, -size.z * 0.5)
 	bounds = AABB(_mesh.position, size)
@@ -219,6 +269,17 @@ func build_body() -> void:
 ## The cache key of a model of this enemy's kind (_meshes, _debris): "<kind>:<model key>".
 func mesh_key(model: Dictionary) -> String:
 	return "%s:%s" % [kind, model.get("key", str(variant))]
+
+
+## The voxels the body is built from: the model's. Subclasses take parts away (the giant's broken
+## antennae); carved chunks come off on top of this. Don't modify the result.
+func body_voxels(model: Dictionary) -> PackedByteArray:
+	return model.voxels
+
+
+## The cache key of the shared mesh of body_voxels (mesh_key, plus a suffix per variation).
+func body_key(model: Dictionary) -> String:
+	return mesh_key(model)
 
 
 ## Live reload: drop the cached meshes so build_body reads the new files.
@@ -377,6 +438,262 @@ static func _slab(box: AABB, from: Vector3, dir: Vector3) -> Vector4:
 	if t_near < 0.0:
 		return Vector4(0.0, -dir.x, -dir.y, -dir.z)
 	return Vector4(t_near, normal.x, normal.y, normal.z)
+
+
+# --- Chunks ------------------------------------------------------------------------------------
+
+## Voxels a hit of amount damage should blast off: its share of max_health x CARVE_SHARE of the
+## pristine body. Bigger bodies lose bigger chunks.
+func carve_target(amount: float) -> float:
+	var model := EnemyModels.model(kind, variant)
+	if model.is_empty():
+		return 0.0
+	var full := float(_full_count if _full_count > 0 else _count_voxels(model.voxels))
+	return full * CARVE_SHARE * amount / maxf(max_health, 1.0)
+
+
+## A first guess at the carve radius (voxels) for a hit of amount damage: the sphere half of which
+## (a hit on the surface) holds carve_target, clamped to CARVE_MIN_RADIUS..max_carve_radius.
+## chip then fits the real radius to the body around the hit (_fit_radius).
+func carve_radius(amount: float) -> float:
+	var radius := pow(carve_target(amount) / (0.5 * 4.0 / 3.0 * PI), 1.0 / 3.0)
+	return clampf(radius, CARVE_MIN_RADIUS, max_carve_radius())
+
+
+## The biggest carve radius (voxels): CARVE_MAX_RADIUS, or CARVE_MAX_FRACTION of the model's
+## smallest side if that's less (never below CARVE_MIN_RADIUS).
+func max_carve_radius() -> float:
+	var model := EnemyModels.model(kind, variant)
+	var size: Vector3i = model.get("size", Vector3i.ONE)
+	return maxf(CARVE_MIN_RADIUS, minf(CARVE_MAX_RADIUS, mini(size.x, mini(size.y, size.z)) * CARVE_MAX_FRACTION))
+
+
+## How much of the body is left (1 until a chunk comes off): voxels left / the pristine model's.
+func remaining_share() -> float:
+	if _body.is_empty() or _full_count <= 0:
+		return 1.0
+	return float(_body_count) / _full_count
+
+
+## Voxels left in its body (body_voxels' count until a chunk comes off).
+func voxel_count() -> int:
+	if not _body.is_empty():
+		return _body_count
+	return _count_voxels(body_voxels(EnemyModels.model(kind, variant)))
+
+
+## Whether it has its own carved copy of the body (a chunk came off) instead of the shared mesh.
+func is_carved() -> bool:
+	return not _body.is_empty()
+
+
+## Host: a hit of amount damage landed at a world point: blasts a chunk (carve_radius) out of the
+## body there, or, if that point of the box is air (between a tentacle's arms, a hole already shot
+## through), at the first voxel on the way in toward the middle, else the nearest one left. Queued
+## for the peers (sent from _process, CHUNK_INTERVAL apart).
+func chip(point: Vector3, amount: float) -> void:
+	if world == null or amount <= 0.0 or not alive or not _ensure_body():
+		return
+	var local := global_transform.affine_inverse() * point
+	var center := _carve_center((local - bounds.position) / world.voxel_size)
+	if center.x < 0.0:
+		return
+	var radius := _fit_radius(center, carve_target(amount), carve_radius(amount))
+	var removed := _carve(center, radius)
+	if removed.is_empty():
+		return
+	var local_point := bounds.position + center * world.voxel_size
+	var local_radius := radius * world.voxel_size
+	carve_points.append(local_point)
+	carve_radii.append(local_radius)
+	_pending_points.append(local_point)
+	_pending_radii.append(local_radius)
+	for id: int in removed:
+		_pending_removed[id] = int(_pending_removed.get(id, 0)) + int(removed[id])
+
+
+## Host: whether chunks wait to go to the peers (EnemyManager.send_chunks).
+func has_pending_chunks() -> bool:
+	return not _pending_points.is_empty()
+
+
+## Host: the queued chunks [points, radii, removed counts], cleared.
+func take_pending_chunks() -> Array:
+	var out := [_pending_points, _pending_radii, _pending_removed]
+	_pending_points = PackedVector3Array()
+	_pending_radii = PackedFloat32Array()
+	_pending_removed = {}
+	_chunk_msec = Time.get_ticks_msec()
+	return out
+
+
+## Peers: the host's chunks (local points and radii, meters). Carves the same spheres and returns
+## the material id -> count removed (EnemyManager bursts them). Applying one twice removes nothing
+## the second time, so a late joiner's full list and a batch in flight can overlap.
+func apply_chunks(points: PackedVector3Array, radii: PackedFloat32Array) -> Dictionary:
+	var removed_all := {}
+	if world == null or points.size() != radii.size() or not _ensure_body():
+		return removed_all
+	for i in points.size():
+		var radius := clampf(radii[i] / world.voxel_size, 0.0, CARVE_MAX_RADIUS)
+		var removed := _carve((points[i] - bounds.position) / world.voxel_size, radius)
+		for id: int in removed:
+			removed_all[id] = int(removed_all.get(id, 0)) + int(removed[id])
+	carve_points.append_array(points)
+	carve_radii.append_array(radii)
+	return removed_all
+
+
+## Gives it its own copy of the body's voxels (first chunk). False when there's no model.
+func _ensure_body() -> bool:
+	if not _body.is_empty():
+		return true
+	var model := EnemyModels.model(kind, variant)
+	if model.is_empty():
+		return false
+	_body = body_voxels(model).duplicate()
+	_body_size = model.size
+	_full_count = _count_voxels(model.voxels)
+	_recount_body()
+	return true
+
+
+## Back to the shared mesh, no chunks (live reload changed the model's size).
+func _reset_body() -> void:
+	_body = PackedByteArray()
+	_body_size = Vector3i.ZERO
+	_body_counts = {}
+	_body_count = 0
+	_full_count = 0
+	_own_mesh = null
+	carve_points = PackedVector3Array()
+	carve_radii = PackedFloat32Array()
+
+
+## Clears every voxel of its copy that the body no longer has (the giant's antennae broke).
+func _mask_body(voxels: PackedByteArray) -> void:
+	if voxels.size() != _body.size():
+		return
+	var changed := false
+	for i in _body.size():
+		if _body[i] != 0 and voxels[i] == 0:
+			_body[i] = 0
+			changed = true
+	if changed:
+		_recount_body()
+
+
+## Counts its copy's voxels again, in all and per material.
+func _recount_body() -> void:
+	_body_counts = {}
+	_body_count = 0
+	for i in _body.size():
+		var m := _body[i]
+		if m != 0:
+			_body_counts[m] = int(_body_counts.get(m, 0)) + 1
+			_body_count += 1
+
+
+## Solid (non-zero) entries in a model's voxels.
+static func _count_voxels(voxels: PackedByteArray) -> int:
+	return voxels.size() - voxels.count(0)
+
+
+## Where a chunk aimed at voxel point v (model voxel space, may be outside the box) is carved: v
+## itself if it's in a voxel, else the first voxel on the line from v (clamped into the box)
+## toward the middle, else the nearest voxel left. Vector3(-1, -1, -1) when there's none.
+func _carve_center(v: Vector3) -> Vector3:
+	var size := Vector3(_body_size)
+	v = v.clamp(Vector3.ZERO, size - Vector3.ONE * 0.001)
+	var to := size * 0.5 - v
+	var steps := ceili(to.length() * 2.0)
+	var direction := to / steps if steps > 0 else Vector3.ZERO
+	for step in steps + 1:
+		var p := v + direction * float(step)
+		var cell := Vector3i(p.floor())
+		if _body[cell.x + cell.y * _body_size.x + cell.z * _body_size.x * _body_size.y] != 0:
+			return Vector3(cell) + Vector3.ONE * 0.5
+	if _body_count <= 0:
+		return Vector3(-1.0, -1.0, -1.0)
+	var best := Vector3(-1.0, -1.0, -1.0)
+	var best_d2 := INF
+	var layer := _body_size.x * _body_size.y
+	for i in _body.size():
+		if _body[i] == 0:
+			continue
+		@warning_ignore("integer_division")
+		var c := Vector3(i % _body_size.x, (i / _body_size.x) % _body_size.y, i / layer) + Vector3.ONE * 0.5
+		var d2 := c.distance_squared_to(v)
+		if d2 < best_d2:
+			best_d2 = d2
+			best = c
+	return best
+
+
+## The smallest radius (voxels, in half-voxel steps, CARVE_MIN_RADIUS at least) of a sphere at
+## center (model voxel space) that holds wanted voxels of its copy, looking out to twice guess
+## (max_carve_radius at most): one pass over that box, binning voxels by distance. Thin arms or a
+## curved cap need a bigger sphere than a flat side for the same chunk.
+func _fit_radius(center: Vector3, wanted: float, guess: float) -> float:
+	var reach := minf(max_carve_radius(), maxf(guess * 2.0, CARVE_MIN_RADIUS))
+	var bins := PackedInt32Array()
+	bins.resize(ceili(reach * 2.0) + 1)
+	var low := Vector3i((center - Vector3.ONE * reach).floor()).max(Vector3i.ZERO)
+	var high := Vector3i((center + Vector3.ONE * reach).ceil()).min(_body_size - Vector3i.ONE)
+	var r2 := reach * reach
+	for z in range(low.z, high.z + 1):
+		for y in range(low.y, high.y + 1):
+			var row := y * _body_size.x + z * _body_size.x * _body_size.y
+			for x in range(low.x, high.x + 1):
+				if _body[row + x] == 0:
+					continue
+				var d2 := Vector3(x + 0.5, y + 0.5, z + 0.5).distance_squared_to(center)
+				if d2 <= r2:
+					bins[int(sqrt(d2) * 2.0)] += 1
+	var total := 0
+	for i in bins.size():
+		total += bins[i]
+		var radius := (i + 1) * 0.5
+		if total >= wanted and radius >= CARVE_MIN_RADIUS:
+			return minf(radius, reach)
+	return reach
+
+
+## Removes every voxel of its copy whose center is within radius (voxels) of center (model voxel
+## space). Returns material id -> count removed (empty: nothing was there).
+func _carve(center: Vector3, radius: float) -> Dictionary:
+	var removed := {}
+	if radius <= 0.0 or _body.is_empty():
+		return removed
+	var low := Vector3i((center - Vector3.ONE * radius).floor()).max(Vector3i.ZERO)
+	var high := Vector3i((center + Vector3.ONE * radius).ceil()).min(_body_size - Vector3i.ONE)
+	var r2 := radius * radius
+	for z in range(low.z, high.z + 1):
+		for y in range(low.y, high.y + 1):
+			var row := y * _body_size.x + z * _body_size.x * _body_size.y
+			for x in range(low.x, high.x + 1):
+				var m := _body[row + x]
+				if m != 0 and Vector3(x + 0.5, y + 0.5, z + 0.5).distance_squared_to(center) <= r2:
+					_body[row + x] = 0
+					removed[m] = int(removed.get(m, 0)) + 1
+	for m: int in removed:
+		_body_counts[m] = int(_body_counts.get(m, 0)) - int(removed[m])
+		_body_count -= int(removed[m])
+		if _body_counts[m] <= 0:
+			_body_counts.erase(m)
+	if not removed.is_empty():
+		_body_dirty = true
+	return removed
+
+
+## Builds its own mesh from its carved copy (from _process, at most every MESH_INTERVAL).
+func _rebuild_own_mesh() -> void:
+	_body_dirty = false
+	_rebuild_msec = Time.get_ticks_msec()
+	if _mesh == null or world == null:
+		return
+	_own_mesh = world.build_model_mesh(_body_size, _body)
+	_mesh.mesh = _own_mesh
 
 
 # --- Host simulation -----------------------------------------------------------------------------
@@ -715,6 +1032,10 @@ func _process(delta: float) -> void:
 		_interpolate_remote()
 		# Peers count the emergence down themselves (the host's stream carries the rise).
 		emerging = maxf(emerging - delta, 0.0)
+	elif manager and not _pending_points.is_empty() and Time.get_ticks_msec() - _chunk_msec >= int(CHUNK_INTERVAL * 1000.0):
+		manager.send_chunks(self)
+	if _body_dirty and Time.get_ticks_msec() - _rebuild_msec >= int(MESH_INTERVAL * 1000.0):
+		_rebuild_own_mesh()
 	var step := global_position - _last_position
 	_last_position = global_position
 	if delta > 0.0:
@@ -798,15 +1119,19 @@ func die() -> void:
 	queue_free()
 
 
-## Material id -> voxel count of the body, for the death burst. Counted once per model (_debris);
-## don't modify the result.
+## Material id -> voxel count of the body, for the death burst: what's left of it once chunks were
+## carved, else counted once per body_key (_debris); don't modify the result.
 func _debris_counts() -> Dictionary:
+	if not _body.is_empty():
+		return _body_counts
 	var model := EnemyModels.model(kind, variant)
-	var key := mesh_key(model)
+	if model.is_empty():
+		return {}
+	var key := body_key(model)
 	if _debris.has(key):
 		return _debris[key]
 	var counts := {}
-	var voxels: PackedByteArray = model.get("voxels", PackedByteArray())
+	var voxels := body_voxels(model)
 	for i in voxels.size():
 		if voxels[i] != 0:
 			counts[voxels[i]] = counts.get(voxels[i], 0) + 1

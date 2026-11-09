@@ -7,7 +7,10 @@ extends CanvasLayer
 ## Solo play pauses under it; co-op keeps running. In a story shift a line under the buttons says
 ## what leaving does (the host saves the shift: Lab.save_shift). On a pad the first button takes
 ## focus when the panel opens, the D-pad and stick move it, A presses, B goes back a page and
-## Start resumes (docs/controls.md, 2.5). Placeholder until the real HUD exists.
+## Start resumes (docs/controls.md, 2.5). The mouse works every page: the buttons are Buttons, and
+## the Settings and Controls pages take hover, clicks, the wheel and their Back line
+## (mouse_enabled). The panel stays inside the viewport (PanelFit; the Controls page shows fewer
+## rows when it wouldn't fit). Placeholder until the real HUD exists.
 
 @export var lab: Lab
 
@@ -118,6 +121,11 @@ func _process(delta: float) -> void:
 		_waiting.visible = false
 
 
+## True while the pause panel shows (the intercom moves its subtitle off it).
+func pause_shown() -> bool:
+	return _pause.visible
+
+
 func _build_pause() -> void:
 	_pause.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_pause.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -169,6 +177,7 @@ func _build_pause() -> void:
 	_invite.add_child(back)
 
 	_settings_menu = SettingsMenu.create(2, Color(0.9, 0.9, 0.9))
+	_settings_menu.mouse_enabled = true
 	_settings_menu.visible = false
 	_settings_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_settings_menu.closed.connect(_show_buttons)
@@ -176,11 +185,13 @@ func _build_pause() -> void:
 	column.add_child(_settings_menu)
 
 	_bindings_menu = BindingsMenu.create(2, Color(0.9, 0.9, 0.9))
+	_bindings_menu.mouse_enabled = true
 	_bindings_menu.visible = false
 	_bindings_menu.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_bindings_menu.closed.connect(_show_settings)
 	column.add_child(_bindings_menu)
 	_update_pause_info()
+	get_viewport().size_changed.connect(_recenter_pause)
 
 
 func _add_button(text: String, action: Callable) -> void:
@@ -230,10 +241,17 @@ static func _pause_theme() -> Theme:
 	return theme
 
 
-## Shrinks the panel to its contents and centers it again (they change with the page shown).
+## Shrinks the panel to its contents and centers it again (they change with the page shown), inside
+## the viewport: the Controls page drops rows from its window until the panel fits.
 func _recenter_pause() -> void:
-	_pause.reset_size()
-	_pause.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+	var room := get_viewport().get_visible_rect().size.y - 2.0 * PanelFit.MARGIN
+	if _bindings_menu and _bindings_menu.visible:
+		_bindings_menu.rows_shown = BindingsMenu.SHOWN_AT_2X
+		_bindings_menu._refresh()
+		while _pause.get_combined_minimum_size().y > room and _bindings_menu.rows_shown > 3:
+			_bindings_menu.rows_shown -= 1
+			_bindings_menu._refresh()
+	PanelFit.center(_pause)
 
 
 func _show_buttons() -> void:

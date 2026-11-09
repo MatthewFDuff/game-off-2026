@@ -4,7 +4,9 @@ extends SceneTree
 ## Builds a scratch level of two concrete rooms joined by a doorway, plays it solo, and checks that
 ## a basic shroom walks from one room to the player in the other through the doorway, bites them,
 ## is found by combat.ray_hit, takes a crit through a hit zone, and dies into debris on
-## request_hit. Then a trigger turns on a spawner that trickles up to its max_alive, a horde
+## request_hit. Chunks: a hit blasts voxels out of the body (its own mesh), repeated hits at one
+## spot kill it before its health would, and the death burst is what's left; a giant's carved body
+## loses its antennae on top of the chunks, and crits still count. Then a trigger turns on a spawner that trickles up to its max_alive, a horde
 ## bursts past it, the finale stub reports survival, and going back to edit clears every enemy.
 ##
 ## Game types (Lab, Enemy, Combat) are left unnamed (see editor_test.gd): naming them would
@@ -88,6 +90,7 @@ func _run() -> void:
 	_check("bursts into debris", lab.debris.get_child_count() > debris_before, "%d -> %d" % [debris_before, lab.debris.get_child_count()])
 	await _frames(2)
 	_check("freed", not is_instance_valid(enemy))
+	await _chunks(lab, enemies)
 
 	# Spawner: off until the trigger fires, then trickles up to max_alive and no further.
 	await _frames(30)
@@ -118,6 +121,97 @@ func _run() -> void:
 
 	print("enemy test: %s" % ("PASS" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+## Chunks (Enemy.chip): hits carve the body, enough of them kill, the death burst is the remains,
+## and the giant's antennae compose with carving. Everything stands in room A, away from the player.
+func _chunks(lab, enemies) -> void:
+	var spot: Vector3 = lab.view.to_world(ENEMY_SPOT)
+	var shroom = enemies.spawn("basic", spot, 0.0)
+	shroom.speed = 0.0
+	shroom.damage = 0.0
+	await _frames(1)
+	var shared = shroom._mesh.mesh
+	var full: int = shroom.voxel_count()
+	var front: Vector3 = shroom.global_transform * (shroom.bounds.get_center() + Vector3(0.0, 0.0, -shroom.bounds.size.z * 0.5))
+	enemies.request_hit(shroom.id, 6.0, front, "rifle")
+	_check("a hit carves voxels out", shroom.is_carved() and shroom.voxel_count() < full, "%d of %d" % [shroom.voxel_count(), full])
+	await _frames(1)
+	_check("into its own mesh, not the shared one", shroom._mesh.mesh != null and shroom._mesh.mesh != shared and shroom._mesh.mesh == shroom._own_mesh)
+	_check("the hit flash still shows on it", shroom._mesh.material_overlay != null)
+	_check("one chunk logged for late joiners", shroom.carve_points.size() == 1 and shroom.carve_radii.size() == 1)
+	var radius: float = shroom.carve_radius(6.0)
+	_check("chunk radius scales with damage", shroom.carve_radius(20.0) > radius and radius >= shroom.CARVE_MIN_RADIUS, str(radius))
+
+	# Repeated hits at one spot: it falls apart before its (padded) health runs out.
+	shroom.health = 100000.0
+	var death_share: float = shroom.CARVE_DEATH_SHARE
+	var at_death := []
+	var on_died := func(e) -> void:
+		if e == shroom:
+			var sum := 0
+			for count: int in e._debris_counts().values():
+				sum += count
+			at_death.append([sum, e.voxel_count(), e.health, e.remaining_share()])
+	enemies.enemy_died.connect(on_died)
+	var debris_before: int = lab.debris.get_child_count()
+	var hits := 0
+	while is_instance_valid(shroom) and shroom.alive and hits < 300:
+		enemies.request_hit(shroom.id, 6.0, front, "rifle")
+		hits += 1
+		if hits % 5 == 0:
+			await _frames(1)
+	enemies.enemy_died.disconnect(on_died)
+	_check("repeated hits at one spot kill it before its health would", at_death.size() == 1 and at_death[0][2] > 0.0, "%d hits, %s" % [hits, str(at_death)])
+	if at_death.size() == 1:
+		_check("once under the death share", at_death[0][3] < death_share and at_death[0][3] > 0.0, str(at_death[0][3]))
+		_check("the death burst is what was left of it", at_death[0][0] == at_death[0][1] and at_death[0][1] < full, "%s of %d" % [str(at_death[0]), full])
+	_check("and bursts", lab.debris.get_child_count() > debris_before)
+	await _frames(2)
+
+	# The giant: carved, then its antennae break on top of the chunks, and crits still count.
+	var giant = enemies.spawn("giant", spot, 0.0)
+	giant.speed = 0.0
+	giant.damage = 0.0
+	await _frames(1)
+	var model: Dictionary = load("res://scripts/enemies/enemy_models.gd").model("giant", giant.variant)
+	var rebuild_ms := INF
+	for i in 5:
+		var started := Time.get_ticks_usec()
+		lab.world.build_model_mesh(model.size, model.voxels)
+		rebuild_ms = minf(rebuild_ms, (Time.get_ticks_usec() - started) / 1000.0)
+	print("    giant model %s (%d voxels): mesh rebuild %.2f ms (best of 5)" % [model.size, giant.voxel_count(), rebuild_ms])
+	_check("a giant's mesh rebuild is quick", rebuild_ms < 20.0, "%.2f ms" % rebuild_ms)
+	var giant_full: int = giant.voxel_count()
+	var side: Vector3 = giant.global_transform * (giant.bounds.get_center() + Vector3(giant.bounds.size.x * 0.5, -0.3, 0.0))
+	enemies.request_hit(giant.id, 30.0, side, "rifle")
+	var carved: int = giant.voxel_count()
+	_check("a giant takes a chunk", giant.is_carved() and carved < giant_full, "%d of %d" % [carved, giant_full])
+	var crit_damage := []
+	var on_damaged := func(e, amount: float, zone: String) -> void:
+		if e == giant:
+			crit_damage.append([amount, zone])
+	enemies.enemy_damaged.connect(on_damaged)
+	var crit_point: Vector3 = giant.global_transform * (giant.hit_zones.crit.box as AABB).get_center()
+	enemies.request_hit(giant.id, 20.0, crit_point, "rifle")
+	enemies.enemy_damaged.disconnect(on_damaged)
+	_check("antenna crits still multiply", crit_damage.size() == 1 and crit_damage[0][1] == "crit" and crit_damage[0][0] == 100.0, str(crit_damage))
+	_check("and break the antennae", giant.antennae_broken and not giant.hit_zones.has("crit"))
+	var antennae: int = giant_full - giant._count_voxels(giant.without_antennae(model))
+	await _frames(1)
+	_check("the carved body loses the antennae too", giant.voxel_count() <= carved - antennae and giant._mesh.mesh == giant._own_mesh,
+			"%d -> %d (antennae %d)" % [carved, giant.voxel_count(), antennae])
+	var timings := []
+	for amount in [30.0, 4.0]:
+		var started_carve := Time.get_ticks_usec()
+		giant.chip(side, amount)
+		var chip_ms := (Time.get_ticks_usec() - started_carve) / 1000.0
+		started_carve = Time.get_ticks_usec()
+		giant._rebuild_own_mesh()
+		timings.append("chip(%d) %.2f ms + own mesh %.2f ms" % [amount, chip_ms, (Time.get_ticks_usec() - started_carve) / 1000.0])
+	print("    giant: %s" % ", ".join(timings))
+	enemies.despawn(giant.id)
+	await _frames(2)
 
 
 ## Two concrete rooms side by side with a doorway between, a spawn in room B, an inactive spawner in

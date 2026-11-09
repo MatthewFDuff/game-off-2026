@@ -16,6 +16,11 @@ extends Control
 ## came from; the sticks and the wheel are ignored, Esc and Start cancel. A binding another
 ## rebindable action has on the same device swaps with it. Writes go through
 ## GameSettings.set_value("bindings"), only the overrides kept.
+##
+## With mouse_enabled (the pause panel; the console's screen gets no mouse) the mouse works it too:
+## hovering a row chooses it, a click on an action row listens (the click itself is never the
+## binding: it reaches the menu after the holder's _input, and its release is swallowed by listen),
+## on Reset resets, the wheel scrolls the window, and a Back line under the rows emits closed.
 
 signal closed
 
@@ -52,6 +57,8 @@ const COLUMN_WIDTH := 62
 ## Rows shown at once by scale: the console's small screen, the pause panel.
 const SHOWN_AT_1X := 9
 const SHOWN_AT_2X := 10
+## What the mouse's Back line reads (not just "Back": that is a row, move_back).
+const BACK_LABEL := "< Back to settings"
 
 ## A bindings menu is listening somewhere: the controls sheet leaves F1 / Back alone meanwhile.
 static var capturing := false
@@ -71,7 +78,22 @@ var listening := ""
 var rows_shown := SHOWN_AT_1X
 ## The first row shown.
 var top := 0
+## Mouse support: hover, clicks, the wheel and the Back line (the pause panel sets it).
+var mouse_enabled := false:
+	set(value):
+		mouse_enabled = value
+		mouse_filter = Control.MOUSE_FILTER_STOP if value else Control.MOUSE_FILTER_IGNORE
+		if _back_line:
+			_back_line.visible = value
+		_back_hover = false
+		if is_inside_tree():
+			_refresh()
 var _column := VBoxContainer.new()
+var _back_line: HBoxContainer
+var _back_caret: Label
+var _back_label: Label
+## The mouse is over the Back line.
+var _back_hover := false
 var _position: Label
 var _key_head: Label
 var _pad_head: Label
@@ -100,7 +122,7 @@ func _get_minimum_size() -> Vector2:
 
 func _ready() -> void:
 	name = "BindingsMenu"
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP if mouse_enabled else Control.MOUSE_FILTER_IGNORE
 	if _carets.is_empty():
 		_build()
 	_column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -297,6 +319,101 @@ func _build() -> void:
 		_keys.append(parts[3])
 		_pads.append(parts[4])
 		_listens.append(parts[5])
+	_back_line = HBoxContainer.new()
+	_back_line.add_theme_constant_override("separation", 3 * pixel_scale)
+	_back_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_back_caret = _label(">", CARET_COLOR, font_size)
+	_back_caret.custom_minimum_size.x = font_size
+	_back_line.add_child(_back_caret)
+	_back_label = _label(BACK_LABEL, color, font_size)
+	_back_line.add_child(_back_label)
+	_back_line.visible = mouse_enabled
+	_column.add_child(_back_line)
+	_refresh()
+
+
+## The mouse (mouse_enabled): motion chooses the row under it (not while listening), a left click
+## listens on an action row, resets on Reset, emits closed on Back; the wheel scrolls the window.
+## Every mouse button is taken, so a click on the menu never reaches the game behind it. While
+## listening, presses never get here: the holder's _input gives them to listen first.
+func _gui_input(event: InputEvent) -> void:
+	if not mouse_enabled:
+		return
+	if event is InputEventMouseMotion:
+		if listening == "":
+			_hover(event.position)
+	elif event is InputEventMouseButton:
+		accept_event()
+		if not event.pressed or listening != "":
+			return
+		match event.button_index:
+			MOUSE_BUTTON_WHEEL_UP:
+				scroll(-1)
+			MOUSE_BUTTON_WHEEL_DOWN:
+				scroll(1)
+			MOUSE_BUTTON_LEFT:
+				_click(event.position)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_MOUSE_EXIT and _back_hover:
+		_back_hover = false
+		_refresh()
+
+
+## Moves the window of rows by step, the chosen row kept inside it.
+func scroll(step: int) -> void:
+	var shown := mini(rows_shown, row_count())
+	var moved := clampi(top + step, 0, row_count() - shown)
+	if moved == top:
+		return
+	top = moved
+	selected = clampi(selected, top, top + shown - 1)
+	_blip()
+	_refresh()
+
+
+## The shown row under point (menu coordinates), row_count() for the Back line, -1 for none.
+func row_at(point: Vector2) -> int:
+	var gap := pixel_scale # Half the rows' separation: no dead line between rows.
+	for i in _lines.size():
+		if _lines[i].visible and local_rect(_lines[i]).grow_individual(0, gap, 0, gap).has_point(point):
+			return i
+	if _back_line.visible and local_rect(_back_line).grow_individual(0, gap, 0, gap).has_point(point):
+		return row_count()
+	return -1
+
+
+## A child control's rect in this menu's coordinates.
+func local_rect(control: Control) -> Rect2:
+	return Rect2(control.get_global_rect().position - get_global_rect().position, control.size)
+
+
+func _hover(point: Vector2) -> void:
+	var row := row_at(point)
+	var back := row == row_count()
+	var changed := back != _back_hover
+	_back_hover = back
+	if row >= 0 and row < row_count() and row != selected:
+		selected = row
+		_blip()
+		changed = true
+	if changed:
+		_refresh()
+
+
+func _click(point: Vector2) -> void:
+	var row := row_at(point)
+	if row < 0:
+		return
+	if row == row_count():
+		closed.emit()
+		return
+	selected = row
+	if on_reset():
+		reset()
+	else:
+		start_listening()
 	_refresh()
 
 
@@ -358,11 +475,14 @@ func _refresh() -> void:
 	var pad := _pad()
 	var on_pad: bool = pad != null and pad.active
 	_key_head.modulate.a = 0.6 if on_pad else 1.0
+	_back_caret.modulate.a = 1.0 if _back_hover else 0.0
+	_back_label.modulate = Color(1, 1, 1, 1.0 if _back_hover else 0.7)
 	_pad_head.modulate.a = 1.0 if on_pad else 0.6
 	for i in _carets.size():
 		var chosen := i == selected
 		_lines[i].visible = i >= top and i < top + shown
-		_carets[i].modulate.a = 1.0 if chosen else 0.0
+		# One caret: the Back line's while the mouse is on it.
+		_carets[i].modulate.a = 1.0 if chosen and not _back_hover else 0.0
 		var dim := Color(1, 1, 1, 1.0 if chosen else 0.7)
 		_names[i].modulate = dim
 		var is_listening := chosen and listening != ""

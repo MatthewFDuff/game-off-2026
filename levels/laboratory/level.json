@@ -2736,7 +2736,7 @@
 			"door_power": false,
 			"door_speed": 2.0,
 			"facing": 0,
-			"finale_seconds": 150.0,
+			"finale_seconds": 90.0,
 			"kind": "prop",
 			"name": "generator",
 			"needs_power": false,

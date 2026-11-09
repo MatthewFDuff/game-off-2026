@@ -116,23 +116,21 @@ func reader_rect() -> Rect2:
 
 
 ## Keeps the reader on screen: its width fits the viewport and the text area is capped at a share of
-## the viewport's height, scrolling past that.
+## the viewport's height, scrolling past that. The text is laid out at its width before its height
+## is read (PanelFit.wrap), and the panel is centered and clamped inside the viewport.
 func _fit_reader(force := false) -> void:
 	var viewport := get_viewport_rect().size
 	var key := "%s|%s" % [_text.text, viewport]
 	if key == _fit_key and not force:
 		return
 	_fit_key = key
-	var width := minf(READ_WIDTH, viewport.x - 40.0)
+	var width := minf(READ_WIDTH, viewport.x - 2.0 * PanelFit.MARGIN)
 	_panel.custom_minimum_size.x = width
-	_scroll.custom_minimum_size.x = width - 36.0
-	var cap := maxf(80.0, viewport.y * READ_HEIGHT_SHARE - 90.0)
-	_scroll.custom_minimum_size.y = minf(_text.get_combined_minimum_size().y, cap)
-	# Centered whatever size it ends up: its rect is its minimum size around the viewport's middle.
-	var size := _panel.get_combined_minimum_size()
-	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_panel.position = (viewport - size) * 0.5
-	_panel.size = size
+	_scroll.custom_minimum_size = Vector2(width - 36.0, 0.0)
+	var text_height := PanelFit.wrap(_text, width - 36.0)
+	var chrome := _panel.get_combined_minimum_size().y
+	_scroll.custom_minimum_size.y = minf(text_height, PanelFit.body_cap(viewport, chrome, READ_HEIGHT_SHARE))
+	PanelFit.center(_panel)
 
 
 func _input(event: InputEvent) -> void:

@@ -546,7 +546,6 @@ func _skid_motion(prop_name: String, facing: int, from: Vector3, to: Vector3, du
 	var view := play.lab.view
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = view.prop_mesh(prop_name, facing)
-	mesh.material_override = play.lab.world.material
 	mesh.position = from
 	view.add_child(mesh)
 	var tween := mesh.create_tween()

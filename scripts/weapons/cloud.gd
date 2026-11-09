@@ -12,7 +12,8 @@ extends Node3D
 ## Types (TYPES): fire (a burning pool that sets flammable voxels alight through Fire),
 ## poison (a cloud), rage (enemies turn on each other), freeze (an instant burst: frozen, once,
 ## and it puts out fire),
-## spore (a thick grey-white cloud that blinds players inside, from spore shrooms),
+## spore (a thick grey-white cloud that blinds players inside, from spore shrooms; the puff is drawn 4 m wide but only reaches
+## hit_radius, 2.4 m),
 ## foam (a fire extinguisher's burst: enemies inside are slowed, it puts out fire and clears the
 ## spore and poison clouds it overlaps, every tick: `clears`).
 ##
@@ -26,7 +27,8 @@ const BURN_STEP := 0.5
 ## above it count, 2.5 m in all, so a cloud never works through a floor.
 const REACH_BELOW := 1.75
 const REACH_ABOVE := 0.75
-## type -> settings. status / status_seconds go to enemies inside; player_status / player_seconds
+## type -> settings. hit_radius (default radius) is how far the status reaches when that is less than
+## the drawn radius (spore: a big puff, a tighter hit). status / status_seconds go to enemies inside; player_status / player_seconds
 ## to players inside ("" for none). instant types apply once at spawn and only show for seconds.
 const TYPES := {
 	fire = {color = Color(1.0, 0.45, 0.12), radius = 2.5, seconds = 6.0, status = "burning", status_seconds = 3.0,
@@ -38,7 +40,7 @@ const TYPES := {
 			instant = true, douses = true},
 	# Spore shrooms: no damage, players inside are blinded (Player fogs their screen). particles /
 	# puff make it a dense, thick cloud.
-	spore = {color = Color(0.82, 0.82, 0.78), radius = 4.0, seconds = 8.0, status = "",
+	spore = {color = Color(0.82, 0.82, 0.78), radius = 4.0, hit_radius = 2.4, seconds = 8.0, status = "",
 			player_status = "blinded", player_seconds = 3.0, particles = 140, puff = 0.35, alpha = 0.5, sound = "spore_puff"},
 	# Fire extinguishers (LevelPlay) and foam flasks: slows enemies, douses, clears gas clouds.
 	foam = {color = Color(0.93, 0.95, 0.97), radius = 4.0, seconds = 6.0, status = "slowed", status_seconds = 1.0,
@@ -49,6 +51,8 @@ const TYPES := {
 var id := 0
 var type := "poison"
 var radius := 3.0
+## How far the status reaches (reaches, _apply): the type's hit_radius scaled with a custom radius.
+var hit_radius := 3.0
 var seconds := 6.0
 ## Seconds since it appeared.
 var age := 0.0
@@ -93,6 +97,7 @@ func setup(cloud_id: int, cloud_type: String, at: Vector3, cloud_radius: float, 
 	type = cloud_type
 	var defs := settings(cloud_type)
 	radius = cloud_radius if cloud_radius > 0.0 else float(defs.get("radius", 3.0))
+	hit_radius = radius * float(defs.get("hit_radius", radius)) / float(defs.get("radius", 3.0))
 	seconds = cloud_seconds if cloud_seconds > 0.0 else float(defs.get("seconds", 6.0))
 	authoritative = host
 	top_level = true
@@ -137,7 +142,7 @@ func _apply() -> void:
 		return
 	var defs := settings(type)
 	if defs.get("status", "") != "":
-		for enemy in Combat.sphere_hit(global_position, radius + REACH_BELOW):
+		for enemy in Combat.sphere_hit(global_position, hit_radius + REACH_BELOW):
 			if reaches(enemy.world_bounds(), enemy.get_center()):
 				manager.request_status(enemy.id, defs.status, defs.status_seconds)
 	if defs.get("player_status", "") != "":
@@ -154,7 +159,7 @@ func _apply() -> void:
 
 ## Host: whether the cloud's effect reaches a body (its world box, and the point sight aims at).
 ## The effect is a squat column, not a sphere, so it never reaches the floor above or below: the
-## box must come within radius across, its feet must be between REACH_BELOW under the center and
+## box must come within hit_radius across, its feet must be between REACH_BELOW under the center and
 ## REACH_ABOVE over it, and the center must see `aim` (Combat.can_see: walls and slabs block it).
 func reaches(box: AABB, aim: Vector3) -> bool:
 	var center := global_position
@@ -162,7 +167,7 @@ func reaches(box: AABB, aim: Vector3) -> bool:
 	if feet < center.y - REACH_BELOW or feet > center.y + REACH_ABOVE:
 		return false
 	var closest := center.clamp(box.position, box.end)
-	if Vector2(closest.x - center.x, closest.z - center.z).length() > radius:
+	if Vector2(closest.x - center.x, closest.z - center.z).length() > hit_radius:
 		return false
 	return Combat.can_see(manager.world if manager else null, center, aim)
 
